@@ -1,113 +1,94 @@
-# Freight Booking Management System
+# Freight Booking System - MVP (Version 2)
 
-A B2B web-based booking management system for freight forwarding operations. Allows customers (shippers) to submit multi-modal freight bookings with configurable approval workflows and EDI ANSI X12 carrier integration.
+> **Proof of Concept** - Minimum Viable Product for management review
 
-## Features
+## MVP Scope
 
-- **Multi-Modal Booking Support**: Ocean FCL, Ocean LCL, Air Freight, Road/Trucking
-- **Customer Portal**: Self-service booking submission for shippers
-- **Configurable Workflows**: Customer-specific approval rules
-- **EDI Integration**: ANSI X12 standard (300, 301, 204, 990, 214, 210, 997)
-- **Document Management**: Azure Blob storage with version control
-- **Email Notifications**: Automated status updates
-- **Audit Trail**: Complete change history
+A simplified booking portal for Ocean FCL shipments only. Designed to be built quickly to demonstrate core functionality.
 
-## Technology Stack
+### In Scope (MVP)
+- Customer login (email/password)
+- Ocean FCL booking creation
+- Cargo item entry
+- Container selection
+- Document upload
+- Simple status tracking (Draft → Submitted → Confirmed)
+- Basic email notifications
+- Admin dashboard for operations team
+
+### Out of Scope (Future Phases)
+- Multi-modal support (LCL, Air, Road) → Phase 2
+- Approval workflows → Phase 2
+- EDI carrier integration → Phase 3
+- Advanced reporting → Phase 3
+
+## Technology Stack (Simplified)
 
 | Component | Technology |
 |-----------|------------|
-| Backend | Python 3.11+ / Django 4.2+ / Django REST Framework |
+| Backend | Python 3.11 / Django 4.2 / DRF |
 | Database | SQL Server |
-| Frontend | React 18+ with TypeScript |
-| Auth | JWT (djangorestframework-simplejwt) |
-| Task Queue | Celery + Redis |
-| File Storage | Azure Blob Storage |
-| Email | SMTP (SendGrid/AWS SES) |
-| EDI | ANSI X12 via AS2/SFTP |
+| Frontend | React (basic UI) |
+| Auth | Django session auth (JWT later) |
+| File Storage | Local filesystem (Azure Blob later) |
+| Email | Django email (console for dev) |
 
-## Project Structure
-
-```
-freight-booking-system/
-├── backend/
-│   ├── config/                 # Django settings
-│   ├── apps/
-│   │   ├── core/              # Base models, utilities
-│   │   ├── accounts/          # Users, customers
-│   │   ├── bookings/          # Booking management
-│   │   ├── workflows/         # Approval engine
-│   │   ├── notifications/     # Email service
-│   │   ├── master_data/       # Reference data
-│   │   ├── documents/         # File storage
-│   │   ├── audit/             # Audit trail
-│   │   └── edi/               # EDI X12 processing
-│   └── api/v1/                # API endpoints
-├── frontend/                   # React application
-├── docs/                       # Documentation
-│   ├── api/                   # API specifications
-│   ├── database/              # Schema scripts
-│   └── edi/                   # EDI specifications
-└── scripts/                    # Utility scripts
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- SQL Server (or Docker)
-- Redis
-- ODBC Driver 17 for SQL Server
-
-### Backend Setup
+## Quick Start
 
 ```bash
+# Backend
 cd backend
 python -m venv venv
-venv\Scripts\activate  # Windows
-pip install -r requirements/development.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your settings
-
-# Run migrations
+venv\Scripts\activate
+pip install -r requirements.txt
 python manage.py migrate
-
-# Create superuser
 python manage.py createsuperuser
-
-# Start development server
 python manage.py runserver
-```
 
-### Frontend Setup
-
-```bash
+# Frontend
 cd frontend
 npm install
 npm start
 ```
 
-### Running Celery (for background tasks)
+## Database (4 tables for MVP)
 
-```bash
-celery -A config worker -l info
-celery -A config beat -l info
+```
+customers        → Company info
+users            → Login credentials
+bookings         → Ocean FCL bookings
+booking_items    → Cargo line items
 ```
 
-## Documentation
+## API Endpoints (MVP)
 
-- [API Documentation](docs/api/README.md)
-- [Database Schema](docs/database/README.md)
-- [EDI Specifications](docs/edi/README.md)
-- [Deployment Guide](docs/deployment.md)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/auth/login/ | Login |
+| GET | /api/bookings/ | List my bookings |
+| POST | /api/bookings/ | Create booking |
+| GET | /api/bookings/{id}/ | Booking details |
+| PATCH | /api/bookings/{id}/ | Update booking |
+| POST | /api/bookings/{id}/submit/ | Submit to ops |
+| POST | /api/bookings/{id}/items/ | Add cargo item |
 
-## Environment Variables
+## Timeline
 
-See `.env.example` for required configuration.
+| Week | Deliverable |
+|------|-------------|
+| 1 | Backend setup, auth, database |
+| 2 | Booking CRUD, cargo items |
+| 3 | Frontend booking form |
+| 4 | Testing, demo prep |
 
-## License
+## Demo Scenarios
 
-Proprietary - All rights reserved.
+1. **Customer creates booking**
+   - Login → New Booking → Add cargo → Select container → Submit
+
+2. **Operations confirms booking**
+   - Admin login → View submissions → Update status → Customer notified
+
+---
+
+*Full system documentation available on `master` branch*
