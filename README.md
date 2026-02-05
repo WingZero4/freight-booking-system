@@ -72,14 +72,15 @@ booking_items    → Cargo line items
 | POST | /api/bookings/{id}/submit/ | Submit to ops |
 | POST | /api/bookings/{id}/items/ | Add cargo item |
 
-## Timeline
+## Timeline (1-Week Sprint)
 
-| Week | Deliverable |
-|------|-------------|
-| 1 | Backend setup, auth, database |
-| 2 | Booking CRUD, cargo items |
-| 3 | Frontend booking form |
-| 4 | Testing, demo prep |
+| Day | Deliverable |
+|-----|-------------|
+| 1 | Django + models + admin |
+| 2 | API endpoints |
+| 3 | Customer UI (HTML forms) |
+| 4 | Integration + bug fixes |
+| 5 | Demo ready |
 
 ## Demo Scenarios
 

@@ -2,51 +2,40 @@
 
 ## Goal
 
-Build a working proof of concept in 4 weeks for management approval.
+Build a working proof of concept in **1 week** for management approval.
 
-## Scope Comparison
+## 1-Week Sprint Schedule
 
-| Feature | MVP | Full System |
-|---------|-----|-------------|
-| Transport Modes | Ocean FCL only | FCL, LCL, Air, Road |
-| Booking Workflow | Draft → Submit → Confirm | Multi-step approval |
-| Carrier Integration | Manual (email) | EDI X12 automated |
-| Users | Customer + Admin | Roles, permissions |
-| Documents | Basic upload | Versioning, types |
-| Notifications | Console/basic email | Templates, queue |
-| Reporting | None | Dashboards |
+| Day | Focus | Deliverables |
+|-----|-------|--------------|
+| **Day 1** | Backend Setup | Django project, models, SQLite, Django Admin |
+| **Day 2** | API & Logic | Booking CRUD, submit action, status flow |
+| **Day 3** | Customer UI | Login, booking form, list view (Django templates) |
+| **Day 4** | Integration | Connect UI to API, test flows, fix bugs |
+| **Day 5** | Demo Ready | Test data, demo script, walkthrough |
 
-## MVP Features
+## Shortcuts for Speed
 
-### Week 1: Foundation
-- [ ] Django project setup
-- [ ] SQL Server connection
-- [ ] Customer model
-- [ ] User authentication (Django built-in)
-- [ ] Basic admin panel
+| Normal Approach | 1-Week Shortcut |
+|-----------------|-----------------|
+| React frontend | Django templates + Bootstrap |
+| Custom admin UI | Django Admin (built-in) |
+| SQL Server | SQLite (zero config) |
+| JWT auth | Django session auth |
+| Email service | Console output / skip |
+| File uploads | Skip for demo |
+| Unit tests | Manual testing only |
 
-### Week 2: Booking Core
-- [ ] Locations model (pre-populated ports)
-- [ ] Container types model
-- [ ] Booking model
-- [ ] Booking items model
-- [ ] API endpoints (CRUD)
-- [ ] Submit booking action
+## Scope
 
-### Week 3: Frontend
-- [ ] React project setup
-- [ ] Login page
-- [ ] Booking list page
-- [ ] Create booking form
-- [ ] Booking detail view
-- [ ] Basic styling
-
-### Week 4: Polish & Demo
-- [ ] Bug fixes
-- [ ] Test data
-- [ ] Demo script
-- [ ] User guide (1 page)
-- [ ] Management presentation
+| Feature | Included | Excluded |
+|---------|----------|----------|
+| Customer login | Yes | Registration |
+| Create booking | Yes | Edit booking |
+| Add cargo items | Yes | Multiple items UI |
+| Submit booking | Yes | Cancel booking |
+| Admin confirms | Yes (Django Admin) | Custom admin UI |
+| Status tracking | Yes | Email notifications |
 
 ## Success Criteria
 

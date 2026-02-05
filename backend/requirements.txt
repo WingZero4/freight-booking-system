@@ -1,12 +1,3 @@
-# MVP Requirements - Minimal dependencies
+# 1-Week MVP - Absolute minimum
 
-# Django
 Django>=4.2,<5.0
-djangorestframework>=3.14,<4.0
-django-cors-headers>=4.3,<5.0
-
-# Database (SQL Server)
-mssql-django>=1.3,<2.0
-
-# Development
-python-dotenv>=1.0,<2.0
