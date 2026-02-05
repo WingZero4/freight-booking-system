@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}New Booking{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">New Booking</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <h5 class="mb-3">Route</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="origin_port" class="form-label">Origin Port *</label>
+                            <select name="origin_port" id="origin_port" class="form-select" required>
+                                <option value="">Select origin...</option>
+                                {% for port in ports %}
+                                <option value="{{ port.id }}">{{ port.code }} - {{ port.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="destination_port" class="form-label">Destination Port *</label>
+                            <select name="destination_port" id="destination_port" class="form-select" required>
+                                <option value="">Select destination...</option>
+                                {% for port in ports %}
+                                <option value="{{ port.id }}">{{ port.code }} - {{ port.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="cargo_ready_date" class="form-label">Cargo Ready Date *</label>
+                        <input type="date" name="cargo_ready_date" id="cargo_ready_date" class="form-control" required>
+                    </div>
+
+                    <h5 class="mb-3">Container</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <label for="container_type" class="form-label">Container Type *</label>
+                            <select name="container_type" id="container_type" class="form-select" required>
+                                {% for ct in container_types %}
+                                <option value="{{ ct.id }}" {% if ct.code == '40HC' %}selected{% endif %}>
+                                    {{ ct.code }} - {{ ct.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="container_count" class="form-label">Quantity *</label>
+                            <input type="number" name="container_count" id="container_count"
+                                   class="form-control" value="1" min="1" max="100" required>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3">Cargo</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="cargo_description" class="form-label">Description *</label>
+                            <input type="text" name="cargo_description" id="cargo_description"
+                                   class="form-control" placeholder="e.g., Electronic Components" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="cargo_quantity" class="form-label">Packages *</label>
+                            <input type="number" name="cargo_quantity" id="cargo_quantity"
+                                   class="form-control" placeholder="100" min="1" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="cargo_weight" class="form-label">Weight (kg) *</label>
+                            <input type="number" name="cargo_weight" id="cargo_weight"
+                                   class="form-control" placeholder="1000" min="1" step="0.01" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="special_instructions" class="form-label">Special Instructions</label>
+                        <textarea name="special_instructions" id="special_instructions"
+                                  class="form-control" rows="2" placeholder="Any special handling requirements..."></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Create Booking</button>
+                        <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

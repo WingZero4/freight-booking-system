@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}Booking {{ booking.booking_number }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ booking.booking_number }}</h4>
+                <span class="badge
+                    {% if booking.status == 'DRAFT' %}bg-secondary
+                    {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
+                    {% elif booking.status == 'CONFIRMED' %}bg-success
+                    {% else %}bg-danger{% endif %} fs-6">
+                    {{ booking.get_status_display }}
+                </span>
+            </div>
+            <div class="card-body">
+                <h5 class="mb-3">Route</h5>
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <p class="text-muted mb-1">Origin</p>
+                        <p class="fw-bold">{{ booking.origin_port.code }} - {{ booking.origin_port.name }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="text-muted mb-1">Destination</p>
+                        <p class="fw-bold">{{ booking.destination_port.code }} - {{ booking.destination_port.name }}</p>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">Schedule</h5>
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <p class="text-muted mb-1">Cargo Ready</p>
+                        <p class="fw-bold">{{ booking.cargo_ready_date|date:"M d, Y" }}</p>
+                    </div>
+                    {% if booking.etd %}
+                    <div class="col-md-4">
+                        <p class="text-muted mb-1">ETD</p>
+                        <p class="fw-bold">{{ booking.etd|date:"M d, Y" }}</p>
+                    </div>
+                    {% endif %}
+                    {% if booking.eta %}
+                    <div class="col-md-4">
+                        <p class="text-muted mb-1">ETA</p>
+                        <p class="fw-bold">{{ booking.eta|date:"M d, Y" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <h5 class="mb-3">Container</h5>
+                <p class="mb-4">
+                    <span class="badge bg-primary fs-6">{{ booking.container_count }}x {{ booking.container_type.code }}</span>
+                </p>
+
+                {% if booking.vessel_name %}
+                <h5 class="mb-3">Vessel</h5>
+                <p class="mb-4">{{ booking.vessel_name }} / {{ booking.voyage_number }}</p>
+                {% endif %}
+
+                <h5 class="mb-3">Cargo</h5>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Packages</th>
+                            <th>Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in booking.items.all %}
+                        <tr>
+                            <td>{{ item.description }}</td>
+                            <td>{{ item.quantity }} {{ item.package_type }}</td>
+                            <td>{{ item.weight_kg }} kg</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-muted">No cargo items</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if booking.special_instructions %}
+                <h5 class="mb-3">Special Instructions</h5>
+                <p class="mb-4">{{ booking.special_instructions }}</p>
+                {% endif %}
+
+                <hr>
+
+                <div class="d-flex gap-2">
+                    <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary">Back to List</a>
+                    {% if booking.status == 'DRAFT' %}
+                    <a href="{% url 'booking_submit' booking.id %}" class="btn btn-success">Submit Booking</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer text-muted small">
+                Created: {{ booking.created_at|date:"M d, Y H:i" }}
+                {% if booking.submitted_at %}| Submitted: {{ booking.submitted_at|date:"M d, Y H:i" }}{% endif %}
+                {% if booking.confirmed_at %}| Confirmed: {{ booking.confirmed_at|date:"M d, Y H:i" }}{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
