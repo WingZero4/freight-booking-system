@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils import timezone
-from .models import Customer, UserProfile, Port, ContainerType, Booking, BookingItem
+from .models import Customer, UserProfile, Port, ContainerType, Booking, BookingItem, BookingDocument
 
 
 @admin.register(Customer)
@@ -12,9 +12,14 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'customer', 'role']
-    list_filter = ['role']
-    search_fields = ['user__username', 'customer__name']
+    list_display = ['user', 'get_email', 'customer', 'role', 'phone']
+    list_filter = ['role', 'customer']
+    search_fields = ['user__username', 'user__email', 'customer__name', 'customer__code']
+    list_select_related = ['user', 'customer']
+
+    def get_email(self, obj):
+        return obj.user.email
+    get_email.short_description = 'Email'
 
 
 @admin.register(Port)
@@ -36,6 +41,14 @@ class BookingItemInline(admin.TabularInline):
     fields = ['description', 'package_type', 'quantity', 'weight_kg']
 
 
+class BookingDocumentInline(admin.TabularInline):
+    model = BookingDocument
+    extra = 0
+    readonly_fields = ['original_filename', 'file_size', 'uploaded_by', 'uploaded_at']
+    fields = ['document_type', 'file', 'original_filename', 'file_size',
+              'uploaded_by', 'uploaded_at', 'notes']
+
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = ['booking_number', 'customer', 'origin_port', 'destination_port',
@@ -43,8 +56,8 @@ class BookingAdmin(admin.ModelAdmin):
     list_filter = ['status', 'container_type', 'origin_port', 'destination_port']
     search_fields = ['booking_number', 'customer__name', 'customer__code']
     readonly_fields = ['booking_number', 'created_by', 'created_at', 'updated_at',
-                       'submitted_at', 'confirmed_at']
-    inlines = [BookingItemInline]
+                       'submitted_at', 'confirmed_at', 'cancelled_at', 'cancelled_by']
+    inlines = [BookingItemInline, BookingDocumentInline]
 
     fieldsets = (
         ('Booking Info', {
@@ -64,7 +77,8 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': ('special_instructions',)
         }),
         ('Timestamps', {
-            'fields': ('created_at', 'updated_at', 'submitted_at', 'confirmed_at'),
+            'fields': ('created_at', 'updated_at', 'submitted_at', 'confirmed_at',
+                       'cancelled_at', 'cancelled_by'),
             'classes': ('collapse',)
         }),
     )
@@ -83,7 +97,7 @@ class BookingAdmin(admin.ModelAdmin):
     def cancel_bookings(self, request, queryset):
         count = 0
         for booking in queryset.filter(status__in=['DRAFT', 'SUBMITTED']):
-            booking.cancel()
+            booking.cancel(user=request.user)
             count += 1
         self.message_user(request, f'{count} booking(s) cancelled.')
 
@@ -92,3 +106,12 @@ class BookingAdmin(admin.ModelAdmin):
 class BookingItemAdmin(admin.ModelAdmin):
     list_display = ['booking', 'description', 'package_type', 'quantity', 'weight_kg']
     search_fields = ['booking__booking_number', 'description']
+
+
+@admin.register(BookingDocument)
+class BookingDocumentAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'document_type', 'original_filename',
+                    'file_size_display', 'uploaded_by', 'uploaded_at']
+    list_filter = ['document_type']
+    search_fields = ['booking__booking_number', 'original_filename']
+    readonly_fields = ['original_filename', 'file_size', 'uploaded_by', 'uploaded_at']

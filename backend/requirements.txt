@@ -1,3 +1,4 @@
-# 1-Week MVP - Absolute minimum
+# Phase 1 - Solidified MVP
 
-Django>=4.2,<5.0
+Django>=4.2
+django-jazzmin

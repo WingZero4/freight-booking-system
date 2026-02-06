@@ -1,55 +1,167 @@
 {% extends 'base.html' %}
 
-{% block title %}My Bookings{% endblock %}
+{% block title %}Bookings - Freight Booking{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>My Bookings</h2>
-    <a href="{% url 'booking_create' %}" class="btn btn-primary">+ New Booking</a>
+    <h3><i class="fas fa-list me-2"></i>Bookings</h3>
+    <a href="{% url 'booking_create' %}" class="btn btn-primary">
+        <i class="fas fa-plus me-1"></i>New Booking
+    </a>
 </div>
 
-{% if bookings %}
-<div class="row">
-    {% for booking in bookings %}
-    <div class="col-md-6 col-lg-4 mb-4">
-        <div class="card card-booking h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <strong>{{ booking.booking_number }}</strong>
-                <span class="badge
-                    {% if booking.status == 'DRAFT' %}bg-secondary
-                    {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
-                    {% elif booking.status == 'CONFIRMED' %}bg-success
-                    {% else %}bg-danger{% endif %}
-                    status-badge">
-                    {{ booking.get_status_display }}
-                </span>
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" name="q" class="form-control" placeholder="Booking # or port..." value="{{ search_query }}">
             </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All Statuses</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Sort By</label>
+                <select name="sort" class="form-select">
+                    <option value="-created_at" {% if sort_by == '-created_at' %}selected{% endif %}>Newest First</option>
+                    <option value="created_at" {% if sort_by == 'created_at' %}selected{% endif %}>Oldest First</option>
+                    <option value="booking_number" {% if sort_by == 'booking_number' %}selected{% endif %}>Booking # (A-Z)</option>
+                    <option value="-cargo_ready_date" {% if sort_by == '-cargo_ready_date' %}selected{% endif %}>Cargo Ready (Latest)</option>
+                    <option value="cargo_ready_date" {% if sort_by == 'cargo_ready_date' %}selected{% endif %}>Cargo Ready (Earliest)</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">
+                    <i class="fas fa-search me-1"></i>Filter
+                </button>
+            </div>
+            <input type="hidden" name="view" value="{{ view_mode }}">
+        </form>
+    </div>
+</div>
+
+<!-- Results -->
+{% if page_obj %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <small class="text-muted">
+        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} bookings
+    </small>
+    <div class="btn-group btn-group-sm">
+        <a href="?status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view=table"
+           class="btn {% if view_mode == 'table' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="fas fa-table"></i>
+        </a>
+        <a href="?status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view=card"
+           class="btn {% if view_mode == 'card' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="fas fa-th-large"></i>
+        </a>
+    </div>
+</div>
+
+{% if view_mode == 'table' %}
+<!-- Table View -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Booking #</th>
+                    <th>Route</th>
+                    <th>Container</th>
+                    <th>Cargo Ready</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for booking in page_obj %}
+                <tr>
+                    <td class="fw-bold">
+                        <a href="{% url 'booking_detail' booking.id %}" class="text-decoration-none">
+                            {{ booking.booking_number }}
+                        </a>
+                    </td>
+                    <td>{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
+                    <td>{{ booking.container_count }}x {{ booking.container_type.code }}</td>
+                    <td>{{ booking.cargo_ready_date|date:"M d, Y" }}</td>
+                    <td>
+                        <span class="badge
+                            {% if booking.status == 'DRAFT' %}bg-secondary
+                            {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
+                            {% elif booking.status == 'CONFIRMED' %}bg-success
+                            {% else %}bg-danger{% endif %}">
+                            {{ booking.get_status_display }}
+                        </span>
+                    </td>
+                    <td>{{ booking.created_at|date:"M d" }}</td>
+                    <td>
+                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-primary btn-sm">View</a>
+                        {% if booking.status == 'DRAFT' %}
+                        <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- Card View -->
+<div class="row">
+    {% for booking in page_obj %}
+    <div class="col-md-4 mb-3">
+        <div class="card card-booking h-100">
             <div class="card-body">
-                <p class="mb-2">
-                    <strong>{{ booking.origin_port.code }}</strong>
-                    &rarr;
-                    <strong>{{ booking.destination_port.code }}</strong>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <h6 class="card-title mb-0">{{ booking.booking_number }}</h6>
+                    <span class="badge
+                        {% if booking.status == 'DRAFT' %}bg-secondary
+                        {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
+                        {% elif booking.status == 'CONFIRMED' %}bg-success
+                        {% else %}bg-danger{% endif %}">
+                        {{ booking.get_status_display }}
+                    </span>
+                </div>
+                <p class="card-text">
+                    <i class="fas fa-route me-1 text-muted"></i>
+                    {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
                 </p>
-                <p class="text-muted small mb-2">
+                <p class="card-text">
+                    <i class="fas fa-box me-1 text-muted"></i>
                     {{ booking.container_count }}x {{ booking.container_type.code }}
                 </p>
-                <p class="text-muted small mb-0">
-                    Cargo Ready: {{ booking.cargo_ready_date|date:"M d, Y" }}
+                <p class="card-text">
+                    <i class="fas fa-calendar me-1 text-muted"></i>
+                    {{ booking.cargo_ready_date|date:"M d, Y" }}
                 </p>
             </div>
             <div class="card-footer bg-transparent">
-                <a href="{% url 'booking_detail' booking.id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-primary btn-sm">View Details</a>
                 {% if booking.status == 'DRAFT' %}
-                <a href="{% url 'booking_submit' booking.id %}" class="btn btn-sm btn-success">Submit</a>
+                <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
                 {% endif %}
             </div>
         </div>
     </div>
     {% endfor %}
 </div>
+{% endif %}
+
+{% include 'bookings/includes/_pagination.html' %}
+
 {% else %}
-<div class="text-center py-5">
-    <p class="text-muted mb-3">No bookings yet.</p>
+<div class="text-center py-5 text-muted">
+    <i class="fas fa-inbox fa-3x mb-3"></i>
+    <p>No bookings found.</p>
     <a href="{% url 'booking_create' %}" class="btn btn-primary">Create Your First Booking</a>
 </div>
 {% endif %}

@@ -1,6 +1,8 @@
+import os
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.core.validators import FileExtensionValidator
 
 
 class Customer(models.Model):
@@ -85,7 +87,7 @@ class Booking(models.Model):
 
     # Customer
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
-    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_bookings')
 
     # Route
     origin_port = models.ForeignKey(Port, on_delete=models.PROTECT, related_name='origin_bookings')
@@ -114,6 +116,11 @@ class Booking(models.Model):
     # Timestamps
     submitted_at = models.DateTimeField(null=True, blank=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='cancelled_bookings'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -157,10 +164,13 @@ class Booking(models.Model):
             self.confirmed_at = timezone.now()
             self.save()
 
-    def cancel(self):
+    def cancel(self, user=None):
         """Cancel booking"""
         if self.status in ['DRAFT', 'SUBMITTED']:
             self.status = 'CANCELLED'
+            self.cancelled_at = timezone.now()
+            if user:
+                self.cancelled_by = user
             self.save()
 
     class Meta:
@@ -169,9 +179,20 @@ class Booking(models.Model):
 
 class BookingItem(models.Model):
     """Cargo items in a booking"""
+    PACKAGE_TYPE_CHOICES = [
+        ('PALLET', 'Pallet'),
+        ('CARTON', 'Carton'),
+        ('CRATE', 'Crate'),
+        ('DRUM', 'Drum'),
+        ('BAG', 'Bag'),
+        ('BUNDLE', 'Bundle'),
+        ('PACKAGE', 'Package'),
+        ('OTHER', 'Other'),
+    ]
+
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='items')
     description = models.CharField(max_length=500)
-    package_type = models.CharField(max_length=50, blank=True)  # PALLET, CARTON, etc.
+    package_type = models.CharField(max_length=50, choices=PACKAGE_TYPE_CHOICES, default='PACKAGE')
     quantity = models.PositiveIntegerField()
     weight_kg = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -181,3 +202,52 @@ class BookingItem(models.Model):
 
     class Meta:
         ordering = ['id']
+
+
+def booking_document_path(instance, filename):
+    """Upload to: media/bookings/<booking_number>/<filename>"""
+    return f"bookings/{instance.booking.booking_number}/{filename}"
+
+
+class BookingDocument(models.Model):
+    """Documents attached to a booking"""
+    DOCUMENT_TYPE_CHOICES = [
+        ('COMMERCIAL_INVOICE', 'Commercial Invoice'),
+        ('PACKING_LIST', 'Packing List'),
+        ('BILL_OF_LADING', 'Bill of Lading'),
+        ('CUSTOMS_DECLARATION', 'Customs Declaration'),
+        ('OTHER', 'Other'),
+    ]
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPE_CHOICES)
+    file = models.FileField(
+        upload_to=booking_document_path,
+        validators=[FileExtensionValidator(
+            allowed_extensions=['pdf', 'jpg', 'jpeg', 'png', 'xlsx', 'csv']
+        )]
+    )
+    original_filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(help_text="File size in bytes")
+    uploaded_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    notes = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.original_filename}"
+
+    @property
+    def file_size_display(self):
+        """Human-readable file size"""
+        if self.file_size < 1024:
+            return f"{self.file_size} B"
+        elif self.file_size < 1024 * 1024:
+            return f"{self.file_size / 1024:.1f} KB"
+        return f"{self.file_size / (1024 * 1024):.1f} MB"
+
+    @property
+    def file_extension(self):
+        return os.path.splitext(self.original_filename)[1].lower()
+
+    class Meta:
+        ordering = ['-uploaded_at']

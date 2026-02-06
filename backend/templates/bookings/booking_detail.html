@@ -1,13 +1,16 @@
 {% extends 'base.html' %}
 
-{% block title %}Booking {{ booking.booking_number }}{% endblock %}
+{% block title %}Booking {{ booking.booking_number }} - Freight Booking{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card">
+    <div class="col-md-10">
+        <!-- Booking Header -->
+        <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h4 class="mb-0">{{ booking.booking_number }}</h4>
+                <h4 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>{{ booking.booking_number }}
+                </h4>
                 <span class="badge
                     {% if booking.status == 'DRAFT' %}bg-secondary
                     {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
@@ -17,22 +20,33 @@
                 </span>
             </div>
             <div class="card-body">
-                <h5 class="mb-3">Route</h5>
+                <!-- Route Section -->
+                <h5 class="mb-3"><i class="fas fa-route me-2 text-primary"></i>Route</h5>
                 <div class="row mb-4">
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <p class="text-muted mb-1">Origin</p>
-                        <p class="fw-bold">{{ booking.origin_port.code }} - {{ booking.origin_port.name }}</p>
+                        <p class="fw-bold fs-5">
+                            <i class="fas fa-anchor me-1 text-secondary"></i>
+                            {{ booking.origin_port.code }} - {{ booking.origin_port.name }}
+                        </p>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-2 text-center align-self-center">
+                        <i class="fas fa-arrow-right fa-lg text-primary"></i>
+                    </div>
+                    <div class="col-md-5">
                         <p class="text-muted mb-1">Destination</p>
-                        <p class="fw-bold">{{ booking.destination_port.code }} - {{ booking.destination_port.name }}</p>
+                        <p class="fw-bold fs-5">
+                            <i class="fas fa-anchor me-1 text-secondary"></i>
+                            {{ booking.destination_port.code }} - {{ booking.destination_port.name }}
+                        </p>
                     </div>
                 </div>
 
-                <h5 class="mb-3">Schedule</h5>
+                <!-- Schedule Section -->
+                <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-primary"></i>Schedule</h5>
                 <div class="row mb-4">
                     <div class="col-md-4">
-                        <p class="text-muted mb-1">Cargo Ready</p>
+                        <p class="text-muted mb-1">Cargo Ready Date</p>
                         <p class="fw-bold">{{ booking.cargo_ready_date|date:"M d, Y" }}</p>
                     </div>
                     {% if booking.etd %}
@@ -49,58 +63,190 @@
                     {% endif %}
                 </div>
 
-                <h5 class="mb-3">Container</h5>
+                <!-- Container Section -->
+                <h5 class="mb-3"><i class="fas fa-box me-2 text-primary"></i>Container</h5>
                 <p class="mb-4">
-                    <span class="badge bg-primary fs-6">{{ booking.container_count }}x {{ booking.container_type.code }}</span>
+                    <span class="badge bg-primary fs-6">{{ booking.container_count }} x {{ booking.container_type.code }}</span>
+                    <span class="text-muted ms-2">{{ booking.container_type.name }}</span>
                 </p>
 
+                <!-- Vessel Info -->
                 {% if booking.vessel_name %}
-                <h5 class="mb-3">Vessel</h5>
-                <p class="mb-4">{{ booking.vessel_name }} / {{ booking.voyage_number }}</p>
+                <h5 class="mb-3"><i class="fas fa-ship me-2 text-primary"></i>Vessel</h5>
+                <p class="mb-4">
+                    <strong>{{ booking.vessel_name }}</strong> / {{ booking.voyage_number }}
+                </p>
                 {% endif %}
 
-                <h5 class="mb-3">Cargo</h5>
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Description</th>
-                            <th>Packages</th>
-                            <th>Weight</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in booking.items.all %}
-                        <tr>
-                            <td>{{ item.description }}</td>
-                            <td>{{ item.quantity }} {{ item.package_type }}</td>
-                            <td>{{ item.weight_kg }} kg</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="3" class="text-muted">No cargo items</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <!-- Cargo Items -->
+                <h5 class="mb-3"><i class="fas fa-cubes me-2 text-primary"></i>Cargo Items</h5>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-striped">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Description</th>
+                                <th>Packages</th>
+                                <th>Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in booking.items.all %}
+                            <tr>
+                                <td>{{ item.description }}</td>
+                                <td>{{ item.quantity }} {{ item.get_package_type_display }}</td>
+                                <td>{{ item.weight_kg }} kg</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-muted text-center">No cargo items</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
 
+                <!-- Special Instructions -->
                 {% if booking.special_instructions %}
-                <h5 class="mb-3">Special Instructions</h5>
-                <p class="mb-4">{{ booking.special_instructions }}</p>
+                <h5 class="mb-3"><i class="fas fa-sticky-note me-2 text-primary"></i>Special Instructions</h5>
+                <div class="alert alert-light border mb-4">
+                    {{ booking.special_instructions }}
+                </div>
                 {% endif %}
 
+                <!-- Action Buttons -->
                 <hr>
-
-                <div class="d-flex gap-2">
-                    <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary">Back to List</a>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to List
+                    </a>
                     {% if booking.status == 'DRAFT' %}
-                    <a href="{% url 'booking_submit' booking.id %}" class="btn btn-success">Submit Booking</a>
+                    <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-primary">
+                        <i class="fas fa-edit me-1"></i>Edit
+                    </a>
+                    <a href="{% url 'booking_submit' booking.id %}" class="btn btn-success">
+                        <i class="fas fa-paper-plane me-1"></i>Submit Booking
+                    </a>
+                    <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger">
+                        <i class="fas fa-ban me-1"></i>Cancel Booking
+                    </a>
+                    {% endif %}
+                    {% if booking.status == 'SUBMITTED' %}
+                    <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger">
+                        <i class="fas fa-ban me-1"></i>Cancel Booking
+                    </a>
                     {% endif %}
                 </div>
             </div>
+
+            <!-- Timestamps Footer -->
             <div class="card-footer text-muted small">
+                <i class="fas fa-clock me-1"></i>
                 Created: {{ booking.created_at|date:"M d, Y H:i" }}
-                {% if booking.submitted_at %}| Submitted: {{ booking.submitted_at|date:"M d, Y H:i" }}{% endif %}
-                {% if booking.confirmed_at %}| Confirmed: {{ booking.confirmed_at|date:"M d, Y H:i" }}{% endif %}
+                {% if booking.submitted_at %}
+                | <i class="fas fa-paper-plane me-1"></i>Submitted: {{ booking.submitted_at|date:"M d, Y H:i" }}
+                {% endif %}
+                {% if booking.confirmed_at %}
+                | <i class="fas fa-check-circle me-1"></i>Confirmed: {{ booking.confirmed_at|date:"M d, Y H:i" }}
+                {% endif %}
+                {% if booking.cancelled_at %}
+                | <i class="fas fa-ban me-1"></i>Cancelled: {{ booking.cancelled_at|date:"M d, Y H:i" }}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Documents Section -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-paperclip me-2"></i>Documents</h5>
+            </div>
+            <div class="card-body">
+                <!-- Document Upload Form -->
+                {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' %}
+                <form method="post" action="{% url 'booking_document_upload' booking.id %}" enctype="multipart/form-data" class="mb-4">
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3">
+                            <label for="{{ document_form.document_type.id_for_label }}" class="form-label">Type</label>
+                            {{ document_form.document_type }}
+                        </div>
+                        <div class="col-md-4">
+                            <label for="{{ document_form.file.id_for_label }}" class="form-label">File</label>
+                            {{ document_form.file }}
+                        </div>
+                        <div class="col-md-3">
+                            <label for="{{ document_form.notes.id_for_label }}" class="form-label">Notes</label>
+                            {{ document_form.notes }}
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-upload me-1"></i>Upload
+                            </button>
+                        </div>
+                    </div>
+                    {% if document_form.errors %}
+                    <div class="mt-2">
+                        {% for field in document_form %}
+                            {% for error in field.errors %}
+                            <div class="text-danger small">{{ field.label }}: {{ error }}</div>
+                            {% endfor %}
+                        {% endfor %}
+                        {% for error in document_form.non_field_errors %}
+                        <div class="text-danger small">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </form>
+                {% endif %}
+
+                <!-- Document List -->
+                {% if documents %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Type</th>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Uploaded</th>
+                                {% if booking.status == 'DRAFT' %}
+                                <th style="width: 80px;">Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in documents %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-light text-dark">{{ doc.get_document_type_display }}</span>
+                                </td>
+                                <td>
+                                    <a href="{{ doc.file.url }}" target="_blank" class="text-decoration-none">
+                                        <i class="fas fa-download me-1"></i>{{ doc.original_filename }}
+                                    </a>
+                                </td>
+                                <td class="text-muted">{{ doc.file_size_display }}</td>
+                                <td class="text-muted">{{ doc.uploaded_at|date:"M d, Y H:i" }}</td>
+                                {% if booking.status == 'DRAFT' %}
+                                <td>
+                                    <form method="post" action="{% url 'booking_document_delete' booking.id doc.id %}"
+                                          onsubmit="return confirm('Are you sure you want to delete this document?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete document">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">
+                    <i class="fas fa-folder-open me-1"></i>No documents uploaded yet.
+                </p>
+                {% endif %}
             </div>
         </div>
     </div>
