@@ -1,6 +1,9 @@
 from django.contrib import admin
-from django.utils import timezone
-from .models import Customer, UserProfile, Port, ContainerType, Booking, BookingItem, BookingDocument
+from .models import (
+    Customer, UserProfile, Port, ContainerType,
+    Booking, BookingItem, BookingDocument,
+    Party, BookingParty, AuditLog,
+)
 
 
 @admin.register(Customer)
@@ -35,10 +38,16 @@ class ContainerTypeAdmin(admin.ModelAdmin):
     ordering = ['size_ft', 'code']
 
 
+# ─── Booking inlines ─────────────────────────────────────────────────
+
 class BookingItemInline(admin.TabularInline):
     model = BookingItem
     extra = 0
-    fields = ['description', 'package_type', 'quantity', 'weight_kg']
+    fields = [
+        'description', 'package_type', 'quantity', 'weight_kg',
+        'hs_code', 'volume_cbm', 'country_of_origin',
+        'is_hazardous', 'un_number', 'imo_class',
+    ]
 
 
 class BookingDocumentInline(admin.TabularInline):
@@ -49,28 +58,65 @@ class BookingDocumentInline(admin.TabularInline):
               'uploaded_by', 'uploaded_at', 'notes']
 
 
+class BookingPartyInline(admin.TabularInline):
+    model = BookingParty
+    extra = 0
+    readonly_fields = ['company_name', 'contact_name', 'address_text', 'email', 'phone', 'tax_id', 'created_at']
+    fields = ['role', 'party', 'company_name', 'contact_name', 'address_text', 'email', 'phone', 'tax_id']
+
+
+class AuditLogInline(admin.TabularInline):
+    model = AuditLog
+    extra = 0
+    readonly_fields = ['action', 'performed_by', 'performed_at', 'notes']
+    fields = ['action', 'performed_by', 'performed_at', 'notes']
+    ordering = ['-performed_at']
+    max_num = 0  # Read-only — no adding from admin
+
+
+# ─── Booking admin ────────────────────────────────────────────────────
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ['booking_number', 'customer', 'origin_port', 'destination_port',
-                    'container_type', 'container_count', 'cargo_ready_date', 'status']
-    list_filter = ['status', 'container_type', 'origin_port', 'destination_port']
-    search_fields = ['booking_number', 'customer__name', 'customer__code']
-    readonly_fields = ['booking_number', 'created_by', 'created_at', 'updated_at',
-                       'submitted_at', 'confirmed_at', 'cancelled_at', 'cancelled_by']
-    inlines = [BookingItemInline, BookingDocumentInline]
+    list_display = [
+        'booking_number', 'customer', 'origin_port', 'destination_port',
+        'incoterms', 'container_type', 'container_count',
+        'cargo_ready_date', 'status', 'source_channel',
+    ]
+    list_filter = ['status', 'incoterms', 'source_channel', 'is_hazardous',
+                   'container_type', 'origin_port', 'destination_port']
+    search_fields = ['booking_number', 'customer__name', 'customer__code',
+                     'external_reference', 'carrier_booking_ref']
+    readonly_fields = [
+        'booking_number', 'created_by', 'source_channel',
+        'total_weight_kg', 'total_volume_cbm',
+        'created_at', 'updated_at', 'submitted_at', 'confirmed_at',
+        'rejected_at', 'rejected_by', 'rejection_reason',
+        'completed_at', 'cancelled_at', 'cancelled_by',
+    ]
+    inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, AuditLogInline]
 
     fieldsets = (
         ('Booking Info', {
-            'fields': ('booking_number', 'status', 'customer', 'created_by')
+            'fields': ('booking_number', 'status', 'customer', 'created_by',
+                       'source_channel', 'external_reference')
         }),
         ('Route', {
             'fields': ('origin_port', 'destination_port', 'cargo_ready_date')
         }),
+        ('Trade Terms', {
+            'fields': ('incoterms', 'incoterms_location')
+        }),
         ('Container', {
             'fields': ('container_type', 'container_count')
         }),
+        ('Cargo Summary', {
+            'fields': ('commodity_description', 'is_hazardous',
+                       'total_weight_kg', 'total_volume_cbm')
+        }),
         ('Carrier Details (Operations)', {
-            'fields': ('carrier_name', 'vessel_name', 'voyage_number', 'etd', 'eta'),
+            'fields': ('carrier_name', 'vessel_name', 'voyage_number',
+                       'etd', 'eta', 'carrier_booking_ref'),
             'classes': ('collapse',)
         }),
         ('Instructions', {
@@ -78,7 +124,8 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'submitted_at', 'confirmed_at',
-                       'cancelled_at', 'cancelled_by'),
+                       'rejected_at', 'rejected_by', 'rejection_reason',
+                       'completed_at', 'cancelled_at', 'cancelled_by'),
             'classes': ('collapse',)
         }),
     )
@@ -104,14 +151,55 @@ class BookingAdmin(admin.ModelAdmin):
 
 @admin.register(BookingItem)
 class BookingItemAdmin(admin.ModelAdmin):
-    list_display = ['booking', 'description', 'package_type', 'quantity', 'weight_kg']
-    search_fields = ['booking__booking_number', 'description']
+    list_display = ['booking', 'description', 'package_type', 'quantity',
+                    'weight_kg', 'hs_code', 'is_hazardous']
+    list_filter = ['package_type', 'is_hazardous']
+    search_fields = ['booking__booking_number', 'description', 'hs_code']
 
 
 @admin.register(BookingDocument)
 class BookingDocumentAdmin(admin.ModelAdmin):
     list_display = ['booking', 'document_type', 'original_filename',
-                    'file_size_display', 'uploaded_by', 'uploaded_at']
+                    'get_file_size_display', 'uploaded_by', 'uploaded_at']
     list_filter = ['document_type']
     search_fields = ['booking__booking_number', 'original_filename']
     readonly_fields = ['original_filename', 'file_size', 'uploaded_by', 'uploaded_at']
+
+    @admin.display(description='File Size')
+    def get_file_size_display(self, obj):
+        return obj.file_size_display
+
+
+# ─── New Phase 1.5 models ────────────────────────────────────────────
+
+@admin.register(Party)
+class PartyAdmin(admin.ModelAdmin):
+    list_display = ['company_name', 'role', 'customer', 'contact_name',
+                    'email', 'country_code', 'is_default', 'is_active']
+    list_filter = ['role', 'is_default', 'is_active', 'country_code']
+    search_fields = ['company_name', 'contact_name', 'email', 'customer__name']
+    list_select_related = ['customer']
+
+
+@admin.register(BookingParty)
+class BookingPartyAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'role', 'company_name', 'contact_name', 'email']
+    list_filter = ['role']
+    search_fields = ['booking__booking_number', 'company_name']
+    list_select_related = ['booking', 'party']
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'action', 'performed_by', 'performed_at']
+    list_filter = ['action']
+    search_fields = ['booking__booking_number', 'notes']
+    readonly_fields = [
+        'booking', 'action', 'performed_by', 'performed_at',
+        'old_value', 'new_value', 'ip_address', 'user_agent', 'notes',
+    ]
+    list_select_related = ['booking', 'performed_by']
+    date_hierarchy = 'performed_at'
+
+    def has_add_permission(self, request):
+        return False

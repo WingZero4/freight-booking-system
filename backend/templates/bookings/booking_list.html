@@ -97,6 +97,9 @@
                             {% if booking.status == 'DRAFT' %}bg-secondary
                             {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                             {% elif booking.status == 'CONFIRMED' %}bg-success
+                            {% elif booking.status == 'IN_TRANSIT' %}bg-primary
+                            {% elif booking.status == 'COMPLETED' %}bg-info
+                            {% elif booking.status == 'REJECTED' %}bg-dark
                             {% else %}bg-danger{% endif %}">
                             {{ booking.get_status_display }}
                         </span>

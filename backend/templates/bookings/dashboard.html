@@ -12,35 +12,51 @@
 
 <!-- Stats Cards -->
 <div class="row mb-4">
-    <div class="col-md-3 col-6 mb-3">
+    <div class="col-md-2 col-6 mb-3">
         <div class="card stat-card draft">
             <div class="card-body text-center">
                 <div class="stat-number text-secondary">{{ stats.draft }}</div>
-                <div class="text-muted">Draft</div>
+                <div class="text-muted small">Draft</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
+    <div class="col-md-2 col-6 mb-3">
         <div class="card stat-card submitted">
             <div class="card-body text-center">
                 <div class="stat-number text-warning">{{ stats.submitted }}</div>
-                <div class="text-muted">Submitted</div>
+                <div class="text-muted small">Submitted</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
+    <div class="col-md-2 col-6 mb-3">
         <div class="card stat-card confirmed">
             <div class="card-body text-center">
                 <div class="stat-number text-success">{{ stats.confirmed }}</div>
-                <div class="text-muted">Confirmed</div>
+                <div class="text-muted small">Confirmed</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
+    <div class="col-md-2 col-6 mb-3">
+        <div class="card stat-card" style="border-left-color: #0d6efd;">
+            <div class="card-body text-center">
+                <div class="stat-number text-primary">{{ stats.in_transit }}</div>
+                <div class="text-muted small">In Transit</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-3">
+        <div class="card stat-card" style="border-left-color: #0dcaf0;">
+            <div class="card-body text-center">
+                <div class="stat-number text-info">{{ stats.completed }}</div>
+                <div class="text-muted small">Completed</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2 col-6 mb-3">
         <div class="card stat-card cancelled">
             <div class="card-body text-center">
                 <div class="stat-number text-danger">{{ stats.cancelled }}</div>
-                <div class="text-muted">Cancelled</div>
+                <div class="text-muted small">Cancelled</div>
             </div>
         </div>
     </div>
@@ -90,6 +106,9 @@
                                 {% if booking.status == 'DRAFT' %}bg-secondary
                                 {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                                 {% elif booking.status == 'CONFIRMED' %}bg-success
+                                {% elif booking.status == 'IN_TRANSIT' %}bg-primary
+                                {% elif booking.status == 'COMPLETED' %}bg-info
+                                {% elif booking.status == 'REJECTED' %}bg-dark
                                 {% else %}bg-danger{% endif %}">
                                 {{ booking.get_status_display }}
                             </span>

@@ -1,4 +1,4 @@
 # Phase 1 - Solidified MVP
 
-Django>=4.2
-django-jazzmin
+Django==6.0.2
+django-jazzmin==3.0.1

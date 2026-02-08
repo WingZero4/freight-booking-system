@@ -1,5 +1,5 @@
 import os
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.validators import FileExtensionValidator
@@ -29,6 +29,8 @@ class UserProfile(models.Model):
     ROLE_CHOICES = [
         ('ADMIN', 'Admin'),
         ('USER', 'User'),
+        ('OPERATIONS', 'Operations'),
+        ('SALES', 'Sales'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -44,6 +46,65 @@ class UserProfile(models.Model):
     @property
     def is_staff_user(self):
         return self.customer is None
+
+
+class Party(models.Model):
+    """Address book entry for shippers, consignees, notify parties, etc."""
+    ROLE_CHOICES = [
+        ('SHIPPER', 'Shipper'),
+        ('CONSIGNEE', 'Consignee'),
+        ('NOTIFY', 'Notify Party'),
+        ('BROKER', 'Customs Broker'),
+        ('FREIGHT_FORWARDER', 'Freight Forwarder'),
+        ('OTHER', 'Other'),
+    ]
+
+    customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name='parties',
+        help_text='The customer account that owns this party record'
+    )
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES)
+    company_name = models.CharField(max_length=255)
+    contact_name = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    address_line_1 = models.CharField(max_length=255, blank=True)
+    address_line_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    country_code = models.CharField(
+        max_length=2, blank=True,
+        help_text='ISO 3166-1 alpha-2 country code (e.g. US, CN, DE)'
+    )
+    tax_id = models.CharField(max_length=50, blank=True, help_text='Tax ID / VAT number')
+    is_default = models.BooleanField(
+        default=False,
+        help_text='Default party for this role under this customer'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.company_name} ({self.get_role_display()})"
+
+    @property
+    def full_address(self):
+        parts = [self.address_line_1, self.address_line_2, self.city,
+                 self.state, self.postal_code, self.country_code]
+        return ', '.join(p for p in parts if p)
+
+    class Meta:
+        ordering = ['company_name']
+        verbose_name_plural = 'parties'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['customer', 'role'],
+                condition=models.Q(is_default=True),
+                name='unique_default_party_per_role'
+            )
+        ]
 
 
 class Port(models.Model):
@@ -79,7 +140,32 @@ class Booking(models.Model):
         ('DRAFT', 'Draft'),
         ('SUBMITTED', 'Submitted'),
         ('CONFIRMED', 'Confirmed'),
+        ('REJECTED', 'Rejected'),
+        ('IN_TRANSIT', 'In Transit'),
+        ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
+    ]
+
+    INCOTERMS_CHOICES = [
+        ('FOB', 'FOB - Free on Board'),
+        ('CFR', 'CFR - Cost and Freight'),
+        ('CIF', 'CIF - Cost, Insurance and Freight'),
+        ('EXW', 'EXW - Ex Works'),
+        ('FCA', 'FCA - Free Carrier'),
+        ('CPT', 'CPT - Carriage Paid To'),
+        ('CIP', 'CIP - Carriage and Insurance Paid To'),
+        ('DAP', 'DAP - Delivered at Place'),
+        ('DPU', 'DPU - Delivered at Place Unloaded'),
+        ('DDP', 'DDP - Delivered Duty Paid'),
+        ('FAS', 'FAS - Free Alongside Ship'),
+    ]
+
+    SOURCE_CHANNEL_CHOICES = [
+        ('WEB', 'Web Portal'),
+        ('API', 'API'),
+        ('EDI', 'EDI'),
+        ('CSV', 'CSV/XLSX Import'),
+        ('MANUAL', 'Manual Entry'),
     ]
 
     # Auto-generated booking number
@@ -100,6 +186,47 @@ class Booking(models.Model):
     container_type = models.ForeignKey(ContainerType, on_delete=models.PROTECT)
     container_count = models.PositiveIntegerField(default=1)
 
+    # Trade terms (Phase 1.5)
+    incoterms = models.CharField(
+        max_length=3, choices=INCOTERMS_CHOICES, default='FOB',
+        help_text='INCOTERMS 2020 trade terms'
+    )
+    incoterms_location = models.CharField(
+        max_length=255, blank=True,
+        help_text='Named place for the selected INCOTERM (e.g. port or warehouse)'
+    )
+
+    # Cargo summary (Phase 1.5)
+    commodity_description = models.CharField(
+        max_length=500, blank=True,
+        help_text='General description of goods being shipped'
+    )
+    is_hazardous = models.BooleanField(
+        default=False,
+        help_text='Does this booking contain any hazardous materials?'
+    )
+    total_weight_kg = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text='Total cargo weight in kg (auto-calculated from items)'
+    )
+    total_volume_cbm = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text='Total cargo volume in cubic meters (auto-calculated from items)'
+    )
+
+    # Integration tracking (Phase 1.5)
+    source_channel = models.CharField(
+        max_length=10, choices=SOURCE_CHANNEL_CHOICES, default='WEB'
+    )
+    external_reference = models.CharField(
+        max_length=100, blank=True,
+        help_text='Customer or external system reference number'
+    )
+    carrier_booking_ref = models.CharField(
+        max_length=100, blank=True,
+        help_text='Carrier-assigned booking reference'
+    )
+
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
 
@@ -116,6 +243,13 @@ class Booking(models.Model):
     # Timestamps
     submitted_at = models.DateTimeField(null=True, blank=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
+    rejected_at = models.DateTimeField(null=True, blank=True)
+    rejected_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='rejected_bookings'
+    )
+    rejection_reason = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancelled_by = models.ForeignKey(
         User, on_delete=models.PROTECT, null=True, blank=True,
@@ -132,36 +266,80 @@ class Booking(models.Model):
             self.booking_number = self._generate_booking_number()
         super().save(*args, **kwargs)
 
-    def _generate_booking_number(self):
-        """Generate booking number: BK-YYYYMM-NNNN"""
+    @staticmethod
+    def _generate_booking_number():
+        """Generate booking number: BK-YYYYMM-NNNN (thread-safe)"""
         today = timezone.now()
         prefix = f"BK-{today.strftime('%Y%m')}-"
 
-        # Get last booking this month
-        last = Booking.objects.filter(
-            booking_number__startswith=prefix
-        ).order_by('-booking_number').first()
+        with transaction.atomic():
+            # Lock matching rows to prevent race conditions
+            last = (
+                Booking.objects.select_for_update()
+                .filter(booking_number__startswith=prefix)
+                .order_by('-booking_number')
+                .first()
+            )
 
-        if last:
-            last_num = int(last.booking_number.split('-')[-1])
-            new_num = last_num + 1
-        else:
-            new_num = 1
+            if last:
+                last_num = int(last.booking_number.split('-')[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
 
         return f"{prefix}{new_num:04d}"
 
+    def recalculate_totals(self):
+        """Recalculate total_weight_kg and total_volume_cbm from items."""
+        from decimal import Decimal
+        from django.db.models import Sum
+        totals = self.items.aggregate(
+            weight=Sum('weight_kg'),
+            volume=Sum('volume_cbm'),
+        )
+        self.total_weight_kg = totals['weight'] or Decimal('0.00')
+        self.total_volume_cbm = totals['volume'] or Decimal('0.000')
+        self.save(update_fields=['total_weight_kg', 'total_volume_cbm', 'updated_at'])
+
     def submit(self):
-        """Submit booking for processing"""
-        if self.status == 'DRAFT':
-            self.status = 'SUBMITTED'
-            self.submitted_at = timezone.now()
-            self.save()
+        """Submit booking for processing. Requires at least one cargo item."""
+        if self.status != 'DRAFT':
+            return
+        if not self.items.exists():
+            raise ValueError('Cannot submit a booking with no cargo items.')
+        self.recalculate_totals()
+        self.status = 'SUBMITTED'
+        self.submitted_at = timezone.now()
+        self.save()
 
     def confirm(self):
         """Confirm booking (operations action)"""
         if self.status == 'SUBMITTED':
             self.status = 'CONFIRMED'
             self.confirmed_at = timezone.now()
+            self.save()
+
+    def reject(self, user=None, reason=''):
+        """Reject a submitted booking"""
+        if self.status == 'SUBMITTED':
+            self.status = 'REJECTED'
+            self.rejected_at = timezone.now()
+            if user:
+                self.rejected_by = user
+            self.rejection_reason = reason
+            self.save()
+
+    def mark_in_transit(self):
+        """Mark confirmed booking as in transit"""
+        if self.status == 'CONFIRMED':
+            self.status = 'IN_TRANSIT'
+            self.save()
+
+    def complete(self):
+        """Mark booking as completed"""
+        if self.status == 'IN_TRANSIT':
+            self.status = 'COMPLETED'
+            self.completed_at = timezone.now()
             self.save()
 
     def cancel(self, user=None):
@@ -195,10 +373,57 @@ class BookingItem(models.Model):
     package_type = models.CharField(max_length=50, choices=PACKAGE_TYPE_CHOICES, default='PACKAGE')
     quantity = models.PositiveIntegerField()
     weight_kg = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # Phase 1.5 fields
+    hs_code = models.CharField(
+        max_length=10, blank=True,
+        help_text='Harmonized System code (6-10 digits)'
+    )
+    volume_cbm = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text='Volume in cubic meters'
+    )
+    length_cm = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Length in centimeters'
+    )
+    width_cm = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Width in centimeters'
+    )
+    height_cm = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Height in centimeters'
+    )
+    marks_and_numbers = models.CharField(
+        max_length=500, blank=True,
+        help_text='Shipping marks and package numbers'
+    )
+    is_hazardous = models.BooleanField(default=False)
+    un_number = models.CharField(
+        max_length=4, blank=True,
+        help_text='UN number for hazardous goods (e.g. 1234)'
+    )
+    imo_class = models.CharField(
+        max_length=10, blank=True,
+        help_text='IMO hazard class (e.g. 3, 6.1, 8)'
+    )
+    country_of_origin = models.CharField(
+        max_length=2, blank=True,
+        help_text='ISO 3166-1 alpha-2 country code'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.quantity}x {self.description} ({self.weight_kg}kg)"
+
+    @property
+    def calculated_volume_cbm(self):
+        """Calculate volume from dimensions if all three are provided."""
+        if self.length_cm and self.width_cm and self.height_cm:
+            return (self.length_cm * self.width_cm * self.height_cm) / 1_000_000
+        return self.volume_cbm
 
     class Meta:
         ordering = ['id']
@@ -251,3 +476,104 @@ class BookingDocument(models.Model):
 
     class Meta:
         ordering = ['-uploaded_at']
+
+
+class BookingParty(models.Model):
+    """Snapshot of a party's details at the time they were assigned to a booking."""
+    ROLE_CHOICES = [
+        ('SHIPPER', 'Shipper'),
+        ('CONSIGNEE', 'Consignee'),
+        ('NOTIFY', 'Notify Party'),
+        ('BROKER', 'Customs Broker'),
+        ('FREIGHT_FORWARDER', 'Freight Forwarder'),
+        ('OTHER', 'Other'),
+    ]
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='booking_parties')
+    party = models.ForeignKey(
+        Party, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='booking_assignments',
+        help_text='Link to the address book entry (null if party was deleted)'
+    )
+    role = models.CharField(max_length=30, choices=ROLE_CHOICES)
+
+    # Snapshot fields — captured at assignment time so booking records are immutable
+    company_name = models.CharField(max_length=255)
+    contact_name = models.CharField(max_length=255, blank=True)
+    address_text = models.TextField(
+        blank=True,
+        help_text='Full address as a single text block (snapshot)'
+    )
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    tax_id = models.CharField(max_length=50, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_role_display()}: {self.company_name}"
+
+    @classmethod
+    def create_from_party(cls, booking, party, role=None):
+        """Create a BookingParty snapshot from an address book Party."""
+        return cls.objects.create(
+            booking=booking,
+            party=party,
+            role=role or party.role,
+            company_name=party.company_name,
+            contact_name=party.contact_name,
+            address_text=party.full_address,
+            email=party.email,
+            phone=party.phone,
+            tax_id=party.tax_id,
+        )
+
+    class Meta:
+        ordering = ['role', 'company_name']
+        verbose_name_plural = 'booking parties'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['booking', 'role'],
+                name='unique_party_role_per_booking'
+            )
+        ]
+
+
+class AuditLog(models.Model):
+    """Track all changes to bookings for compliance and traceability."""
+    ACTION_CHOICES = [
+        ('CREATED', 'Created'),
+        ('UPDATED', 'Updated'),
+        ('SUBMITTED', 'Submitted'),
+        ('CONFIRMED', 'Confirmed'),
+        ('REJECTED', 'Rejected'),
+        ('CANCELLED', 'Cancelled'),
+        ('IN_TRANSIT', 'Marked In Transit'),
+        ('COMPLETED', 'Completed'),
+        ('DOCUMENT_UPLOADED', 'Document Uploaded'),
+        ('DOCUMENT_DELETED', 'Document Deleted'),
+        ('PARTY_ADDED', 'Party Added'),
+        ('PARTY_REMOVED', 'Party Removed'),
+        ('ITEM_ADDED', 'Cargo Item Added'),
+        ('ITEM_UPDATED', 'Cargo Item Updated'),
+        ('ITEM_REMOVED', 'Cargo Item Removed'),
+    ]
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='audit_logs')
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    performed_at = models.DateTimeField(default=timezone.now)
+    old_value = models.JSONField(null=True, blank=True, help_text='Previous state (JSON)')
+    new_value = models.JSONField(null=True, blank=True, help_text='New state (JSON)')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.booking.booking_number} - {self.get_action_display()} by {self.performed_by}"
+
+    class Meta:
+        ordering = ['-performed_at']
+        verbose_name_plural = 'audit logs'

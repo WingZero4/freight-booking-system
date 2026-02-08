@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -19,16 +20,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-p9g_joyofdz-0u2a8y-go^ze7$q%o@n5k%t-*$y9=juykod3fk'
+# SECURITY: SECRET_KEY from environment variable (required in production)
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-p9g_joyofdz-0u2a8y-go^ze7$q%o@n5k%t-*$y9=juykod3fk'
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# SECURITY: DEBUG from environment variable (defaults to False in production)
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app', '.ngrok.io', '.loca.lt']
+# ALLOWED_HOSTS from environment variable (comma-separated) or defaults for dev
+ALLOWED_HOSTS = os.environ.get(
+    'DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1'
+).split(',')
 
-# Allow tunneling services for CSRF
-CSRF_TRUSTED_ORIGINS = ['https://*.ngrok-free.app', 'https://*.ngrok.io', 'https://*.loca.lt']
+# CSRF trusted origins from environment variable (comma-separated)
+_csrf_origins = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
 
 
 # Application definition
@@ -141,7 +149,21 @@ LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 # Email backend (console for development, switch to SMTP for production)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = os.environ.get(
+    'DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend'
+)
+
+# Security settings (enabled when DEBUG is False)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 # Jazzmin Admin Theme
 JAZZMIN_SETTINGS = {
@@ -167,6 +189,9 @@ JAZZMIN_SETTINGS = {
         "bookings.ContainerType": "fas fa-box",
         "bookings.BookingItem": "fas fa-cube",
         "bookings.BookingDocument": "fas fa-file-alt",
+        "bookings.Party": "fas fa-address-card",
+        "bookings.BookingParty": "fas fa-handshake",
+        "bookings.AuditLog": "fas fa-history",
     },
     "default_icon_parents": "fas fa-folder",
     "default_icon_children": "fas fa-circle",

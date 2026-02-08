@@ -18,4 +18,16 @@ urlpatterns = [
          views.booking_document_upload, name='booking_document_upload'),
     path('bookings/<int:booking_id>/documents/<int:document_id>/delete/',
          views.booking_document_delete, name='booking_document_delete'),
+
+    # Booking party assignment
+    path('bookings/<int:booking_id>/parties/add/',
+         views.booking_party_add, name='booking_party_add'),
+    path('bookings/<int:booking_id>/parties/<int:booking_party_id>/remove/',
+         views.booking_party_remove, name='booking_party_remove'),
+
+    # Address book (parties)
+    path('parties/', views.party_list, name='party_list'),
+    path('parties/create/', views.party_create, name='party_create'),
+    path('parties/<int:party_id>/edit/', views.party_edit, name='party_edit'),
+    path('parties/<int:party_id>/delete/', views.party_delete, name='party_delete'),
 ]
