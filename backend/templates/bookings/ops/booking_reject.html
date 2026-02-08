@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Reject Booking {{ booking.booking_number }} - Freight Booking{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0"><i class="fas fa-times-circle me-2"></i>Reject Booking</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light border mb-4">
+                    <h5 class="mb-3">{{ booking.booking_number }}</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <p class="text-muted mb-1">Customer</p>
+                            <p class="fw-bold">{{ booking.customer.name }} ({{ booking.customer.code }})</p>
+                        </div>
+                        <div class="col-6">
+                            <p class="text-muted mb-1">Route</p>
+                            <p class="fw-bold">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="id_reason" class="form-label">{{ form.reason.label }} *</label>
+                        {{ form.reason }}
+                        {% if form.reason.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for e in form.reason.errors %}{{ e }}{% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="alert alert-warning small">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        The customer will see this rejection reason. Please be clear and professional.
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-dark">
+                            <i class="fas fa-times me-1"></i>Reject Booking
+                        </button>
+                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

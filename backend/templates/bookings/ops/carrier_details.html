@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Carrier Details - {{ booking.booking_number }} - Freight Booking{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-ship me-2"></i>Update Carrier Details - {{ booking.booking_number }}
+                </h4>
+            </div>
+            <div class="card-body">
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                    <p class="mb-0">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Carrier Name</label>
+                            {{ form.carrier_name }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Vessel Name</label>
+                            {{ form.vessel_name }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Voyage Number</label>
+                            {{ form.voyage_number }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Cargo Cutoff</label>
+                            {{ form.cargo_cutoff_date }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">ETD</label>
+                            {{ form.etd }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">ETA</label>
+                            {{ form.eta }}
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Carrier Booking Ref</label>
+                            {{ form.carrier_booking_ref }}
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i>Save Carrier Details
+                        </button>
+                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

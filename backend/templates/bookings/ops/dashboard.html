@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+
+{% block title %}Operations Dashboard - Freight Booking{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pipeline-card { text-align: center; transition: transform 0.15s; }
+    .pipeline-card:hover { transform: translateY(-2px); }
+    .pipeline-arrow { display: flex; align-items: center; justify-content: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="fas fa-headset me-2"></i>Operations Dashboard</h3>
+    <a href="{% url 'booking_list' %}" class="btn btn-outline-primary btn-sm">
+        <i class="fas fa-list me-1"></i>All Bookings
+    </a>
+</div>
+
+<!-- ACTION REQUIRED -->
+<div class="row mb-4">
+    <!-- Pending Confirmation -->
+    <div class="col-md-4 mb-3">
+        <div class="card border-warning h-100">
+            <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-clock me-1 text-warning"></i>Pending Confirmation</h6>
+                <span class="badge bg-warning text-dark fs-6">{{ pending_confirmation|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if pending_confirmation %}
+                <div class="list-group list-group-flush">
+                    {% for booking in pending_confirmation|slice:":5" %}
+                    <a href="{% url 'ops_booking_confirm' booking.id %}" class="list-group-item list-group-item-action py-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ booking.booking_number }}</strong>
+                            <small class="text-muted">{{ booking.customer.code }}</small>
+                        </div>
+                        <small class="text-muted">
+                            {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                            &middot; {{ booking.container_count }}x {{ booking.container_type.code }}
+                        </small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% if pending_confirmation|length > 5 %}
+                <div class="card-footer text-center">
+                    <a href="{% url 'booking_list' %}?status=SUBMITTED" class="text-decoration-none small">
+                        View all {{ pending_confirmation|length }} &rarr;
+                    </a>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="text-center py-3 text-muted small">
+                    <i class="fas fa-check-circle me-1"></i>All caught up!
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Needs Carrier Details -->
+    <div class="col-md-4 mb-3">
+        <div class="card border-info h-100">
+            <div class="card-header bg-info bg-opacity-10 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-ship me-1 text-info"></i>Needs Carrier Details</h6>
+                <span class="badge bg-info fs-6">{{ needs_carrier|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if needs_carrier %}
+                <div class="list-group list-group-flush">
+                    {% for booking in needs_carrier|slice:":5" %}
+                    <a href="{% url 'ops_carrier_details' booking.id %}" class="list-group-item list-group-item-action py-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ booking.booking_number }}</strong>
+                            <small class="text-muted">{{ booking.customer.code }}</small>
+                        </div>
+                        <small class="text-muted">
+                            {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                            {% if not booking.vessel_name %}&middot; No vessel{% endif %}
+                            {% if not booking.etd %}&middot; No ETD{% endif %}
+                        </small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3 text-muted small">
+                    <i class="fas fa-check-circle me-1"></i>All carrier details filled
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Upcoming Departures -->
+    <div class="col-md-4 mb-3">
+        <div class="card border-primary h-100">
+            <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-calendar-alt me-1 text-primary"></i>Departures (7 days)</h6>
+                <span class="badge bg-primary fs-6">{{ upcoming_departures|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                {% if upcoming_departures %}
+                <div class="list-group list-group-flush">
+                    {% for booking in upcoming_departures|slice:":5" %}
+                    <a href="{% url 'booking_detail' booking.id %}" class="list-group-item list-group-item-action py-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ booking.booking_number }}</strong>
+                            <span class="badge {% if booking.status == 'CONFIRMED' %}bg-success{% else %}bg-primary{% endif %}">
+                                {{ booking.get_status_display }}
+                            </span>
+                        </div>
+                        <small class="text-muted">
+                            ETD: {{ booking.etd|date:"M d" }}
+                            &middot; {{ booking.vessel_name }}
+                            &middot; {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                        </small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3 text-muted small">
+                    <i class="fas fa-anchor me-1"></i>No departures in next 7 days
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- STATUS PIPELINE -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-stream me-2"></i>Status Pipeline</h5>
+    </div>
+    <div class="card-body">
+        <div class="row align-items-center text-center">
+            <div class="col">
+                <a href="{% url 'booking_list' %}?status=SUBMITTED" class="text-decoration-none">
+                    <div class="card pipeline-card border-warning">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-warning">{{ pipeline.submitted }}</div>
+                            <small class="text-muted">Submitted</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
+            <div class="col">
+                <a href="{% url 'booking_list' %}?status=CONFIRMED" class="text-decoration-none">
+                    <div class="card pipeline-card border-success">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-success">{{ pipeline.confirmed }}</div>
+                            <small class="text-muted">Confirmed</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
+            <div class="col">
+                <a href="{% url 'booking_list' %}?status=IN_TRANSIT" class="text-decoration-none">
+                    <div class="card pipeline-card border-primary">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-primary">{{ pipeline.in_transit }}</div>
+                            <small class="text-muted">In Transit</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
+            <div class="col">
+                <a href="{% url 'booking_list' %}?status=COMPLETED" class="text-decoration-none">
+                    <div class="card pipeline-card border-info">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-info">{{ pipeline.completed }}</div>
+                            <small class="text-muted">Completed</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KEY STATS + RECENT ACTIVITY -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Key Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">Submitted Today</small>
+                    <div class="fs-4 fw-bold">{{ submitted_today }}</div>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Submitted This Week</small>
+                    <div class="fs-4 fw-bold">{{ submitted_this_week }}</div>
+                </div>
+                <div class="mb-3">
+                    <small class="text-muted">Avg. Confirmation Time</small>
+                    <div class="fs-4 fw-bold">
+                        {% if avg_confirm_hours is not None %}
+                            {{ avg_confirm_hours|floatformat:1 }} hours
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    <small class="text-muted">Total Active</small>
+                    <div class="fs-4 fw-bold">
+                        {{ pipeline.submitted|add:pipeline.confirmed|add:pipeline.in_transit }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8 mb-3">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Activity</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_activity %}
+                <div class="list-group list-group-flush">
+                    {% for log in recent_activity %}
+                    <div class="list-group-item py-2">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <a href="{% url 'booking_detail' log.booking.id %}" class="fw-bold text-decoration-none">
+                                    {{ log.booking.booking_number }}
+                                </a>
+                                <span class="badge bg-light text-dark ms-1">{{ log.get_action_display }}</span>
+                                {% if log.performed_by %}
+                                <small class="text-muted">by {{ log.performed_by.username }}</small>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">{{ log.performed_at|timesince }} ago</small>
+                        </div>
+                        {% if log.notes %}
+                        <small class="text-muted">{{ log.notes|truncatewords:15 }}</small>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-3 text-muted">
+                    <i class="fas fa-history me-1"></i>No recent activity
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

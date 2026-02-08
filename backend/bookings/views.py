@@ -1,13 +1,20 @@
+import csv
+from functools import wraps
+from datetime import timedelta
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q
-from django.http import Http404
-from .models import Booking, BookingDocument, Party, BookingParty
+from django.db.models import Q, Avg, F
+from django.http import Http404, HttpResponse
+from django.utils import timezone
+
+from .models import Booking, BookingItem, BookingDocument, Party, BookingParty, AuditLog
 from .forms import (
     BookingForm, BookingItemFormSet, BookingDocumentForm,
     PartyForm, BookingPartySelectForm,
+    CarrierDetailsForm, RejectBookingForm,
 )
 from .services import BookingService
 
@@ -32,16 +39,31 @@ def get_booking_for_user(booking_id, user):
     return booking
 
 
+def staff_required(view_func):
+    """Decorator: requires login AND staff user (no customer association)."""
+    @wraps(view_func)
+    @login_required
+    def wrapper(request, *args, **kwargs):
+        customer = get_user_customer(request.user)
+        if customer is not None:
+            messages.error(request, 'You do not have permission to access this page.')
+            return redirect('dashboard')
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 # ─── Dashboard ────────────────────────────────────────────────────────
 
 @login_required
 def dashboard(request):
     """Dashboard with booking summary statistics"""
     customer = get_user_customer(request.user)
-    if customer:
-        bookings = Booking.objects.filter(customer=customer)
-    else:
-        bookings = Booking.objects.all()
+
+    # Staff users get the operations dashboard
+    if customer is None:
+        return redirect('ops_dashboard')
+
+    bookings = Booking.objects.filter(customer=customer)
 
     stats = {
         'total': bookings.count(),
@@ -93,6 +115,14 @@ def booking_list(request):
             Q(external_reference__icontains=search_query)
         )
 
+    # Date range filter
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    if date_from:
+        bookings = bookings.filter(created_at__date__gte=date_from)
+    if date_to:
+        bookings = bookings.filter(created_at__date__lte=date_to)
+
     # Sorting
     sort_by = request.GET.get('sort', '-created_at')
     allowed_sorts = {
@@ -116,6 +146,8 @@ def booking_list(request):
         'page_obj': page_obj,
         'status_filter': status_filter,
         'search_query': search_query,
+        'date_from': date_from,
+        'date_to': date_to,
         'sort_by': sort_by,
         'view_mode': view_mode,
         'status_choices': Booking.STATUS_CHOICES,
@@ -466,3 +498,340 @@ def booking_party_remove(request, booking_id, booking_party_id):
             messages.error(request, str(e))
 
     return redirect('booking_detail', booking_id=booking.id)
+
+
+# ─── Operations (Staff) ──────────────────────────────────────────────
+
+@staff_required
+def ops_dashboard(request):
+    """Operations dashboard for staff users."""
+    now = timezone.now()
+    today = now.date()
+    week_ago = today - timedelta(days=7)
+    seven_days_out = today + timedelta(days=7)
+
+    all_bookings = Booking.objects.all()
+
+    # Action Required sections
+    pending_confirmation = (
+        all_bookings
+        .filter(status='SUBMITTED')
+        .select_related('customer', 'origin_port', 'destination_port', 'container_type')
+        .order_by('submitted_at')
+    )
+
+    needs_carrier = (
+        all_bookings
+        .filter(status='CONFIRMED')
+        .filter(Q(vessel_name='') | Q(etd__isnull=True) | Q(eta__isnull=True))
+        .select_related('customer', 'origin_port', 'destination_port', 'container_type')
+    )
+
+    upcoming_departures = (
+        all_bookings
+        .filter(status__in=['CONFIRMED', 'IN_TRANSIT'])
+        .filter(etd__gte=today, etd__lte=seven_days_out)
+        .select_related('customer', 'origin_port', 'destination_port', 'container_type')
+        .order_by('etd')
+    )
+
+    # Status pipeline counts
+    pipeline = {
+        'draft': all_bookings.filter(status='DRAFT').count(),
+        'submitted': all_bookings.filter(status='SUBMITTED').count(),
+        'confirmed': all_bookings.filter(status='CONFIRMED').count(),
+        'in_transit': all_bookings.filter(status='IN_TRANSIT').count(),
+        'completed': all_bookings.filter(status='COMPLETED').count(),
+        'rejected': all_bookings.filter(status='REJECTED').count(),
+        'cancelled': all_bookings.filter(status='CANCELLED').count(),
+    }
+
+    # Key stats
+    submitted_today = all_bookings.filter(submitted_at__date=today).count()
+    submitted_this_week = all_bookings.filter(submitted_at__date__gte=week_ago).count()
+
+    # Average confirmation time
+    confirmed_bookings = all_bookings.filter(
+        confirmed_at__isnull=False, submitted_at__isnull=False
+    )
+    avg_confirm_hours = None
+    if confirmed_bookings.exists():
+        total_seconds = sum(
+            (b.confirmed_at - b.submitted_at).total_seconds()
+            for b in confirmed_bookings
+        )
+        avg_confirm_hours = total_seconds / confirmed_bookings.count() / 3600
+
+    # Recent activity
+    recent_activity = (
+        AuditLog.objects
+        .select_related('booking', 'performed_by')
+        .order_by('-performed_at')[:20]
+    )
+
+    return render(request, 'bookings/ops/dashboard.html', {
+        'pending_confirmation': pending_confirmation,
+        'needs_carrier': needs_carrier,
+        'upcoming_departures': upcoming_departures,
+        'pipeline': pipeline,
+        'submitted_today': submitted_today,
+        'submitted_this_week': submitted_this_week,
+        'avg_confirm_hours': avg_confirm_hours,
+        'recent_activity': recent_activity,
+    })
+
+
+@staff_required
+def ops_booking_confirm(request, booking_id):
+    """Confirm a SUBMITTED booking with optional carrier details (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status != 'SUBMITTED':
+        messages.warning(request, f'This booking cannot be confirmed (current status: {booking.get_status_display()}).')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        carrier_form = CarrierDetailsForm(request.POST, instance=booking)
+        try:
+            BookingService.confirm_booking_with_carrier(
+                booking, carrier_form, user=request.user, request=request)
+            messages.success(request, f'Booking {booking.booking_number} confirmed successfully!')
+            return redirect('booking_detail', booking_id=booking.id)
+        except ValueError as e:
+            messages.error(request, str(e))
+    else:
+        carrier_form = CarrierDetailsForm(instance=booking)
+
+    return render(request, 'bookings/ops/booking_confirm.html', {
+        'booking': booking,
+        'carrier_form': carrier_form,
+    })
+
+
+@staff_required
+def ops_booking_reject(request, booking_id):
+    """Reject a SUBMITTED booking with reason (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status != 'SUBMITTED':
+        messages.warning(request, f'This booking cannot be rejected (current status: {booking.get_status_display()}).')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        form = RejectBookingForm(request.POST)
+        if form.is_valid():
+            try:
+                BookingService.reject_booking(
+                    booking, user=request.user,
+                    reason=form.cleaned_data['reason'],
+                    request=request)
+                messages.success(request, f'Booking {booking.booking_number} has been rejected.')
+                return redirect('booking_detail', booking_id=booking.id)
+            except ValueError as e:
+                messages.error(request, str(e))
+    else:
+        form = RejectBookingForm()
+
+    return render(request, 'bookings/ops/booking_reject.html', {
+        'booking': booking,
+        'form': form,
+    })
+
+
+@staff_required
+def ops_carrier_details(request, booking_id):
+    """Edit carrier details on a CONFIRMED or IN_TRANSIT booking (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status not in ('CONFIRMED', 'IN_TRANSIT'):
+        messages.warning(request, 'Carrier details can only be edited on confirmed or in-transit bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        form = CarrierDetailsForm(request.POST, instance=booking)
+        try:
+            BookingService.update_carrier_details(
+                booking, form, user=request.user, request=request)
+            messages.success(request, 'Carrier details updated successfully.')
+            return redirect('booking_detail', booking_id=booking.id)
+        except ValueError as e:
+            messages.error(request, str(e))
+    else:
+        form = CarrierDetailsForm(instance=booking)
+
+    return render(request, 'bookings/ops/carrier_details.html', {
+        'booking': booking,
+        'form': form,
+    })
+
+
+@staff_required
+def ops_mark_in_transit(request, booking_id):
+    """Mark a CONFIRMED booking as in transit (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status != 'CONFIRMED':
+        messages.warning(request, 'Only confirmed bookings can be marked in transit.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.mark_in_transit(booking, user=request.user, request=request)
+            messages.success(request, f'Booking {booking.booking_number} marked as in transit.')
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect('booking_detail', booking_id=booking.id)
+
+    return render(request, 'bookings/ops/mark_in_transit.html', {
+        'booking': booking,
+    })
+
+
+@staff_required
+def ops_complete_booking(request, booking_id):
+    """Mark an IN_TRANSIT booking as completed (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status != 'IN_TRANSIT':
+        messages.warning(request, 'Only in-transit bookings can be completed.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.complete_booking(booking, user=request.user, request=request)
+            messages.success(request, f'Booking {booking.booking_number} has been completed.')
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect('booking_detail', booking_id=booking.id)
+
+    return render(request, 'bookings/ops/complete_booking.html', {
+        'booking': booking,
+    })
+
+
+# ─── Clone & Export ──────────────────────────────────────────────────
+
+@login_required
+def booking_clone(request, booking_id):
+    """Clone a booking as a new DRAFT."""
+    booking = get_booking_for_user(booking_id, request.user)
+    customer = get_user_customer(request.user)
+
+    if not customer:
+        messages.error(request, 'Only customer users can clone bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        from django.db import transaction as db_transaction
+        with db_transaction.atomic():
+            new_booking = Booking(
+                customer=customer,
+                created_by=request.user,
+                transport_mode=booking.transport_mode,
+                origin_port=booking.origin_port,
+                destination_port=booking.destination_port,
+                cargo_ready_date=booking.cargo_ready_date,
+                container_type=booking.container_type,
+                container_count=booking.container_count,
+                incoterms=booking.incoterms,
+                incoterms_location=booking.incoterms_location,
+                commodity_description=booking.commodity_description,
+                is_hazardous=booking.is_hazardous,
+                special_instructions=booking.special_instructions,
+                status='DRAFT',
+                source_channel='WEB',
+            )
+            new_booking.save()
+
+            for item in booking.items.all():
+                BookingItem.objects.create(
+                    booking=new_booking,
+                    description=item.description,
+                    package_type=item.package_type,
+                    quantity=item.quantity,
+                    weight_kg=item.weight_kg,
+                    hs_code=item.hs_code,
+                    volume_cbm=item.volume_cbm,
+                    length_cm=item.length_cm,
+                    width_cm=item.width_cm,
+                    height_cm=item.height_cm,
+                    marks_and_numbers=item.marks_and_numbers,
+                    is_hazardous=item.is_hazardous,
+                    un_number=item.un_number,
+                    imo_class=item.imo_class,
+                    country_of_origin=item.country_of_origin,
+                )
+
+            new_booking.recalculate_totals()
+
+            BookingService._log(
+                new_booking, 'CREATED', user=request.user, request=request,
+                notes=f'Cloned from {booking.booking_number}',
+                new_value=BookingService._booking_snapshot(new_booking),
+            )
+
+        messages.success(request, f'Booking cloned as {new_booking.booking_number} (DRAFT).')
+        return redirect('booking_detail', booking_id=new_booking.id)
+
+    return redirect('booking_detail', booking_id=booking.id)
+
+
+@login_required
+def booking_export_csv(request):
+    """Export filtered bookings as CSV."""
+    customer = get_user_customer(request.user)
+    if customer:
+        bookings = Booking.objects.filter(customer=customer)
+    else:
+        bookings = Booking.objects.all()
+
+    bookings = bookings.select_related(
+        'customer', 'origin_port', 'destination_port', 'container_type'
+    )
+
+    status_filter = request.GET.get('status', '')
+    if status_filter:
+        bookings = bookings.filter(status=status_filter)
+
+    search_query = request.GET.get('q', '')
+    if search_query:
+        bookings = bookings.filter(
+            Q(booking_number__icontains=search_query) |
+            Q(origin_port__code__icontains=search_query) |
+            Q(destination_port__code__icontains=search_query) |
+            Q(external_reference__icontains=search_query)
+        )
+
+    bookings = bookings.order_by('-created_at')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="bookings_export.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Booking Number', 'Status', 'Transport Mode', 'Customer',
+        'Origin', 'Destination',
+        'Container Type', 'Container Count',
+        'Cargo Ready Date', 'Cargo Cutoff',
+        'INCOTERMS', 'Carrier', 'Vessel', 'ETD', 'ETA',
+        'Total Weight (kg)', 'Total Volume (CBM)',
+        'Created', 'Submitted', 'Confirmed', 'Completed',
+    ])
+
+    for b in bookings:
+        writer.writerow([
+            b.booking_number, b.status, b.get_transport_mode_display(),
+            b.customer.code,
+            b.origin_port.code, b.destination_port.code,
+            b.container_type.code, b.container_count,
+            b.cargo_ready_date, b.cargo_cutoff_date or '',
+            b.incoterms, b.carrier_name, b.vessel_name,
+            b.etd or '', b.eta or '',
+            b.total_weight_kg or '', b.total_volume_cbm or '',
+            b.created_at.strftime('%Y-%m-%d %H:%M'),
+            b.submitted_at.strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
+            b.confirmed_at.strftime('%Y-%m-%d %H:%M') if b.confirmed_at else '',
+            b.completed_at.strftime('%Y-%m-%d %H:%M') if b.completed_at else '',
+        ])
+
+    return response

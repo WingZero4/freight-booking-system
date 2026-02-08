@@ -152,6 +152,9 @@ LOGOUT_REDIRECT_URL = '/login/'
 EMAIL_BACKEND = os.environ.get(
     'DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend'
 )
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'DJANGO_DEFAULT_FROM_EMAIL', 'noreply@freightbooking.com'
+)
 
 # Security settings (enabled when DEBUG is False)
 if not DEBUG:

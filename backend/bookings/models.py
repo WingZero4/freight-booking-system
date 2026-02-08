@@ -135,7 +135,7 @@ class ContainerType(models.Model):
 
 
 class Booking(models.Model):
-    """Ocean FCL Booking"""
+    """Freight Booking"""
     STATUS_CHOICES = [
         ('DRAFT', 'Draft'),
         ('SUBMITTED', 'Submitted'),
@@ -144,6 +144,15 @@ class Booking(models.Model):
         ('IN_TRANSIT', 'In Transit'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
+    ]
+
+    TRANSPORT_MODE_CHOICES = [
+        ('SEA_FCL', 'Sea - FCL'),
+        ('SEA_LCL', 'Sea - LCL'),
+        ('AIR', 'Air Freight'),
+        ('RAIL', 'Rail'),
+        ('TRUCK', 'Trucking'),
+        ('MULTIMODAL', 'Multimodal'),
     ]
 
     INCOTERMS_CHOICES = [
@@ -171,6 +180,12 @@ class Booking(models.Model):
     # Auto-generated booking number
     booking_number = models.CharField(max_length=20, unique=True, editable=False)
 
+    # Transport mode
+    transport_mode = models.CharField(
+        max_length=20, choices=TRANSPORT_MODE_CHOICES, default='SEA_FCL',
+        help_text='Mode of transport for this shipment'
+    )
+
     # Customer
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_bookings')
@@ -181,6 +196,10 @@ class Booking(models.Model):
 
     # Dates
     cargo_ready_date = models.DateField()
+    cargo_cutoff_date = models.DateField(
+        null=True, blank=True,
+        help_text='Deadline for cargo to arrive at port/terminal (set by operations)'
+    )
 
     # Container
     container_type = models.ForeignKey(ContainerType, on_delete=models.PROTECT)
@@ -440,7 +459,15 @@ class BookingDocument(models.Model):
         ('COMMERCIAL_INVOICE', 'Commercial Invoice'),
         ('PACKING_LIST', 'Packing List'),
         ('BILL_OF_LADING', 'Bill of Lading'),
+        ('AIRWAY_BILL', 'Airway Bill'),
         ('CUSTOMS_DECLARATION', 'Customs Declaration'),
+        ('CERTIFICATE_OF_ORIGIN', 'Certificate of Origin'),
+        ('SHIPPING_ADVICE', 'Shipping Advice'),
+        ('CARGO_MANIFEST', 'Cargo Manifest'),
+        ('LOADING_PLAN', 'Loading Plan'),
+        ('INSURANCE_CERTIFICATE', 'Insurance Certificate'),
+        ('FUMIGATION_CERT', 'Fumigation Certificate'),
+        ('INSPECTION_REPORT', 'Inspection Report'),
         ('OTHER', 'Other'),
     ]
 

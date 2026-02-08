@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirm Booking {{ booking.booking_number }} - Freight Booking{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="fas fa-check-circle me-2"></i>Confirm Booking</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light border mb-4">
+                    <h5 class="mb-3">{{ booking.booking_number }}</h5>
+                    <div class="row">
+                        <div class="col-4">
+                            <p class="text-muted mb-1">Customer</p>
+                            <p class="fw-bold">{{ booking.customer.name }} ({{ booking.customer.code }})</p>
+                        </div>
+                        <div class="col-4">
+                            <p class="text-muted mb-1">Route</p>
+                            <p class="fw-bold">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</p>
+                        </div>
+                        <div class="col-4">
+                            <p class="text-muted mb-1">Container</p>
+                            <p class="fw-bold">{{ booking.container_count }} x {{ booking.container_type.code }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4">
+                            <p class="text-muted mb-1">Cargo Ready</p>
+                            <p class="fw-bold">{{ booking.cargo_ready_date|date:"M d, Y" }}</p>
+                        </div>
+                        <div class="col-4">
+                            <p class="text-muted mb-1">INCOTERMS</p>
+                            <p class="fw-bold">{{ booking.get_incoterms_display }}</p>
+                        </div>
+                        <div class="col-4">
+                            <p class="text-muted mb-1">Cargo Items</p>
+                            <p class="fw-bold">{{ booking.items.count }} item{{ booking.items.count|pluralize }}</p>
+                        </div>
+                    </div>
+                    {% if booking.special_instructions %}
+                    <div class="mt-2">
+                        <p class="text-muted mb-1">Special Instructions</p>
+                        <p class="mb-0">{{ booking.special_instructions }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <h5 class="mb-3"><i class="fas fa-ship me-2 text-primary"></i>Carrier Details (optional)</h5>
+                <p class="text-muted small mb-3">
+                    You can enter carrier details now or later via the booking detail page.
+                </p>
+
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if carrier_form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in carrier_form.non_field_errors %}
+                        <p class="mb-0">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Carrier Name</label>
+                            {{ carrier_form.carrier_name }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Vessel Name</label>
+                            {{ carrier_form.vessel_name }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Voyage Number</label>
+                            {{ carrier_form.voyage_number }}
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Cargo Cutoff</label>
+                            {{ carrier_form.cargo_cutoff_date }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">ETD</label>
+                            {{ carrier_form.etd }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">ETA</label>
+                            {{ carrier_form.eta }}
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Carrier Booking Ref</label>
+                            {{ carrier_form.carrier_booking_ref }}
+                        </div>
+                    </div>
+
+                    <hr>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-1"></i>Confirm Booking
+                        </button>
+                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -15,7 +15,7 @@ from django.utils import timezone
 from .models import (
     Booking, BookingItem, BookingDocument, BookingParty, Party, AuditLog,
 )
-from . import validators
+from . import notifications, validators
 
 
 class BookingService:
@@ -52,6 +52,7 @@ class BookingService:
         """Return a JSON-safe dict of key booking fields for audit diffs."""
         return {
             'status': booking.status,
+            'transport_mode': booking.transport_mode,
             'origin_port': booking.origin_port_id,
             'destination_port': booking.destination_port_id,
             'cargo_ready_date': str(booking.cargo_ready_date),
@@ -161,6 +162,8 @@ class BookingService:
 
             cls._log(booking, 'CONFIRMED', user=user, request=request)
 
+        notifications.notify_booking_confirmed(booking)
+
     @classmethod
     def reject_booking(cls, booking, user=None, reason='', request=None):
         """Reject a SUBMITTED booking."""
@@ -179,6 +182,8 @@ class BookingService:
                 notes=reason,
             )
 
+        notifications.notify_booking_rejected(booking)
+
     @classmethod
     def mark_in_transit(cls, booking, user=None, request=None):
         """Mark a CONFIRMED booking as in transit."""
@@ -190,6 +195,8 @@ class BookingService:
             booking.save()
 
             cls._log(booking, 'IN_TRANSIT', user=user, request=request)
+
+        notifications.notify_booking_in_transit(booking)
 
     @classmethod
     def complete_booking(cls, booking, user=None, request=None):
@@ -203,6 +210,69 @@ class BookingService:
             booking.save()
 
             cls._log(booking, 'COMPLETED', user=user, request=request)
+
+        notifications.notify_booking_completed(booking)
+
+    @classmethod
+    def confirm_booking_with_carrier(cls, booking, carrier_form, user=None, request=None):
+        """Confirm a SUBMITTED booking and save carrier details in one transaction."""
+        if booking.status != 'SUBMITTED':
+            raise ValueError('Only submitted bookings can be confirmed.')
+
+        with transaction.atomic():
+            if carrier_form and carrier_form.is_valid():
+                for field in carrier_form.cleaned_data:
+                    setattr(booking, field, carrier_form.cleaned_data[field])
+
+            booking.status = 'CONFIRMED'
+            booking.confirmed_at = timezone.now()
+            booking.save()
+
+            cls._log(booking, 'CONFIRMED', user=user, request=request)
+
+        notifications.notify_booking_confirmed(booking)
+        return booking
+
+    @classmethod
+    def update_carrier_details(cls, booking, form, user=None, request=None):
+        """Update carrier details on a CONFIRMED or IN_TRANSIT booking."""
+        if booking.status not in ('CONFIRMED', 'IN_TRANSIT'):
+            raise ValueError('Carrier details can only be updated on confirmed or in-transit bookings.')
+
+        if not form.is_valid():
+            raise ValueError('Invalid carrier details.')
+
+        old = {
+            'carrier_name': booking.carrier_name,
+            'vessel_name': booking.vessel_name,
+            'voyage_number': booking.voyage_number,
+            'cargo_cutoff_date': str(booking.cargo_cutoff_date) if booking.cargo_cutoff_date else None,
+            'etd': str(booking.etd) if booking.etd else None,
+            'eta': str(booking.eta) if booking.eta else None,
+            'carrier_booking_ref': booking.carrier_booking_ref,
+        }
+
+        with transaction.atomic():
+            form.save()
+            booking.refresh_from_db()
+
+            new = {
+                'carrier_name': booking.carrier_name,
+                'vessel_name': booking.vessel_name,
+                'voyage_number': booking.voyage_number,
+                'cargo_cutoff_date': str(booking.cargo_cutoff_date) if booking.cargo_cutoff_date else None,
+                'etd': str(booking.etd) if booking.etd else None,
+                'eta': str(booking.eta) if booking.eta else None,
+                'carrier_booking_ref': booking.carrier_booking_ref,
+            }
+
+            cls._log(
+                booking, 'UPDATED', user=user, request=request,
+                old_value=old, new_value=new,
+                notes='Carrier details updated',
+            )
+
+        return booking
 
     @classmethod
     def cancel_booking(cls, booking, user=None, request=None):

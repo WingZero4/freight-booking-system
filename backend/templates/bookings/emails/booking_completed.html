@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden;">
+    <div style="background: #0dcaf0; color: #000; padding: 20px 24px;">
+      <h2 style="margin: 0;">Booking Completed</h2>
+    </div>
+    <div style="padding: 24px;">
+      <p>Your booking <strong>{{ booking.booking_number }}</strong> has been completed.</p>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Route</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Container</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.container_count }}x {{ booking.container_type.code }}</td>
+        </tr>
+        {% if booking.vessel_name %}
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Vessel</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.vessel_name }}{% if booking.voyage_number %} / {{ booking.voyage_number }}{% endif %}</td>
+        </tr>
+        {% endif %}
+        {% if booking.carrier_name %}
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Carrier</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.carrier_name }}</td>
+        </tr>
+        {% endif %}
+      </table>
+
+      <p style="color: #666; font-size: 14px;">Thank you for using the Freight Booking Portal.</p>
+    </div>
+    <div style="background: #f8f9fa; padding: 16px 24px; font-size: 12px; color: #999;">
+      Freight Booking Portal &mdash; Automated notification
+    </div>
+  </div>
+</body>
+</html>

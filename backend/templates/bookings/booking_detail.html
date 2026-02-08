@@ -13,7 +13,8 @@
                         <i class="fas fa-file-alt me-2"></i>{{ booking.booking_number }}
                     </h4>
                     <span class="text-muted">
-                        {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                        {{ booking.get_transport_mode_display }}
+                        &middot; {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
                         &middot; {{ booking.container_count }}x {{ booking.container_type.code }}
                         &middot; {{ booking.get_incoterms_display }}
                     </span>
@@ -29,20 +30,56 @@
                         {% else %}bg-danger{% endif %}">
                         {{ booking.get_status_display }}
                     </span>
-                    {% if booking.status == 'DRAFT' %}
-                    <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-primary btn-sm">
-                        <i class="fas fa-edit me-1"></i>Edit
-                    </a>
-                    <a href="{% url 'booking_submit' booking.id %}" class="btn btn-success btn-sm">
-                        <i class="fas fa-paper-plane me-1"></i>Submit
-                    </a>
-                    <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
-                        <i class="fas fa-ban me-1"></i>Cancel
-                    </a>
-                    {% elif booking.status == 'SUBMITTED' %}
-                    <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
-                        <i class="fas fa-ban me-1"></i>Cancel
-                    </a>
+
+                    {% if user.profile.customer %}
+                        {# Customer action buttons #}
+                        {% if booking.status == 'DRAFT' %}
+                        <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </a>
+                        <a href="{% url 'booking_submit' booking.id %}" class="btn btn-success btn-sm">
+                            <i class="fas fa-paper-plane me-1"></i>Submit
+                        </a>
+                        <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-ban me-1"></i>Cancel
+                        </a>
+                        {% elif booking.status == 'SUBMITTED' %}
+                        <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-ban me-1"></i>Cancel
+                        </a>
+                        {% endif %}
+                        {% if booking.status != 'CANCELLED' %}
+                        <form method="post" action="{% url 'booking_clone' booking.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Clone as new draft">
+                                <i class="fas fa-copy me-1"></i>Clone
+                            </button>
+                        </form>
+                        {% endif %}
+                    {% else %}
+                        {# Staff action buttons #}
+                        {% if booking.status == 'SUBMITTED' %}
+                        <a href="{% url 'ops_booking_confirm' booking.id %}" class="btn btn-success btn-sm">
+                            <i class="fas fa-check me-1"></i>Confirm
+                        </a>
+                        <a href="{% url 'ops_booking_reject' booking.id %}" class="btn btn-dark btn-sm">
+                            <i class="fas fa-times me-1"></i>Reject
+                        </a>
+                        {% elif booking.status == 'CONFIRMED' %}
+                        <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-ship me-1"></i>Carrier Details
+                        </a>
+                        <a href="{% url 'ops_mark_in_transit' booking.id %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-shipping-fast me-1"></i>In Transit
+                        </a>
+                        {% elif booking.status == 'IN_TRANSIT' %}
+                        <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-ship me-1"></i>Carrier Details
+                        </a>
+                        <a href="{% url 'ops_complete_booking' booking.id %}" class="btn btn-info btn-sm">
+                            <i class="fas fa-flag-checkered me-1"></i>Complete
+                        </a>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -88,7 +125,15 @@
                 <div class="card">
                     <div class="card-body">
                         <!-- Route -->
-                        <h5 class="mb-3"><i class="fas fa-route me-2 text-primary"></i>Route</h5>
+                        <h5 class="mb-3"><i class="fas fa-route me-2 text-primary"></i>Route &amp; Mode</h5>
+                        <div class="row mb-2">
+                            <div class="col-md-12">
+                                <span class="badge bg-primary fs-6 mb-2">
+                                    <i class="fas fa-{% if booking.transport_mode == 'AIR' %}plane{% elif booking.transport_mode == 'RAIL' %}train{% elif booking.transport_mode == 'TRUCK' %}truck{% else %}ship{% endif %} me-1"></i>
+                                    {{ booking.get_transport_mode_display }}
+                                </span>
+                            </div>
+                        </div>
                         <div class="row mb-4">
                             <div class="col-md-5">
                                 <p class="text-muted mb-1">Origin</p>
@@ -108,6 +153,25 @@
                                 </p>
                             </div>
                         </div>
+
+                        {% if not user.profile.customer %}
+                        <!-- Customer Info (staff view) -->
+                        <h5 class="mb-3"><i class="fas fa-building me-2 text-primary"></i>Customer</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-4">
+                                <p class="text-muted mb-1">Customer</p>
+                                <p class="fw-bold">{{ booking.customer.name }} ({{ booking.customer.code }})</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-muted mb-1">Created By</p>
+                                <p class="fw-bold">{{ booking.created_by.username }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p class="text-muted mb-1">Source</p>
+                                <p class="fw-bold">{{ booking.get_source_channel_display }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
 
                         <!-- Trade Terms -->
                         <h5 class="mb-3"><i class="fas fa-handshake me-2 text-primary"></i>Trade Terms</h5>
@@ -137,6 +201,12 @@
                                 <p class="text-muted mb-1">Cargo Ready Date</p>
                                 <p class="fw-bold">{{ booking.cargo_ready_date|date:"M d, Y" }}</p>
                             </div>
+                            {% if booking.cargo_cutoff_date %}
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Cargo Cutoff</p>
+                                <p class="fw-bold">{{ booking.cargo_cutoff_date|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
                             {% if booking.etd %}
                             <div class="col-md-3">
                                 <p class="text-muted mb-1">ETD</p>

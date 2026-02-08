@@ -5,13 +5,28 @@ urlpatterns = [
     # Dashboard
     path('', views.dashboard, name='dashboard'),
 
-    # Booking CRUD
+    # Operations (Staff)
+    path('ops/', views.ops_dashboard, name='ops_dashboard'),
+    path('bookings/<int:booking_id>/confirm/',
+         views.ops_booking_confirm, name='ops_booking_confirm'),
+    path('bookings/<int:booking_id>/reject/',
+         views.ops_booking_reject, name='ops_booking_reject'),
+    path('bookings/<int:booking_id>/carrier/',
+         views.ops_carrier_details, name='ops_carrier_details'),
+    path('bookings/<int:booking_id>/in-transit/',
+         views.ops_mark_in_transit, name='ops_mark_in_transit'),
+    path('bookings/<int:booking_id>/complete/',
+         views.ops_complete_booking, name='ops_complete_booking'),
+
+    # Booking CRUD (export MUST come before <int:booking_id>)
     path('bookings/', views.booking_list, name='booking_list'),
+    path('bookings/export/', views.booking_export_csv, name='booking_export_csv'),
     path('bookings/create/', views.booking_create, name='booking_create'),
     path('bookings/<int:booking_id>/', views.booking_detail, name='booking_detail'),
     path('bookings/<int:booking_id>/edit/', views.booking_edit, name='booking_edit'),
     path('bookings/<int:booking_id>/submit/', views.booking_submit, name='booking_submit'),
     path('bookings/<int:booking_id>/cancel/', views.booking_cancel, name='booking_cancel'),
+    path('bookings/<int:booking_id>/clone/', views.booking_clone, name='booking_clone'),
 
     # Documents
     path('bookings/<int:booking_id>/documents/upload/',

@@ -11,6 +11,7 @@ class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
+            'transport_mode',
             'origin_port', 'destination_port', 'cargo_ready_date',
             'container_type', 'container_count',
             'incoterms', 'incoterms_location',
@@ -18,6 +19,7 @@ class BookingForm(forms.ModelForm):
             'external_reference', 'special_instructions',
         ]
         widgets = {
+            'transport_mode': forms.Select(attrs={'class': 'form-select'}),
             'origin_port': forms.Select(attrs={'class': 'form-select'}),
             'destination_port': forms.Select(attrs={'class': 'form-select'}),
             'cargo_ready_date': forms.DateInput(
@@ -322,3 +324,66 @@ class BookingPartySelectForm(forms.Form):
         self.fields['party'].queryset = Party.objects.filter(
             customer=customer, is_active=True
         )
+
+
+class CarrierDetailsForm(forms.ModelForm):
+    """Form for staff to enter/edit carrier details on a booking."""
+    class Meta:
+        model = Booking
+        fields = [
+            'carrier_name', 'vessel_name', 'voyage_number',
+            'cargo_cutoff_date', 'etd', 'eta', 'carrier_booking_ref',
+        ]
+        widgets = {
+            'carrier_name': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'e.g. Maersk, MSC, CMA CGM'}
+            ),
+            'vessel_name': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'e.g. Maersk Elba'}
+            ),
+            'voyage_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'e.g. 428W'}
+            ),
+            'cargo_cutoff_date': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}
+            ),
+            'etd': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}
+            ),
+            'eta': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}
+            ),
+            'carrier_booking_ref': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'Carrier booking reference'}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in self.fields:
+            self.fields[field_name].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        etd = cleaned.get('etd')
+        eta = cleaned.get('eta')
+        if etd and eta and eta < etd:
+            raise ValidationError('ETA cannot be before ETD.')
+        return cleaned
+
+
+class RejectBookingForm(forms.Form):
+    """Form for staff to enter a rejection reason."""
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Explain why this booking is being rejected...',
+        }),
+        max_length=1000,
+        label='Rejection Reason',
+    )
