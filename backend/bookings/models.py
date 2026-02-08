@@ -256,6 +256,10 @@ class Booking(models.Model):
     carrier_name = models.CharField(max_length=100, blank=True)
     vessel_name = models.CharField(max_length=100, blank=True)
     voyage_number = models.CharField(max_length=50, blank=True)
+    contract_number = models.CharField(
+        max_length=100, blank=True,
+        help_text='Internal carrier contract number (not visible to customers)'
+    )
     etd = models.DateField(null=True, blank=True, verbose_name="ETD")
     eta = models.DateField(null=True, blank=True, verbose_name="ETA")
 

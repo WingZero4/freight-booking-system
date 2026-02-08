@@ -267,6 +267,9 @@
                             {% if booking.carrier_booking_ref %}
                             <br><small class="text-muted">Carrier Ref: {{ booking.carrier_booking_ref }}</small>
                             {% endif %}
+                            {% if not user.profile.customer and booking.contract_number %}
+                            <br><small class="text-muted"><i class="fas fa-lock me-1"></i>Contract #: {{ booking.contract_number }}</small>
+                            {% endif %}
                         </p>
                         {% endif %}
 

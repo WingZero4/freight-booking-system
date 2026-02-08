@@ -332,7 +332,8 @@ class CarrierDetailsForm(forms.ModelForm):
         model = Booking
         fields = [
             'carrier_name', 'vessel_name', 'voyage_number',
-            'cargo_cutoff_date', 'etd', 'eta', 'carrier_booking_ref',
+            'cargo_cutoff_date', 'etd', 'eta',
+            'carrier_booking_ref', 'contract_number',
         ]
         widgets = {
             'carrier_name': forms.TextInput(
@@ -359,6 +360,10 @@ class CarrierDetailsForm(forms.ModelForm):
             'carrier_booking_ref': forms.TextInput(
                 attrs={'class': 'form-control',
                        'placeholder': 'Carrier booking reference'}
+            ),
+            'contract_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'Internal contract number'}
             ),
         }
 

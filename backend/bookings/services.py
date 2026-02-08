@@ -250,6 +250,7 @@ class BookingService:
             'etd': str(booking.etd) if booking.etd else None,
             'eta': str(booking.eta) if booking.eta else None,
             'carrier_booking_ref': booking.carrier_booking_ref,
+            'contract_number': booking.contract_number,
         }
 
         with transaction.atomic():
@@ -264,6 +265,7 @@ class BookingService:
                 'etd': str(booking.etd) if booking.etd else None,
                 'eta': str(booking.eta) if booking.eta else None,
                 'carrier_booking_ref': booking.carrier_booking_ref,
+                'contract_number': booking.contract_number,
             }
 
             cls._log(

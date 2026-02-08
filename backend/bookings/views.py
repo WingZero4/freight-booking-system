@@ -813,7 +813,7 @@ def booking_export_csv(request):
         'Origin', 'Destination',
         'Container Type', 'Container Count',
         'Cargo Ready Date', 'Cargo Cutoff',
-        'INCOTERMS', 'Carrier', 'Vessel', 'ETD', 'ETA',
+        'INCOTERMS', 'Carrier', 'Vessel', 'ETD', 'ETA', 'Contract Number',
         'Total Weight (kg)', 'Total Volume (CBM)',
         'Created', 'Submitted', 'Confirmed', 'Completed',
     ])
@@ -826,7 +826,7 @@ def booking_export_csv(request):
             b.container_type.code, b.container_count,
             b.cargo_ready_date, b.cargo_cutoff_date or '',
             b.incoterms, b.carrier_name, b.vessel_name,
-            b.etd or '', b.eta or '',
+            b.etd or '', b.eta or '', b.contract_number,
             b.total_weight_kg or '', b.total_volume_cbm or '',
             b.created_at.strftime('%Y-%m-%d %H:%M'),
             b.submitted_at.strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
