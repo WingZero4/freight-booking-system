@@ -11,7 +11,7 @@
             <i class="fas fa-file-csv me-1"></i>Export CSV
         </a>
         {% if user.profile.customer %}
-        <a href="{% url 'booking_create' %}" class="btn btn-primary">
+        <a href="{% url 'booking_create' %}" class="btn btn-themed-primary">
             <i class="fas fa-plus me-1"></i>New Booking
         </a>
         {% endif %}
@@ -54,7 +54,7 @@
                 </select>
             </div>
             <div class="col-md-1">
-                <button type="submit" class="btn btn-outline-primary w-100">
+                <button type="submit" class="btn btn-themed-outline w-100">
                     <i class="fas fa-search"></i>
                 </button>
             </div>
@@ -71,11 +71,11 @@
     </small>
     <div class="btn-group btn-group-sm">
         <a href="?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort_by }}&view=table"
-           class="btn {% if view_mode == 'table' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+           class="btn {% if view_mode == 'table' %}btn-themed-primary{% else %}btn-themed-outline{% endif %}">
             <i class="fas fa-table"></i>
         </a>
         <a href="?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort_by }}&view=card"
-           class="btn {% if view_mode == 'card' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+           class="btn {% if view_mode == 'card' %}btn-themed-primary{% else %}btn-themed-outline{% endif %}">
             <i class="fas fa-th-large"></i>
         </a>
     </div>
@@ -117,7 +117,7 @@
                             {% if booking.status == 'DRAFT' %}bg-secondary
                             {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                             {% elif booking.status == 'CONFIRMED' %}bg-success
-                            {% elif booking.status == 'IN_TRANSIT' %}bg-primary
+                            {% elif booking.status == 'IN_TRANSIT' %}bg-info
                             {% elif booking.status == 'COMPLETED' %}bg-info
                             {% elif booking.status == 'REJECTED' %}bg-dark
                             {% else %}bg-danger{% endif %}">
@@ -126,7 +126,7 @@
                     </td>
                     <td>{{ booking.created_at|date:"M d" }}</td>
                     <td>
-                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-primary btn-sm">View</a>
+                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">View</a>
                         {% if booking.status == 'DRAFT' %}
                         <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
                         {% endif %}
@@ -150,7 +150,7 @@
                         {% if booking.status == 'DRAFT' %}bg-secondary
                         {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                         {% elif booking.status == 'CONFIRMED' %}bg-success
-                        {% elif booking.status == 'IN_TRANSIT' %}bg-primary
+                        {% elif booking.status == 'IN_TRANSIT' %}bg-info
                         {% elif booking.status == 'COMPLETED' %}bg-info
                         {% elif booking.status == 'REJECTED' %}bg-dark
                         {% else %}bg-danger{% endif %}">
@@ -171,7 +171,7 @@
                 </p>
             </div>
             <div class="card-footer bg-transparent">
-                <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-primary btn-sm">View Details</a>
+                <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">View Details</a>
                 {% if booking.status == 'DRAFT' %}
                 <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
                 {% endif %}
@@ -189,7 +189,7 @@
     <i class="fas fa-inbox fa-3x mb-3"></i>
     <p>No bookings found.</p>
     {% if user.profile.customer %}
-    <a href="{% url 'booking_create' %}" class="btn btn-primary">Create Your First Booking</a>
+    <a href="{% url 'booking_create' %}" class="btn btn-themed-primary">Create Your First Booking</a>
     {% endif %}
 </div>
 {% endif %}

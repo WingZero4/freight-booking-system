@@ -1,30 +1,35 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Freight Booking{% endblock %}</title>
+    <title>{% block title %}{{ theme_portal_name|default:"Freight Booking" }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="{% static 'css/theme.css' %}" rel="stylesheet">
+    {% if theme_primary != "#1E2A4A" or theme_accent != "#DC3545" %}
     <style>
-        .navbar-brand { font-weight: bold; }
-        .status-badge { font-size: 0.875rem; }
-        .card-booking { transition: box-shadow 0.2s; }
-        .card-booking:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .stat-card { border-left: 4px solid; }
-        .stat-card.draft { border-left-color: #6c757d; }
-        .stat-card.submitted { border-left-color: #ffc107; }
-        .stat-card.confirmed { border-left-color: #198754; }
-        .stat-card.cancelled { border-left-color: #dc3545; }
-        .stat-card .stat-number { font-size: 2rem; font-weight: bold; }
+        :root {
+            --theme-primary: {{ theme_primary }};
+            --theme-accent: {{ theme_accent }};
+        }
     </style>
+    {% endif %}
     {% block extra_css %}{% endblock %}
 </head>
 <body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <nav class="navbar navbar-expand-lg navbar-themed mb-4">
         <div class="container">
             <a class="navbar-brand" href="{% url 'dashboard' %}">
-                <i class="fas fa-ship me-2"></i>Freight Booking
+                {% if theme_logo_url %}
+                <img src="{{ theme_logo_url }}" alt="{{ theme_portal_name|default:'Freight Booking' }}" height="36">
+                {% else %}
+                <i class="fas fa-ship me-2"></i>{{ theme_portal_name|default:"Freight Booking" }}
+                {% endif %}
             </a>
             {% if user.is_authenticated %}
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
@@ -67,7 +72,7 @@
                         <i class="fas fa-user me-1"></i>{{ user.username }}
                         {% if user.profile.customer %}({{ user.profile.customer.code }}){% endif %}
                     </span>
-                    <a class="btn btn-outline-light btn-sm" href="{% url 'logout' %}">
+                    <a class="btn btn-navbar-logout btn-sm" href="{% url 'logout' %}">
                         <i class="fas fa-sign-out-alt me-1"></i>Logout
                     </a>
                 </div>
@@ -91,7 +96,7 @@
 
     <footer class="container mt-5 mb-3">
         <hr>
-        <p class="text-muted text-center small">Freight Booking Portal &copy; 2026</p>
+        <p class="footer-themed text-center">{{ theme_portal_name|default:"Freight Booking" }} Portal &copy; 2026</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

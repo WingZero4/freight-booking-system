@@ -29,7 +29,7 @@
                     {% csrf_token %}
 
                     <!-- Route Section -->
-                    <h5 class="mb-3"><i class="fas fa-route me-2 text-primary"></i>Route &amp; Mode</h5>
+                    <h5 class="mb-3"><i class="fas fa-route me-2 text-themed-primary"></i>Route &amp; Mode</h5>
                     <div class="row mb-4">
                         <div class="col-md-3 mb-3">
                             <label for="{{ form.transport_mode.id_for_label }}" class="form-label">Transport Mode *</label>
@@ -61,7 +61,7 @@
                     </div>
 
                     <!-- Trade Terms Section -->
-                    <h5 class="mb-3"><i class="fas fa-handshake me-2 text-primary"></i>Trade Terms</h5>
+                    <h5 class="mb-3"><i class="fas fa-handshake me-2 text-themed-primary"></i>Trade Terms</h5>
                     <div class="row mb-4">
                         <div class="col-md-3 mb-3">
                             <label for="{{ form.incoterms.id_for_label }}" class="form-label">INCOTERMS *</label>
@@ -83,7 +83,7 @@
                     </div>
 
                     <!-- Schedule & Container Section -->
-                    <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-primary"></i>Schedule &amp; Container</h5>
+                    <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-themed-primary"></i>Schedule &amp; Container</h5>
                     <div class="row mb-4">
                         <div class="col-md-3 mb-3">
                             <label for="{{ form.cargo_ready_date.id_for_label }}" class="form-label">Cargo Ready Date *</label>
@@ -115,7 +115,7 @@
                     </div>
 
                     <!-- Cargo Description Section -->
-                    <h5 class="mb-3"><i class="fas fa-clipboard-list me-2 text-primary"></i>Cargo Description</h5>
+                    <h5 class="mb-3"><i class="fas fa-clipboard-list me-2 text-themed-primary"></i>Cargo Description</h5>
                     <div class="row mb-4">
                         <div class="col-md-8 mb-3">
                             <label for="{{ form.commodity_description.id_for_label }}" class="form-label">Commodity Description</label>
@@ -132,7 +132,7 @@
                     </div>
 
                     <!-- Cargo Items Section (Formset) -->
-                    <h5 class="mb-3"><i class="fas fa-cubes me-2 text-primary"></i>Cargo Items</h5>
+                    <h5 class="mb-3"><i class="fas fa-cubes me-2 text-themed-primary"></i>Cargo Items</h5>
 
                     {% if formset.non_form_errors %}
                     <div class="alert alert-danger">
@@ -247,13 +247,13 @@
                     </div>
 
                     <div class="mb-4">
-                        <button type="button" class="btn btn-outline-primary btn-sm" id="add-item-btn">
+                        <button type="button" class="btn btn-themed-outline btn-sm" id="add-item-btn">
                             <i class="fas fa-plus me-1"></i>Add Cargo Item
                         </button>
                     </div>
 
                     <!-- Special Instructions -->
-                    <h5 class="mb-3"><i class="fas fa-sticky-note me-2 text-primary"></i>Special Instructions</h5>
+                    <h5 class="mb-3"><i class="fas fa-sticky-note me-2 text-themed-primary"></i>Special Instructions</h5>
                     <div class="mb-4">
                         {{ form.special_instructions }}
                         {% if form.special_instructions.errors %}
@@ -266,7 +266,7 @@
                     <!-- Form Actions -->
                     <hr>
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-themed-primary">
                             {% if is_edit %}
                             <i class="fas fa-save me-1"></i>Save Changes
                             {% else %}

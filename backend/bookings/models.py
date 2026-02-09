@@ -2,7 +2,7 @@ import os
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
-from django.core.validators import FileExtensionValidator
+from django.core.validators import FileExtensionValidator, RegexValidator
 
 
 class Customer(models.Model):
@@ -16,6 +16,25 @@ class Customer(models.Model):
     country = models.CharField(max_length=100, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Branding / White-label
+    hex_color_validator = RegexValidator(
+        r'^#[0-9A-Fa-f]{6}$', 'Enter a valid hex color code (e.g. #1E2A4A).')
+    logo = models.ImageField(
+        upload_to='customer_logos/', blank=True, null=True,
+        validators=[FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])],
+        help_text='Company logo (recommended: 200x50px PNG with transparent bg)')
+    primary_color = models.CharField(
+        max_length=7, blank=True, default='',
+        validators=[hex_color_validator],
+        help_text='Primary brand color hex, e.g. #1E2A4A')
+    accent_color = models.CharField(
+        max_length=7, blank=True, default='',
+        validators=[hex_color_validator],
+        help_text='Accent/button color hex, e.g. #DC3545')
+    portal_name = models.CharField(
+        max_length=100, blank=True, default='',
+        help_text='Custom portal name shown in navbar')
 
     def __str__(self):
         return f"{self.code} - {self.name}"

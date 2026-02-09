@@ -5,7 +5,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h3>
-    <a href="{% url 'booking_create' %}" class="btn btn-primary">
+    <a href="{% url 'booking_create' %}" class="btn btn-themed-primary">
         <i class="fas fa-plus me-1"></i>New Booking
     </a>
 </div>
@@ -37,9 +37,9 @@
         </div>
     </div>
     <div class="col-md-2 col-6 mb-3">
-        <div class="card stat-card" style="border-left-color: #0d6efd;">
+        <div class="card stat-card in-transit">
             <div class="card-body text-center">
-                <div class="stat-number text-primary">{{ stats.in_transit }}</div>
+                <div class="stat-number text-info">{{ stats.in_transit }}</div>
                 <div class="text-muted small">In Transit</div>
             </div>
         </div>
@@ -78,7 +78,7 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Recent Bookings</h5>
-        <a href="{% url 'booking_list' %}" class="btn btn-outline-primary btn-sm">View All</a>
+        <a href="{% url 'booking_list' %}" class="btn btn-themed-outline btn-sm">View All</a>
     </div>
     <div class="card-body p-0">
         {% if recent_bookings %}
@@ -106,7 +106,7 @@
                                 {% if booking.status == 'DRAFT' %}bg-secondary
                                 {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                                 {% elif booking.status == 'CONFIRMED' %}bg-success
-                                {% elif booking.status == 'IN_TRANSIT' %}bg-primary
+                                {% elif booking.status == 'IN_TRANSIT' %}bg-info
                                 {% elif booking.status == 'COMPLETED' %}bg-info
                                 {% elif booking.status == 'REJECTED' %}bg-dark
                                 {% else %}bg-danger{% endif %}">
@@ -114,7 +114,7 @@
                             </span>
                         </td>
                         <td>
-                            <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-primary btn-sm">
+                            <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">
                                 View
                             </a>
                         </td>
@@ -127,7 +127,7 @@
         <div class="text-center py-5 text-muted">
             <i class="fas fa-inbox fa-3x mb-3"></i>
             <p>No bookings yet.</p>
-            <a href="{% url 'booking_create' %}" class="btn btn-primary">Create Your First Booking</a>
+            <a href="{% url 'booking_create' %}" class="btn btn-themed-primary">Create Your First Booking</a>
         </div>
         {% endif %}
     </div>

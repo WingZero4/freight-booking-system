@@ -711,3 +711,63 @@ class TestOpsComplete(ViewTestBase):
         booking = create_booking(self.customer, self.user, status='CONFIRMED')
         resp = self.client.get(reverse('ops_complete_booking', args=[booking.id]))
         self.assertRedirects(resp, reverse('booking_detail', args=[booking.id]))
+
+
+# ─── Theme / Branding Tests ──────────────────────────────────────────────────
+
+class ThemingTests(ViewTestBase):
+    """Test the customer_theme context processor and branded templates."""
+
+    def setUp(self):
+        """Reset customer branding before each test to avoid cross-test contamination."""
+        super().setUp()
+        from bookings.models import Customer
+        Customer.objects.filter(pk=self.customer.pk).update(
+            primary_color='', accent_color='', portal_name='', logo=''
+        )
+        self.customer.refresh_from_db()
+
+    def test_login_page_renders_with_default_theme(self):
+        resp = self.client.get(reverse('login'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'btn-themed-primary')
+        self.assertContains(resp, 'login-card')
+
+    def test_default_theme_for_customer_without_branding(self):
+        self._login_customer()
+        resp = self.client.get(reverse('dashboard'))
+        self.assertContains(resp, 'Freight Booking')  # default portal name
+        # Default theme uses CSS file defaults, no inline override
+        self.assertNotContains(resp, '#336699')
+
+    def test_custom_theme_colors_appear(self):
+        from bookings.models import Customer
+        Customer.objects.filter(pk=self.customer.pk).update(
+            primary_color='#336699', accent_color='#FF6600'
+        )
+        self._login_customer()
+        resp = self.client.get(reverse('dashboard'))
+        self.assertContains(resp, '#336699')
+        self.assertContains(resp, '#FF6600')
+
+    def test_custom_portal_name_appears(self):
+        from bookings.models import Customer
+        Customer.objects.filter(pk=self.customer.pk).update(
+            portal_name='Acme Logistics Portal'
+        )
+        self._login_customer()
+        resp = self.client.get(reverse('dashboard'))
+        self.assertContains(resp, 'Acme Logistics Portal')
+
+    def test_staff_sees_default_theme(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_dashboard'))
+        self.assertContains(resp, 'Freight Booking')
+
+    def test_navbar_shows_ship_icon_without_logo(self):
+        self._login_customer()
+        resp = self.client.get(reverse('dashboard'))
+        self.assertContains(resp, 'fa-ship')
+        # No <img> tag should appear in the navbar brand area
+        content = resp.content.decode()
+        self.assertNotIn('<img src="', content.split('navbar-brand')[1].split('</a>')[0])

@@ -76,6 +76,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'bookings.context_processors.nav_active',
+                'bookings.context_processors.customer_theme',
             ],
         },
     },

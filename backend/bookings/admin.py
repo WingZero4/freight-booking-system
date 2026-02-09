@@ -12,6 +12,16 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ['code', 'name', 'email', 'city', 'country', 'is_active']
     list_filter = ['is_active', 'country']
     search_fields = ['code', 'name', 'email']
+    fieldsets = (
+        (None, {'fields': ('code', 'name', 'email', 'phone', 'is_active')}),
+        ('Address', {'fields': ('address', 'city', 'country')}),
+        ('Branding', {
+            'fields': ('logo', 'primary_color', 'accent_color', 'portal_name'),
+            'description': 'Customize the portal appearance for this customer. '
+                           'Colors should be hex codes (e.g. #1E2A4A). '
+                           'Logo recommended: 200x50px PNG with transparent background.',
+        }),
+    )
 
 
 @admin.register(UserProfile)
