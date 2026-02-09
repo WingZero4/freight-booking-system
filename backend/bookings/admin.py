@@ -107,6 +107,7 @@ class BookingAdmin(admin.ModelAdmin):
         'in_transit_at', 'confirmed_by',
         'rejected_at', 'rejected_by', 'rejection_reason',
         'completed_at', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
+        'actual_departure_date', 'actual_arrival_date',
         'fms_shipment_id', 'hbl_number', 'mbl_number',
         'hawb_number', 'mawb_number',
         'fms_push_status', 'fms_push_error',
