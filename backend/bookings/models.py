@@ -351,45 +351,54 @@ class Booking(models.Model):
         self.submitted_at = timezone.now()
         self.save()
 
-    def confirm(self):
-        """Confirm booking (operations action)"""
-        if self.status == 'SUBMITTED':
-            self.status = 'CONFIRMED'
-            self.confirmed_at = timezone.now()
-            self.save()
+    def confirm(self, user=None):
+        """Confirm booking (operations action)."""
+        if self.status != 'SUBMITTED':
+            raise ValueError('Only submitted bookings can be confirmed.')
+        self.status = 'CONFIRMED'
+        self.confirmed_at = timezone.now()
+        if user:
+            self.confirmed_by = user
+        self.save()
 
     def reject(self, user=None, reason=''):
-        """Reject a submitted booking"""
-        if self.status == 'SUBMITTED':
-            self.status = 'REJECTED'
-            self.rejected_at = timezone.now()
-            if user:
-                self.rejected_by = user
-            self.rejection_reason = reason
-            self.save()
+        """Reject a submitted booking."""
+        if self.status != 'SUBMITTED':
+            raise ValueError('Only submitted bookings can be rejected.')
+        self.status = 'REJECTED'
+        self.rejected_at = timezone.now()
+        if user:
+            self.rejected_by = user
+        self.rejection_reason = reason
+        self.save()
 
     def mark_in_transit(self):
-        """Mark confirmed booking as in transit"""
-        if self.status == 'CONFIRMED':
-            self.status = 'IN_TRANSIT'
-            self.in_transit_at = timezone.now()
-            self.save()
+        """Mark confirmed booking as in transit."""
+        if self.status != 'CONFIRMED':
+            raise ValueError('Only confirmed bookings can be marked in transit.')
+        self.status = 'IN_TRANSIT'
+        self.in_transit_at = timezone.now()
+        self.save()
 
     def complete(self):
-        """Mark booking as completed"""
-        if self.status == 'IN_TRANSIT':
-            self.status = 'COMPLETED'
-            self.completed_at = timezone.now()
-            self.save()
+        """Mark booking as completed."""
+        if self.status != 'IN_TRANSIT':
+            raise ValueError('Only in-transit bookings can be completed.')
+        self.status = 'COMPLETED'
+        self.completed_at = timezone.now()
+        self.save()
 
-    def cancel(self, user=None):
-        """Cancel booking"""
-        if self.status in ['DRAFT', 'SUBMITTED', 'CONFIRMED']:
-            self.status = 'CANCELLED'
-            self.cancelled_at = timezone.now()
-            if user:
-                self.cancelled_by = user
-            self.save()
+    def cancel(self, user=None, reason=''):
+        """Cancel booking."""
+        if self.status not in ['DRAFT', 'SUBMITTED', 'CONFIRMED']:
+            raise ValueError('This booking cannot be cancelled.')
+        self.status = 'CANCELLED'
+        self.cancelled_at = timezone.now()
+        if user:
+            self.cancelled_by = user
+        if reason:
+            self.cancellation_reason = reason
+        self.save()
 
     class Meta:
         ordering = ['-created_at']

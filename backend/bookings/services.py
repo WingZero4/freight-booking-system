@@ -227,8 +227,11 @@ class BookingService:
         if booking.status != 'SUBMITTED':
             raise ValueError('Only submitted bookings can be confirmed.')
 
+        if carrier_form and not carrier_form.is_valid():
+            raise ValueError('Invalid carrier details.')
+
         with transaction.atomic():
-            if carrier_form and carrier_form.is_valid():
+            if carrier_form and carrier_form.cleaned_data:
                 for field in carrier_form.cleaned_data:
                     setattr(booking, field, carrier_form.cleaned_data[field])
 

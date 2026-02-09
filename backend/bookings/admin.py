@@ -4,6 +4,7 @@ from .models import (
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog,
 )
+from .services import BookingService
 
 
 @admin.register(Customer)
@@ -146,7 +147,7 @@ class BookingAdmin(admin.ModelAdmin):
     def confirm_bookings(self, request, queryset):
         count = 0
         for booking in queryset.filter(status='SUBMITTED'):
-            booking.confirm()
+            BookingService.confirm_booking(booking, user=request.user, request=request)
             count += 1
         self.message_user(request, f'{count} booking(s) confirmed.')
 
@@ -154,7 +155,7 @@ class BookingAdmin(admin.ModelAdmin):
     def cancel_bookings(self, request, queryset):
         count = 0
         for booking in queryset.filter(status__in=['DRAFT', 'SUBMITTED']):
-            booking.cancel(user=request.user)
+            BookingService.cancel_booking(booking, user=request.user, request=request)
             count += 1
         self.message_user(request, f'{count} booking(s) cancelled.')
 

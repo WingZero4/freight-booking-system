@@ -33,7 +33,12 @@ def get_user_customer(user):
 
 def get_booking_for_user(booking_id, user):
     """Get a booking, checking that the user has permission to access it."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_object_or_404(
+        Booking.objects.select_related(
+            'customer', 'origin_port', 'destination_port', 'container_type'
+        ),
+        id=booking_id,
+    )
     customer = get_user_customer(user)
     if customer and booking.customer != customer:
         raise Http404
@@ -602,17 +607,13 @@ def ops_dashboard(request):
     submitted_today = all_bookings.filter(submitted_at__date=today).count()
     submitted_this_week = all_bookings.filter(submitted_at__date__gte=week_ago).count()
 
-    # Average confirmation time
-    confirmed_bookings = all_bookings.filter(
-        confirmed_at__isnull=False, submitted_at__isnull=False
-    )
+    # Average confirmation time (DB-level aggregation)
     avg_confirm_hours = None
-    if confirmed_bookings.exists():
-        total_seconds = sum(
-            (b.confirmed_at - b.submitted_at).total_seconds()
-            for b in confirmed_bookings
-        )
-        avg_confirm_hours = total_seconds / confirmed_bookings.count() / 3600
+    avg_result = all_bookings.filter(
+        confirmed_at__isnull=False, submitted_at__isnull=False
+    ).aggregate(avg_time=Avg(F('confirmed_at') - F('submitted_at')))
+    if avg_result['avg_time'] is not None:
+        avg_confirm_hours = avg_result['avg_time'].total_seconds() / 3600
 
     # Recent activity
     recent_activity = (
@@ -830,6 +831,19 @@ def booking_clone(request, booking_id):
                     country_of_origin=item.country_of_origin,
                 )
 
+            for bp in booking.booking_parties.all():
+                BookingParty.objects.create(
+                    booking=new_booking,
+                    party=bp.party,
+                    role=bp.role,
+                    company_name=bp.company_name,
+                    contact_name=bp.contact_name,
+                    address_text=bp.address_text,
+                    email=bp.email,
+                    phone=bp.phone,
+                    tax_id=bp.tax_id,
+                )
+
             new_booking.recalculate_totals()
 
             BookingService._log(
@@ -866,7 +880,9 @@ def booking_export_csv(request):
         bookings = bookings.filter(
             Q(booking_number__icontains=search_query) |
             Q(origin_port__code__icontains=search_query) |
+            Q(origin_port__name__icontains=search_query) |
             Q(destination_port__code__icontains=search_query) |
+            Q(destination_port__name__icontains=search_query) |
             Q(external_reference__icontains=search_query)
         )
 
@@ -883,7 +899,7 @@ def booking_export_csv(request):
         'Origin', 'Destination',
         'Container Type', 'Container Count',
         'Cargo Ready Date', 'Cargo Cutoff',
-        'INCOTERMS', 'Carrier', 'Vessel', 'ETD', 'ETA',
+        'INCOTERMS', 'Carrier', 'Vessel', 'Voyage Number', 'ETD', 'ETA',
     ]
     if is_staff:
         headers.append('Contract Number')
@@ -901,7 +917,7 @@ def booking_export_csv(request):
             b.origin_port.code, b.destination_port.code,
             b.container_type.code, b.container_count,
             b.cargo_ready_date, b.cargo_cutoff_date or '',
-            b.incoterms, b.carrier_name, b.vessel_name,
+            b.incoterms, b.carrier_name, b.vessel_name, b.voyage_number or '',
             b.etd or '', b.eta or '',
         ]
         if is_staff:
