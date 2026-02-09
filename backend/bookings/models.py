@@ -263,21 +263,37 @@ class Booking(models.Model):
     etd = models.DateField(null=True, blank=True, verbose_name="ETD")
     eta = models.DateField(null=True, blank=True, verbose_name="ETA")
 
+    # Actual dates (recorded at status transitions)
+    actual_departure_date = models.DateField(
+        null=True, blank=True,
+        help_text='Actual date vessel/flight departed (set when marking in transit)'
+    )
+    actual_arrival_date = models.DateField(
+        null=True, blank=True,
+        help_text='Actual date cargo arrived at destination (set when completing)'
+    )
+
     # Timestamps
     submitted_at = models.DateTimeField(null=True, blank=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='confirmed_bookings'
+    )
     rejected_at = models.DateTimeField(null=True, blank=True)
     rejected_by = models.ForeignKey(
         User, on_delete=models.PROTECT, null=True, blank=True,
         related_name='rejected_bookings'
     )
     rejection_reason = models.TextField(blank=True)
+    in_transit_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancelled_by = models.ForeignKey(
         User, on_delete=models.PROTECT, null=True, blank=True,
         related_name='cancelled_bookings'
     )
+    cancellation_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -356,6 +372,7 @@ class Booking(models.Model):
         """Mark confirmed booking as in transit"""
         if self.status == 'CONFIRMED':
             self.status = 'IN_TRANSIT'
+            self.in_transit_at = timezone.now()
             self.save()
 
     def complete(self):
@@ -367,7 +384,7 @@ class Booking(models.Model):
 
     def cancel(self, user=None):
         """Cancel booking"""
-        if self.status in ['DRAFT', 'SUBMITTED']:
+        if self.status in ['DRAFT', 'SUBMITTED', 'CONFIRMED']:
             self.status = 'CANCELLED'
             self.cancelled_at = timezone.now()
             if user:
@@ -450,6 +467,8 @@ class BookingItem(models.Model):
 
     class Meta:
         ordering = ['id']
+        verbose_name = 'cargo line item'
+        verbose_name_plural = 'cargo line items'
 
 
 def booking_document_path(instance, filename):
@@ -588,6 +607,7 @@ class AuditLog(models.Model):
         ('ITEM_ADDED', 'Cargo Item Added'),
         ('ITEM_UPDATED', 'Cargo Item Updated'),
         ('ITEM_REMOVED', 'Cargo Item Removed'),
+        ('RESUBMITTED', 'Resubmitted from Rejection'),
     ]
 
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='audit_logs')

@@ -381,6 +381,43 @@ class CarrierDetailsForm(forms.ModelForm):
         return cleaned
 
 
+class MarkInTransitForm(forms.Form):
+    """Form for staff to record actual departure date when marking in transit."""
+    actual_departure_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control', 'type': 'date',
+        }),
+        label='Actual Departure Date',
+        help_text='When did the vessel/flight actually depart?',
+    )
+
+
+class CompleteBookingForm(forms.Form):
+    """Form for staff to record actual arrival date when completing a booking."""
+    actual_arrival_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control', 'type': 'date',
+        }),
+        label='Actual Arrival Date',
+        help_text='When did the cargo actually arrive at destination?',
+    )
+
+
+class CancelConfirmedForm(forms.Form):
+    """Form for staff to cancel a confirmed booking with a reason."""
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Explain why this confirmed booking is being cancelled...',
+        }),
+        max_length=1000,
+        label='Cancellation Reason',
+    )
+
+
 class RejectBookingForm(forms.Form):
     """Form for staff to enter a rejection reason."""
     reason = forms.CharField(

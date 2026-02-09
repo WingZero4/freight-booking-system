@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
+    <div class="col-md-8">
         <div class="card">
             <div class="card-header bg-primary text-white">
                 <h4 class="mb-0"><i class="fas fa-shipping-fast me-2"></i>Mark In Transit</h4>
@@ -47,15 +47,20 @@
                 </div>
                 {% endif %}
 
-                <div class="d-flex gap-2">
-                    <form method="post">
-                        {% csrf_token %}
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.actual_departure_date.label }} <small class="text-muted">(optional)</small></label>
+                        {{ form.actual_departure_date }}
+                        <div class="form-text text-muted">{{ form.actual_departure_date.help_text }}</div>
+                    </div>
+                    <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-shipping-fast me-1"></i>Yes, Mark In Transit
                         </button>
-                    </form>
-                    <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">Cancel</a>
-                </div>
+                        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

@@ -33,31 +33,31 @@
             <div class="collapse navbar-collapse" id="navMain">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'dashboard' %}">
+                        <a class="nav-link {% if nav_active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
                             <i class="fas fa-tachometer-alt me-1"></i>Dashboard
                         </a>
                     </li>
                     {% if not user.profile.customer %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'ops_dashboard' %}">
+                        <a class="nav-link {% if nav_active == 'ops' %}active{% endif %}" href="{% url 'ops_dashboard' %}">
                             <i class="fas fa-headset me-1"></i>Operations
                         </a>
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'booking_list' %}">
+                        <a class="nav-link {% if nav_active == 'bookings' %}active{% endif %}" href="{% url 'booking_list' %}">
                             <i class="fas fa-list me-1"></i>Bookings
                         </a>
                     </li>
                     {% if user.profile.customer %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'booking_create' %}">
+                        <a class="nav-link {% if nav_active == 'new_booking' %}active{% endif %}" href="{% url 'booking_create' %}">
                             <i class="fas fa-plus me-1"></i>New Booking
                         </a>
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'party_list' %}">
+                        <a class="nav-link {% if nav_active == 'parties' %}active{% endif %}" href="{% url 'party_list' %}">
                             <i class="fas fa-address-book me-1"></i>Address Book
                         </a>
                     </li>

@@ -15,6 +15,7 @@ from .forms import (
     BookingForm, BookingItemFormSet, BookingDocumentForm,
     PartyForm, BookingPartySelectForm,
     CarrierDetailsForm, RejectBookingForm,
+    MarkInTransitForm, CompleteBookingForm, CancelConfirmedForm,
 )
 from .services import BookingService
 
@@ -227,8 +228,12 @@ def booking_detail(request, booking_id):
 
     parties = booking.booking_parties.select_related('party').all()
     party_select_form = None
-    if customer and booking.status in ('DRAFT', 'SUBMITTED'):
+    active_statuses = ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT')
+    if customer and booking.status in active_statuses:
         party_select_form = BookingPartySelectForm(customer)
+    elif not customer and booking.status in active_statuses:
+        # Staff can also manage parties — use booking's customer for party list
+        party_select_form = BookingPartySelectForm(booking.customer)
 
     audit_logs = booking.audit_logs.select_related('performed_by').all()[:20]
 
@@ -269,13 +274,41 @@ def booking_submit(request, booking_id):
 
 @login_required
 def booking_cancel(request, booking_id):
-    """Cancel a booking (DRAFT or SUBMITTED only, POST required)"""
+    """Cancel a booking (DRAFT/SUBMITTED for customers, CONFIRMED for staff)"""
     booking = get_booking_for_user(booking_id, request.user)
+    customer = get_user_customer(request.user)
 
-    if booking.status not in ['DRAFT', 'SUBMITTED']:
+    # Customers can cancel DRAFT/SUBMITTED; staff can also cancel CONFIRMED
+    if customer and booking.status not in ('DRAFT', 'SUBMITTED'):
+        messages.error(request, 'This booking cannot be cancelled.')
+        return redirect('booking_detail', booking_id=booking.id)
+    if not customer and booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
         messages.error(request, 'This booking cannot be cancelled.')
         return redirect('booking_detail', booking_id=booking.id)
 
+    # Confirmed bookings require a cancellation reason (staff-only)
+    if booking.status == 'CONFIRMED':
+        if request.method == 'POST':
+            form = CancelConfirmedForm(request.POST)
+            if form.is_valid():
+                try:
+                    BookingService.cancel_booking(
+                        booking, request.user,
+                        reason=form.cleaned_data['reason'],
+                        request=request,
+                    )
+                    messages.success(request, f'Booking {booking.booking_number} has been cancelled.')
+                    return redirect('booking_detail', booking_id=booking.id)
+                except ValueError as e:
+                    messages.error(request, str(e))
+        else:
+            form = CancelConfirmedForm()
+        return render(request, 'bookings/ops/cancel_confirmed.html', {
+            'booking': booking,
+            'form': form,
+        })
+
+    # DRAFT/SUBMITTED — simple confirmation
     if request.method == 'POST':
         try:
             BookingService.cancel_booking(booking, request.user, request=request)
@@ -289,6 +322,26 @@ def booking_cancel(request, booking_id):
     })
 
 
+@login_required
+def booking_resubmit(request, booking_id):
+    """Return a REJECTED booking to DRAFT for revision (customer action)."""
+    booking = get_booking_for_user(booking_id, request.user)
+
+    if booking.status != 'REJECTED':
+        messages.error(request, 'Only rejected bookings can be resubmitted.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.resubmit_booking(booking, request.user, request=request)
+            messages.success(request, f'Booking {booking.booking_number} returned to draft. You can now edit and resubmit.')
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect('booking_detail', booking_id=booking.id)
+
+    return redirect('booking_detail', booking_id=booking.id)
+
+
 # ─── Documents ────────────────────────────────────────────────────────
 
 @login_required
@@ -296,8 +349,8 @@ def booking_document_upload(request, booking_id):
     """Upload a document to a booking (DRAFT or SUBMITTED only)"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status not in ['DRAFT', 'SUBMITTED']:
-        messages.error(request, 'Documents can only be uploaded to draft or submitted bookings.')
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        messages.error(request, 'Documents can only be uploaded to active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
@@ -447,16 +500,15 @@ def booking_party_add(request, booking_id):
     booking = get_booking_for_user(booking_id, request.user)
     customer = get_user_customer(request.user)
 
-    if not customer:
-        messages.error(request, 'You must be associated with a customer to manage parties.')
-        return redirect('booking_detail', booking_id=booking.id)
+    # Both customers and staff can manage parties
+    party_customer = customer or booking.customer
 
-    if booking.status not in ('DRAFT', 'SUBMITTED'):
-        messages.error(request, 'Parties can only be added to draft or submitted bookings.')
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        messages.error(request, 'Parties can only be added to active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
-        form = BookingPartySelectForm(customer, request.POST)
+        form = BookingPartySelectForm(party_customer, request.POST)
         if form.is_valid():
             party = form.cleaned_data['party']
             role = form.cleaned_data['role']
@@ -482,8 +534,8 @@ def booking_party_remove(request, booking_id, booking_party_id):
     """Remove a party assignment from a booking"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status not in ('DRAFT', 'SUBMITTED'):
-        messages.error(request, 'Parties can only be removed from draft or submitted bookings.')
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        messages.error(request, 'Parties can only be removed from active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
     booking_party = get_object_or_404(BookingParty, id=booking_party_id, booking=booking)
@@ -522,7 +574,7 @@ def ops_dashboard(request):
 
     needs_carrier = (
         all_bookings
-        .filter(status='CONFIRMED')
+        .filter(status__in=['CONFIRMED', 'IN_TRANSIT'])
         .filter(Q(vessel_name='') | Q(etd__isnull=True) | Q(eta__isnull=True))
         .select_related('customer', 'origin_port', 'destination_port', 'container_type')
     )
@@ -675,15 +727,23 @@ def ops_mark_in_transit(request, booking_id):
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
-        try:
-            BookingService.mark_in_transit(booking, user=request.user, request=request)
-            messages.success(request, f'Booking {booking.booking_number} marked as in transit.')
-        except ValueError as e:
-            messages.error(request, str(e))
-        return redirect('booking_detail', booking_id=booking.id)
+        form = MarkInTransitForm(request.POST)
+        if form.is_valid():
+            try:
+                BookingService.mark_in_transit(
+                    booking, user=request.user, request=request,
+                    actual_departure_date=form.cleaned_data.get('actual_departure_date'),
+                )
+                messages.success(request, f'Booking {booking.booking_number} marked as in transit.')
+            except ValueError as e:
+                messages.error(request, str(e))
+            return redirect('booking_detail', booking_id=booking.id)
+    else:
+        form = MarkInTransitForm()
 
     return render(request, 'bookings/ops/mark_in_transit.html', {
         'booking': booking,
+        'form': form,
     })
 
 
@@ -697,15 +757,23 @@ def ops_complete_booking(request, booking_id):
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
-        try:
-            BookingService.complete_booking(booking, user=request.user, request=request)
-            messages.success(request, f'Booking {booking.booking_number} has been completed.')
-        except ValueError as e:
-            messages.error(request, str(e))
-        return redirect('booking_detail', booking_id=booking.id)
+        form = CompleteBookingForm(request.POST)
+        if form.is_valid():
+            try:
+                BookingService.complete_booking(
+                    booking, user=request.user, request=request,
+                    actual_arrival_date=form.cleaned_data.get('actual_arrival_date'),
+                )
+                messages.success(request, f'Booking {booking.booking_number} has been completed.')
+            except ValueError as e:
+                messages.error(request, str(e))
+            return redirect('booking_detail', booking_id=booking.id)
+    else:
+        form = CompleteBookingForm()
 
     return render(request, 'bookings/ops/complete_booking.html', {
         'booking': booking,
+        'form': form,
     })
 
 
@@ -807,31 +875,46 @@ def booking_export_csv(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="bookings_export.csv"'
 
+    is_staff = not customer
+
     writer = csv.writer(response)
-    writer.writerow([
+    headers = [
         'Booking Number', 'Status', 'Transport Mode', 'Customer',
         'Origin', 'Destination',
         'Container Type', 'Container Count',
         'Cargo Ready Date', 'Cargo Cutoff',
-        'INCOTERMS', 'Carrier', 'Vessel', 'ETD', 'ETA', 'Contract Number',
+        'INCOTERMS', 'Carrier', 'Vessel', 'ETD', 'ETA',
+    ]
+    if is_staff:
+        headers.append('Contract Number')
+    headers += [
+        'Actual Departure', 'Actual Arrival',
         'Total Weight (kg)', 'Total Volume (CBM)',
-        'Created', 'Submitted', 'Confirmed', 'Completed',
-    ])
+        'Created', 'Submitted', 'Confirmed', 'In Transit', 'Completed',
+    ]
+    writer.writerow(headers)
 
     for b in bookings:
-        writer.writerow([
+        row = [
             b.booking_number, b.status, b.get_transport_mode_display(),
             b.customer.code,
             b.origin_port.code, b.destination_port.code,
             b.container_type.code, b.container_count,
             b.cargo_ready_date, b.cargo_cutoff_date or '',
             b.incoterms, b.carrier_name, b.vessel_name,
-            b.etd or '', b.eta or '', b.contract_number,
+            b.etd or '', b.eta or '',
+        ]
+        if is_staff:
+            row.append(b.contract_number)
+        row += [
+            b.actual_departure_date or '', b.actual_arrival_date or '',
             b.total_weight_kg or '', b.total_volume_cbm or '',
             b.created_at.strftime('%Y-%m-%d %H:%M'),
             b.submitted_at.strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
             b.confirmed_at.strftime('%Y-%m-%d %H:%M') if b.confirmed_at else '',
+            b.in_transit_at.strftime('%Y-%m-%d %H:%M') if b.in_transit_at else '',
             b.completed_at.strftime('%Y-%m-%d %H:%M') if b.completed_at else '',
-        ])
+        ]
+        writer.writerow(row)
 
     return response

@@ -7,19 +7,19 @@
     <div class="col-md-11">
         <!-- Booking Header -->
         <div class="card mb-3">
-            <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                    <h4 class="mb-1">
-                        <i class="fas fa-file-alt me-2"></i>{{ booking.booking_number }}
-                    </h4>
-                    <span class="text-muted">
-                        {{ booking.get_transport_mode_display }}
-                        &middot; {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
-                        &middot; {{ booking.container_count }}x {{ booking.container_type.code }}
-                        &middot; {{ booking.get_incoterms_display }}
-                    </span>
-                </div>
-                <div class="d-flex align-items-center gap-2">
+            <div class="card-body pb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <h4 class="mb-1">
+                            <i class="fas fa-file-alt me-2"></i>{{ booking.booking_number }}
+                        </h4>
+                        <span class="text-muted">
+                            {{ booking.get_transport_mode_display }}
+                            &middot; {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                            &middot; {{ booking.container_count }}x {{ booking.container_type.code }}
+                            &middot; {{ booking.get_incoterms_display }}
+                        </span>
+                    </div>
                     <span class="badge fs-6
                         {% if booking.status == 'DRAFT' %}bg-secondary
                         {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
@@ -30,7 +30,9 @@
                         {% else %}bg-danger{% endif %}">
                         {{ booking.get_status_display }}
                     </span>
-
+                </div>
+                <!-- Action Toolbar -->
+                <div class="d-flex flex-wrap gap-2 pt-2 border-top">
                     {% if user.profile.customer %}
                         {# Customer action buttons #}
                         {% if booking.status == 'DRAFT' %}
@@ -47,6 +49,13 @@
                         <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
                             <i class="fas fa-ban me-1"></i>Cancel
                         </a>
+                        {% elif booking.status == 'REJECTED' %}
+                        <form method="post" action="{% url 'booking_resubmit' booking.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-warning btn-sm" title="Revise and resubmit">
+                                <i class="fas fa-redo me-1"></i>Revise &amp; Resubmit
+                            </button>
+                        </form>
                         {% endif %}
                         {% if booking.status != 'CANCELLED' %}
                         <form method="post" action="{% url 'booking_clone' booking.id %}" class="d-inline">
@@ -72,6 +81,9 @@
                         <a href="{% url 'ops_mark_in_transit' booking.id %}" class="btn btn-primary btn-sm">
                             <i class="fas fa-shipping-fast me-1"></i>In Transit
                         </a>
+                        <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-ban me-1"></i>Cancel
+                        </a>
                         {% elif booking.status == 'IN_TRANSIT' %}
                         <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-ship me-1"></i>Carrier Details
@@ -81,6 +93,9 @@
                         </a>
                         {% endif %}
                     {% endif %}
+                    <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary btn-sm ms-auto">
+                        <i class="fas fa-arrow-left me-1"></i>Back to List
+                    </a>
                 </div>
             </div>
         </div>
@@ -220,6 +235,22 @@
                             </div>
                             {% endif %}
                         </div>
+                        {% if booking.actual_departure_date or booking.actual_arrival_date %}
+                        <div class="row mb-4">
+                            {% if booking.actual_departure_date %}
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Actual Departure</p>
+                                <p class="fw-bold text-success">{{ booking.actual_departure_date|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.actual_arrival_date %}
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Actual Arrival</p>
+                                <p class="fw-bold text-success">{{ booking.actual_arrival_date|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
 
                         <!-- Container -->
                         <h5 class="mb-3"><i class="fas fa-box me-2 text-primary"></i>Container</h5>
@@ -281,6 +312,14 @@
                         </div>
                         {% endif %}
 
+                        <!-- Cancellation reason -->
+                        {% if booking.status == 'CANCELLED' and booking.cancellation_reason %}
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-ban me-1"></i>Cancellation Reason</h6>
+                            {{ booking.cancellation_reason }}
+                        </div>
+                        {% endif %}
+
                         <!-- Special Instructions -->
                         {% if booking.special_instructions %}
                         <h5 class="mb-3"><i class="fas fa-sticky-note me-2 text-primary"></i>Special Instructions</h5>
@@ -292,21 +331,25 @@
 
                     <!-- Timestamps Footer -->
                     <div class="card-footer text-muted small">
-                        <i class="fas fa-clock me-1"></i>
-                        Created: {{ booking.created_at|date:"M d, Y H:i" }}
-                        {% if booking.submitted_at %}
-                        | Submitted: {{ booking.submitted_at|date:"M d, Y H:i" }}
-                        {% endif %}
-                        {% if booking.confirmed_at %}
-                        | Confirmed: {{ booking.confirmed_at|date:"M d, Y H:i" }}
-                        {% endif %}
-                        {% if booking.completed_at %}
-                        | Completed: {{ booking.completed_at|date:"M d, Y H:i" }}
-                        {% endif %}
-                        {% if booking.cancelled_at %}
-                        | Cancelled: {{ booking.cancelled_at|date:"M d, Y H:i" }}
-                        {% endif %}
-                        | Source: {{ booking.get_source_channel_display }}
+                        <div class="d-flex flex-wrap gap-3">
+                            <span><i class="fas fa-clock me-1"></i>Created: {{ booking.created_at|date:"M d, Y H:i" }}</span>
+                            {% if booking.submitted_at %}
+                            <span>Submitted: {{ booking.submitted_at|date:"M d, Y H:i" }}</span>
+                            {% endif %}
+                            {% if booking.confirmed_at %}
+                            <span>Confirmed: {{ booking.confirmed_at|date:"M d, Y H:i" }}</span>
+                            {% endif %}
+                            {% if booking.in_transit_at %}
+                            <span>In Transit: {{ booking.in_transit_at|date:"M d, Y H:i" }}</span>
+                            {% endif %}
+                            {% if booking.completed_at %}
+                            <span>Completed: {{ booking.completed_at|date:"M d, Y H:i" }}</span>
+                            {% endif %}
+                            {% if booking.cancelled_at %}
+                            <span>Cancelled: {{ booking.cancelled_at|date:"M d, Y H:i" }}</span>
+                            {% endif %}
+                            <span class="ms-auto">Source: {{ booking.get_source_channel_display }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -418,7 +461,7 @@
                                         <span class="fw-bold">
                                             <i class="fas fa-user-tag me-1"></i>{{ bp.get_role_display }}
                                         </span>
-                                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' %}
+                                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' %}
                                         <form method="post" action="{% url 'booking_party_remove' booking.id bp.id %}"
                                               onsubmit="return confirm('Remove this party?');">
                                             {% csrf_token %}
@@ -453,7 +496,7 @@
                 <div class="card">
                     <div class="card-body">
                         <!-- Document Upload Form -->
-                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' %}
+                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' %}
                         <form method="post" action="{% url 'booking_document_upload' booking.id %}" enctype="multipart/form-data" class="mb-4">
                             {% csrf_token %}
                             <div class="row g-2 align-items-end">
@@ -536,6 +579,23 @@
                         {% if audit_logs %}
                         <div class="list-group list-group-flush">
                             {% for log in audit_logs %}
+                            {% if user.profile.customer %}
+                            {# Customer view: show status transitions, documents, parties only #}
+                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'RESUBMITTED' %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <span class="badge bg-light text-dark me-2">{{ log.get_action_display }}</span>
+                                        {% if log.notes and log.action != 'UPDATED' %}
+                                        <br><small class="text-muted">{{ log.notes }}</small>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ log.performed_at|date:"M d, Y H:i" }}</small>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% else %}
+                            {# Staff view: show everything #}
                             <div class="list-group-item px-0">
                                 <div class="d-flex justify-content-between">
                                     <div>
@@ -550,6 +610,7 @@
                                     <small class="text-muted">{{ log.performed_at|date:"M d, Y H:i" }}</small>
                                 </div>
                             </div>
+                            {% endif %}
                             {% endfor %}
                         </div>
                         {% else %}
@@ -563,12 +624,6 @@
 
         </div>
 
-        <!-- Back link -->
-        <div class="mt-3">
-            <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>Back to List
-            </a>
-        </div>
     </div>
 </div>
 {% endblock %}

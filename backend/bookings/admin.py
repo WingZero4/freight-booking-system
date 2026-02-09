@@ -79,18 +79,20 @@ class AuditLogInline(admin.TabularInline):
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = [
-        'booking_number', 'customer', 'origin_port', 'destination_port',
-        'incoterms', 'container_type', 'container_count',
-        'cargo_ready_date', 'status', 'source_channel',
+        'booking_number', 'customer', 'transport_mode',
+        'origin_port', 'destination_port',
+        'container_type', 'container_count',
+        'cargo_ready_date', 'status',
     ]
-    list_filter = ['status', 'incoterms', 'source_channel', 'is_hazardous',
-                   'container_type', 'origin_port', 'destination_port']
+    list_filter = ['status', 'transport_mode', 'incoterms', 'source_channel',
+                   'is_hazardous', 'container_type', 'origin_port', 'destination_port']
     search_fields = ['booking_number', 'customer__name', 'customer__code',
-                     'external_reference', 'carrier_booking_ref']
+                     'external_reference', 'carrier_booking_ref', 'contract_number']
     readonly_fields = [
         'booking_number', 'created_by', 'source_channel',
         'total_weight_kg', 'total_volume_cbm',
         'created_at', 'updated_at', 'submitted_at', 'confirmed_at',
+        'in_transit_at', 'confirmed_by',
         'rejected_at', 'rejected_by', 'rejection_reason',
         'completed_at', 'cancelled_at', 'cancelled_by',
     ]
@@ -101,8 +103,9 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': ('booking_number', 'status', 'customer', 'created_by',
                        'source_channel', 'external_reference')
         }),
-        ('Route', {
-            'fields': ('origin_port', 'destination_port', 'cargo_ready_date')
+        ('Route & Mode', {
+            'fields': ('transport_mode', 'origin_port', 'destination_port',
+                       'cargo_ready_date')
         }),
         ('Trade Terms', {
             'fields': ('incoterms', 'incoterms_location')
@@ -116,14 +119,21 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Carrier Details (Operations)', {
             'fields': ('carrier_name', 'vessel_name', 'voyage_number',
-                       'etd', 'eta', 'carrier_booking_ref'),
+                       'cargo_cutoff_date', 'etd', 'eta',
+                       'carrier_booking_ref', 'contract_number'),
             'classes': ('collapse',)
         }),
         ('Instructions', {
             'fields': ('special_instructions',)
         }),
+        ('Status Details', {
+            'fields': ('confirmed_by', 'cancellation_reason',
+                       'actual_departure_date', 'actual_arrival_date'),
+            'classes': ('collapse',)
+        }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'submitted_at', 'confirmed_at',
+                       'in_transit_at',
                        'rejected_at', 'rejected_by', 'rejection_reason',
                        'completed_at', 'cancelled_at', 'cancelled_by'),
             'classes': ('collapse',)
@@ -151,10 +161,22 @@ class BookingAdmin(admin.ModelAdmin):
 
 @admin.register(BookingItem)
 class BookingItemAdmin(admin.ModelAdmin):
-    list_display = ['booking', 'description', 'package_type', 'quantity',
-                    'weight_kg', 'hs_code', 'is_hazardous']
-    list_filter = ['package_type', 'is_hazardous']
-    search_fields = ['booking__booking_number', 'description', 'hs_code']
+    list_display = ['get_booking_number', 'get_customer', 'description',
+                    'package_type', 'quantity', 'weight_kg', 'volume_cbm',
+                    'hs_code', 'is_hazardous']
+    list_filter = ['package_type', 'is_hazardous', 'booking__customer']
+    search_fields = ['booking__booking_number', 'description', 'hs_code',
+                     'booking__customer__name', 'booking__customer__code']
+    list_select_related = ['booking__customer']
+
+    @admin.display(description='Booking #', ordering='booking__booking_number')
+    def get_booking_number(self, obj):
+        return obj.booking.booking_number
+
+    @admin.display(description='Customer', ordering='booking__customer__name')
+    def get_customer(self, obj):
+        return f"{obj.booking.customer.name} ({obj.booking.customer.code})"
+
 
 
 @admin.register(BookingDocument)

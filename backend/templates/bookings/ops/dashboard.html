@@ -83,6 +83,13 @@
                     </a>
                     {% endfor %}
                 </div>
+                {% if needs_carrier|length > 5 %}
+                <div class="card-footer text-center">
+                    <a href="{% url 'booking_list' %}?status=CONFIRMED" class="text-decoration-none small">
+                        View all {{ needs_carrier|length }} &rarr;
+                    </a>
+                </div>
+                {% endif %}
                 {% else %}
                 <div class="text-center py-3 text-muted small">
                     <i class="fas fa-check-circle me-1"></i>All carrier details filled
@@ -118,6 +125,13 @@
                     </a>
                     {% endfor %}
                 </div>
+                {% if upcoming_departures|length > 5 %}
+                <div class="card-footer text-center">
+                    <a href="{% url 'booking_list' %}?status=CONFIRMED&sort=cargo_ready_date" class="text-decoration-none small">
+                        View all {{ upcoming_departures|length }} &rarr;
+                    </a>
+                </div>
+                {% endif %}
                 {% else %}
                 <div class="text-center py-3 text-muted small">
                     <i class="fas fa-anchor me-1"></i>No departures in next 7 days

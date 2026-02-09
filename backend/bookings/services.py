@@ -158,6 +158,7 @@ class BookingService:
         with transaction.atomic():
             booking.status = 'CONFIRMED'
             booking.confirmed_at = timezone.now()
+            booking.confirmed_by = user
             booking.save()
 
             cls._log(booking, 'CONFIRMED', user=user, request=request)
@@ -185,13 +186,17 @@ class BookingService:
         notifications.notify_booking_rejected(booking)
 
     @classmethod
-    def mark_in_transit(cls, booking, user=None, request=None):
+    def mark_in_transit(cls, booking, user=None, request=None,
+                        actual_departure_date=None):
         """Mark a CONFIRMED booking as in transit."""
         if booking.status != 'CONFIRMED':
             raise ValueError('Only confirmed bookings can be marked in transit.')
 
         with transaction.atomic():
             booking.status = 'IN_TRANSIT'
+            booking.in_transit_at = timezone.now()
+            if actual_departure_date:
+                booking.actual_departure_date = actual_departure_date
             booking.save()
 
             cls._log(booking, 'IN_TRANSIT', user=user, request=request)
@@ -199,7 +204,8 @@ class BookingService:
         notifications.notify_booking_in_transit(booking)
 
     @classmethod
-    def complete_booking(cls, booking, user=None, request=None):
+    def complete_booking(cls, booking, user=None, request=None,
+                         actual_arrival_date=None):
         """Mark an IN_TRANSIT booking as completed."""
         if booking.status != 'IN_TRANSIT':
             raise ValueError('Only in-transit bookings can be completed.')
@@ -207,6 +213,8 @@ class BookingService:
         with transaction.atomic():
             booking.status = 'COMPLETED'
             booking.completed_at = timezone.now()
+            if actual_arrival_date:
+                booking.actual_arrival_date = actual_arrival_date
             booking.save()
 
             cls._log(booking, 'COMPLETED', user=user, request=request)
@@ -226,6 +234,7 @@ class BookingService:
 
             booking.status = 'CONFIRMED'
             booking.confirmed_at = timezone.now()
+            booking.confirmed_by = user
             booking.save()
 
             cls._log(booking, 'CONFIRMED', user=user, request=request)
@@ -277,9 +286,12 @@ class BookingService:
         return booking
 
     @classmethod
-    def cancel_booking(cls, booking, user=None, request=None):
-        """Cancel a DRAFT or SUBMITTED booking."""
-        if booking.status not in ('DRAFT', 'SUBMITTED'):
+    def cancel_booking(cls, booking, user=None, reason='', request=None):
+        """Cancel a DRAFT, SUBMITTED, or CONFIRMED booking.
+
+        Cancelling a CONFIRMED booking requires a reason and is staff-only.
+        """
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
             raise ValueError('This booking cannot be cancelled.')
 
         with transaction.atomic():
@@ -287,9 +299,31 @@ class BookingService:
             booking.cancelled_at = timezone.now()
             if user:
                 booking.cancelled_by = user
+            if reason:
+                booking.cancellation_reason = reason
             booking.save()
 
-            cls._log(booking, 'CANCELLED', user=user, request=request)
+            cls._log(
+                booking, 'CANCELLED', user=user, request=request,
+                notes=reason,
+            )
+
+    @classmethod
+    def resubmit_booking(cls, booking, user=None, request=None):
+        """Return a REJECTED booking to DRAFT so the customer can revise and resubmit."""
+        if booking.status != 'REJECTED':
+            raise ValueError('Only rejected bookings can be resubmitted.')
+
+        with transaction.atomic():
+            booking.status = 'DRAFT'
+            # Clear rejection fields but keep them in audit log
+            booking.rejected_at = None
+            booking.rejected_by = None
+            booking.rejection_reason = ''
+            booking.save()
+
+            cls._log(booking, 'RESUBMITTED', user=user, request=request,
+                     notes='Booking returned to draft for revision')
 
     # ─── Documents ────────────────────────────────────────────────────
 
@@ -300,8 +334,8 @@ class BookingService:
 
         Returns the new BookingDocument instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED'):
-            raise ValueError('Documents can only be uploaded to draft or submitted bookings.')
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+            raise ValueError('Documents can only be uploaded to active bookings.')
 
         if not form.is_valid():
             raise ValueError('Invalid document data.')
@@ -358,8 +392,8 @@ class BookingService:
 
         Returns the new BookingParty instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED'):
-            raise ValueError('Parties can only be added to draft or submitted bookings.')
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+            raise ValueError('Parties can only be added to active bookings.')
 
         with transaction.atomic():
             booking_party = BookingParty.create_from_party(booking, party, role)
@@ -377,8 +411,8 @@ class BookingService:
     @classmethod
     def remove_party_from_booking(cls, booking, booking_party, user=None, request=None):
         """Remove a party assignment from a booking."""
-        if booking.status not in ('DRAFT', 'SUBMITTED'):
-            raise ValueError('Parties can only be removed from draft or submitted bookings.')
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+            raise ValueError('Parties can only be removed from active bookings.')
 
         old = {
             'role': booking_party.role,

@@ -26,6 +26,7 @@ urlpatterns = [
     path('bookings/<int:booking_id>/edit/', views.booking_edit, name='booking_edit'),
     path('bookings/<int:booking_id>/submit/', views.booking_submit, name='booking_submit'),
     path('bookings/<int:booking_id>/cancel/', views.booking_cancel, name='booking_cancel'),
+    path('bookings/<int:booking_id>/resubmit/', views.booking_resubmit, name='booking_resubmit'),
     path('bookings/<int:booking_id>/clone/', views.booking_clone, name='booking_clone'),
 
     # Documents
