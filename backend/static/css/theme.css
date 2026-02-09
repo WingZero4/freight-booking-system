@@ -81,15 +81,22 @@ body {
 
 .btn-themed-outline {
     background-color: transparent;
-    border-color: var(--theme-accent);
-    color: var(--theme-accent);
+    border-color: var(--theme-primary);
+    color: var(--theme-primary);
 }
 
 .btn-themed-outline:hover,
 .btn-themed-outline:focus {
-    background-color: var(--theme-accent);
-    border-color: var(--theme-accent);
-    color: var(--theme-text-on-accent);
+    background-color: var(--theme-primary);
+    border-color: var(--theme-primary);
+    color: var(--theme-text-on-primary);
+}
+
+.btn-themed-outline:active {
+    background-color: var(--theme-primary);
+    border-color: var(--theme-primary);
+    color: var(--theme-text-on-primary);
+    filter: brightness(0.9);
 }
 
 /* ─── Buttons — Navbar logout ────────────────────────────────────── */

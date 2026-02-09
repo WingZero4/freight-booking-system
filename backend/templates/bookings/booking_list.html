@@ -128,7 +128,7 @@
                     <td>
                         <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">View</a>
                         {% if booking.status == 'DRAFT' %}
-                        <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+                        <a href="{% url 'booking_edit' booking.id %}" class="btn btn-themed-outline btn-sm">Edit</a>
                         {% endif %}
                     </td>
                 </tr>
@@ -173,7 +173,7 @@
             <div class="card-footer bg-transparent">
                 <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">View Details</a>
                 {% if booking.status == 'DRAFT' %}
-                <a href="{% url 'booking_edit' booking.id %}" class="btn btn-outline-secondary btn-sm">Edit</a>
+                <a href="{% url 'booking_edit' booking.id %}" class="btn btn-themed-outline btn-sm">Edit</a>
                 {% endif %}
             </div>
         </div>

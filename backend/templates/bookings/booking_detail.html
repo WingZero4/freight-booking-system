@@ -60,7 +60,7 @@
                         {% if booking.status != 'CANCELLED' %}
                         <form method="post" action="{% url 'booking_clone' booking.id %}" class="d-inline">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Clone as new draft">
+                            <button type="submit" class="btn btn-themed-outline btn-sm" title="Clone as new draft">
                                 <i class="fas fa-copy me-1"></i>Clone
                             </button>
                         </form>
