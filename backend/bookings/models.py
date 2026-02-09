@@ -265,6 +265,44 @@ class Booking(models.Model):
         help_text='Carrier-assigned booking reference'
     )
 
+    # FMS integration
+    fms_shipment_id = models.CharField(
+        max_length=100, blank=True,
+        help_text='Shipment ID in external FMS'
+    )
+    hbl_number = models.CharField(
+        max_length=50, blank=True,
+        help_text='House Bill of Lading number'
+    )
+    mbl_number = models.CharField(
+        max_length=50, blank=True,
+        help_text='Master Bill of Lading number'
+    )
+    hawb_number = models.CharField(
+        max_length=50, blank=True,
+        help_text='House Airway Bill number'
+    )
+    mawb_number = models.CharField(
+        max_length=50, blank=True,
+        help_text='Master Airway Bill number'
+    )
+    FMS_PUSH_STATUS_CHOICES = [
+        ('', 'Not Configured'),
+        ('PENDING', 'Pending'),
+        ('PUSHED', 'Pushed'),
+        ('FAILED', 'Failed'),
+        ('CALLBACK_RECEIVED', 'Callback Received'),
+    ]
+    fms_push_status = models.CharField(
+        max_length=20, blank=True, default='',
+        choices=FMS_PUSH_STATUS_CHOICES,
+        help_text='Status of FMS integration push'
+    )
+    fms_push_error = models.TextField(
+        blank=True,
+        help_text='Last FMS push error message'
+    )
+
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
 

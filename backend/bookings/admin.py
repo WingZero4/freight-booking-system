@@ -98,7 +98,8 @@ class BookingAdmin(admin.ModelAdmin):
     list_filter = ['status', 'transport_mode', 'incoterms', 'source_channel',
                    'is_hazardous', 'container_type', 'origin_port', 'destination_port']
     search_fields = ['booking_number', 'customer__name', 'customer__code',
-                     'external_reference', 'carrier_booking_ref', 'contract_number']
+                     'external_reference', 'carrier_booking_ref', 'contract_number',
+                     'fms_shipment_id', 'hbl_number', 'mbl_number']
     readonly_fields = [
         'booking_number', 'created_by', 'source_channel',
         'total_weight_kg', 'total_volume_cbm',
@@ -106,6 +107,9 @@ class BookingAdmin(admin.ModelAdmin):
         'in_transit_at', 'confirmed_by',
         'rejected_at', 'rejected_by', 'rejection_reason',
         'completed_at', 'cancelled_at', 'cancelled_by',
+        'fms_shipment_id', 'hbl_number', 'mbl_number',
+        'hawb_number', 'mawb_number',
+        'fms_push_status', 'fms_push_error',
     ]
     inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, AuditLogInline]
 
@@ -136,6 +140,12 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Instructions', {
             'fields': ('special_instructions',)
+        }),
+        ('FMS Integration', {
+            'fields': ('fms_shipment_id', 'hbl_number', 'mbl_number',
+                       'hawb_number', 'mawb_number',
+                       'fms_push_status', 'fms_push_error'),
+            'classes': ('collapse',)
         }),
         ('Status Details', {
             'fields': ('confirmed_by', 'cancellation_reason',

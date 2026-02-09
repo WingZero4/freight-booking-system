@@ -49,8 +49,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Third-party
+    'rest_framework',
+    'rest_framework.authtoken',
     # Our apps
     'bookings',
+    'integrations',
 ]
 
 MIDDLEWARE = [
@@ -158,6 +162,19 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'DJANGO_DEFAULT_FROM_EMAIL', 'noreply@freightbooking.com'
 )
 
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
+}
+
 # Security settings (enabled when DEBUG is False)
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -197,6 +214,9 @@ JAZZMIN_SETTINGS = {
         "bookings.Party": "fas fa-address-card",
         "bookings.BookingParty": "fas fa-handshake",
         "bookings.AuditLog": "fas fa-history",
+        "integrations.IntegrationConfig": "fas fa-plug",
+        "integrations.IntegrationLog": "fas fa-exchange-alt",
+        "authtoken.TokenProxy": "fas fa-key",
     },
     "default_icon_parents": "fas fa-folder",
     "default_icon_children": "fas fa-circle",

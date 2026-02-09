@@ -17,6 +17,25 @@ from .models import (
 )
 from . import notifications, validators
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_fms_dispatch(func, *args, **kwargs):
+    """Call an FMS dispatch function, swallowing all errors.
+
+    FMS integration is fire-and-forget — failures must never
+    block booking status transitions.
+    """
+    try:
+        from integrations import dispatch as fms_dispatch
+        getattr(fms_dispatch, func)(*args, **kwargs)
+    except Exception:
+        booking = args[0] if args else None
+        booking_num = getattr(booking, 'booking_number', '?')
+        logger.exception('FMS dispatch (%s) failed for %s', func, booking_num)
+
 
 class BookingService:
     """Centralised service for all booking operations."""
@@ -164,6 +183,7 @@ class BookingService:
             cls._log(booking, 'CONFIRMED', user=user, request=request)
 
         notifications.notify_booking_confirmed(booking)
+        _safe_fms_dispatch('dispatch_booking_confirmed', booking)
 
     @classmethod
     def reject_booking(cls, booking, user=None, reason='', request=None):
@@ -202,6 +222,7 @@ class BookingService:
             cls._log(booking, 'IN_TRANSIT', user=user, request=request)
 
         notifications.notify_booking_in_transit(booking)
+        _safe_fms_dispatch('dispatch_milestone_update', booking, 'IN_TRANSIT')
 
     @classmethod
     def complete_booking(cls, booking, user=None, request=None,
@@ -220,6 +241,7 @@ class BookingService:
             cls._log(booking, 'COMPLETED', user=user, request=request)
 
         notifications.notify_booking_completed(booking)
+        _safe_fms_dispatch('dispatch_milestone_update', booking, 'COMPLETED')
 
     @classmethod
     def confirm_booking_with_carrier(cls, booking, carrier_form, user=None, request=None):
@@ -243,6 +265,7 @@ class BookingService:
             cls._log(booking, 'CONFIRMED', user=user, request=request)
 
         notifications.notify_booking_confirmed(booking)
+        _safe_fms_dispatch('dispatch_booking_confirmed', booking)
         return booking
 
     @classmethod
@@ -310,6 +333,8 @@ class BookingService:
                 booking, 'CANCELLED', user=user, request=request,
                 notes=reason,
             )
+
+        _safe_fms_dispatch('dispatch_cancellation', booking)
 
     @classmethod
     def resubmit_booking(cls, booking, user=None, request=None):
