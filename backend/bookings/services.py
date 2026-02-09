@@ -37,6 +37,37 @@ def _safe_fms_dispatch(func, *args, **kwargs):
         logger.exception('FMS dispatch (%s) failed for %s', func, booking_num)
 
 
+def _safe_carrier_dispatch(func, *args, **kwargs):
+    """Call a carrier dispatch function, swallowing all errors.
+
+    Carrier integration is fire-and-forget — failures must never
+    block booking status transitions.
+    """
+    try:
+        from integrations import carrier_dispatch
+        getattr(carrier_dispatch, func)(*args, **kwargs)
+    except Exception:
+        booking = args[0] if args else None
+        booking_num = getattr(booking, 'booking_number', '?')
+        logger.exception('Carrier dispatch (%s) failed for %s', func, booking_num)
+
+
+def _should_defer_fms_push(booking):
+    """Check if FMS push should be deferred until carrier confirms.
+
+    Returns True if booking has a carrier config with auto_chain_to_fms
+    enabled, meaning FMS push will be triggered after carrier confirmation.
+    """
+    if not booking.carrier_config_id:
+        return False
+    try:
+        from integrations.models import CarrierConfig
+        cc = CarrierConfig.objects.get(pk=booking.carrier_config_id, is_active=True)
+        return cc.auto_chain_to_fms
+    except Exception:
+        return False
+
+
 class BookingService:
     """Centralised service for all booking operations."""
 
@@ -183,7 +214,14 @@ class BookingService:
             cls._log(booking, 'CONFIRMED', user=user, request=request)
 
         notifications.notify_booking_confirmed(booking)
-        _safe_fms_dispatch('dispatch_booking_confirmed', booking)
+
+        # If carrier config assigned, send to carrier
+        if booking.carrier_config_id:
+            _safe_carrier_dispatch('dispatch_carrier_booking', booking)
+
+        # Push to customer FMS (unless deferred to after carrier confirms)
+        if not _should_defer_fms_push(booking):
+            _safe_fms_dispatch('dispatch_booking_confirmed', booking)
 
     @classmethod
     def reject_booking(cls, booking, user=None, reason='', request=None):
@@ -257,6 +295,10 @@ class BookingService:
                 for field in carrier_form.cleaned_data:
                     setattr(booking, field, carrier_form.cleaned_data[field])
 
+            # Auto-populate carrier_name from selected config if blank
+            if booking.carrier_config_id and not booking.carrier_name:
+                booking.carrier_name = booking.carrier_config.carrier_name
+
             booking.status = 'CONFIRMED'
             booking.confirmed_at = timezone.now()
             booking.confirmed_by = user
@@ -265,7 +307,14 @@ class BookingService:
             cls._log(booking, 'CONFIRMED', user=user, request=request)
 
         notifications.notify_booking_confirmed(booking)
-        _safe_fms_dispatch('dispatch_booking_confirmed', booking)
+
+        # If carrier config assigned, send to carrier
+        if booking.carrier_config_id:
+            _safe_carrier_dispatch('dispatch_carrier_booking', booking)
+
+        # Push to customer FMS (unless deferred to after carrier confirms)
+        if not _should_defer_fms_push(booking):
+            _safe_fms_dispatch('dispatch_booking_confirmed', booking)
         return booking
 
     @classmethod
@@ -278,6 +327,7 @@ class BookingService:
             raise ValueError('Invalid carrier details.')
 
         old = {
+            'carrier_config_id': booking.carrier_config_id,
             'carrier_name': booking.carrier_name,
             'vessel_name': booking.vessel_name,
             'voyage_number': booking.voyage_number,
@@ -293,6 +343,7 @@ class BookingService:
             booking.refresh_from_db()
 
             new = {
+                'carrier_config_id': booking.carrier_config_id,
                 'carrier_name': booking.carrier_name,
                 'vessel_name': booking.vessel_name,
                 'voyage_number': booking.voyage_number,
@@ -310,6 +361,56 @@ class BookingService:
             )
 
         return booking
+
+    # ─── Carrier integration ─────────────────────────────────────────
+
+    @classmethod
+    def assign_carrier_config(cls, booking, carrier_config, user=None, request=None):
+        """Assign a carrier config to a booking (operations action)."""
+        if booking.status not in ('SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+            raise ValueError('Carrier can only be assigned to active bookings.')
+
+        old_config_id = booking.carrier_config_id
+
+        with transaction.atomic():
+            booking.carrier_config = carrier_config
+            if not booking.carrier_name:
+                booking.carrier_name = carrier_config.carrier_name
+            booking.save(update_fields=[
+                'carrier_config', 'carrier_name', 'updated_at',
+            ])
+
+            cls._log(
+                booking, 'UPDATED', user=user, request=request,
+                old_value={'carrier_config_id': old_config_id},
+                new_value={
+                    'carrier_config_id': carrier_config.pk,
+                    'carrier_name': carrier_config.carrier_name,
+                },
+                notes='Carrier config assigned',
+            )
+
+        return booking
+
+    @classmethod
+    def submit_to_carrier(cls, booking, user=None, request=None):
+        """Explicitly submit a booking to its assigned carrier API.
+
+        Used when ops wants to trigger carrier submission separately from confirm.
+        """
+        if not booking.carrier_config_id:
+            raise ValueError('No carrier config assigned to this booking.')
+        if booking.status not in ('CONFIRMED', 'IN_TRANSIT'):
+            raise ValueError('Booking must be confirmed before submitting to carrier.')
+        if booking.carrier_request_status in ('SUBMITTED', 'CONFIRMED'):
+            raise ValueError('Booking has already been submitted to the carrier.')
+
+        cls._log(
+            booking, 'UPDATED', user=user, request=request,
+            notes='Manual carrier submission triggered',
+        )
+
+        _safe_carrier_dispatch('dispatch_carrier_booking', booking)
 
     @classmethod
     def cancel_booking(cls, booking, user=None, reason='', request=None):
@@ -335,6 +436,7 @@ class BookingService:
             )
 
         _safe_fms_dispatch('dispatch_cancellation', booking)
+        _safe_carrier_dispatch('dispatch_carrier_cancellation', booking)
 
     @classmethod
     def resubmit_booking(cls, booking, user=None, request=None):

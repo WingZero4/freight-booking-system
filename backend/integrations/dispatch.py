@@ -51,6 +51,7 @@ def _serialize_booking(booking):
     # Re-fetch with all relations to avoid N+1 queries
     booking = Booking.objects.select_related(
         'customer', 'origin_port', 'destination_port', 'container_type',
+        'carrier_config',
     ).prefetch_related(
         'items', 'booking_parties', 'documents',
     ).get(pk=booking.pk)

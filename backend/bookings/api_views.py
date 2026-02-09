@@ -1,7 +1,7 @@
 """
 DRF API views for the freight booking system.
 
-Provides read-only booking endpoints + FMS callback endpoint.
+Provides read-only booking endpoints + FMS callback + carrier callback.
 """
 import logging
 
@@ -32,6 +32,7 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
     list: GET /api/v1/bookings/ — paginated booking list
     retrieve: GET /api/v1/bookings/{id}/ — full booking detail
     callback: POST /api/v1/bookings/{id}/callback/ — FMS sends back refs
+    carrier_callback: POST /api/v1/bookings/{id}/carrier-callback/
     documents: GET /api/v1/bookings/{id}/documents/ — list documents
     download: GET /api/v1/bookings/{id}/documents/{doc_id}/download/
     """
@@ -40,6 +41,7 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = Booking.objects.select_related(
             'customer', 'origin_port', 'destination_port', 'container_type',
+            'carrier_config',
         ).prefetch_related('items', 'booking_parties', 'documents')
         # Customer users only see their own bookings
         user = self.request.user
@@ -105,6 +107,40 @@ class BookingViewSet(viewsets.ReadOnlyModelViewSet):
         logger.info(
             'FMS callback received for %s: %s',
             booking.booking_number, data
+        )
+
+        return Response(
+            {'status': 'ok', 'booking_number': booking.booking_number},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='carrier-callback',
+            permission_classes=[IsAdminUser])
+    def carrier_callback(self, request, pk=None):
+        """
+        Carrier callback endpoint — receives booking confirmation/rejection.
+
+        POST /api/v1/bookings/{id}/carrier-callback/
+
+        Accepts raw carrier payloads — the adapter's parse_callback()
+        normalizes carrier-native formats (DCSA, ONE Record, etc.).
+        """
+        booking = self.get_object()
+
+        # Reject callbacks for terminal-state bookings
+        if booking.status in ('CANCELLED', 'COMPLETED'):
+            return Response(
+                {'error': f'Booking is {booking.status} — callback rejected.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Pass raw payload to dispatch — adapter.parse_callback() normalizes
+        from integrations.carrier_dispatch import process_carrier_callback
+        process_carrier_callback(booking, request.data)
+
+        logger.info(
+            'Carrier callback received for %s: status=%s',
+            booking.booking_number, request.data.get('status', 'unknown'),
         )
 
         return Response(

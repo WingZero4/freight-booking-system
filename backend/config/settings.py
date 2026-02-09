@@ -215,6 +215,7 @@ JAZZMIN_SETTINGS = {
         "bookings.BookingParty": "fas fa-handshake",
         "bookings.AuditLog": "fas fa-history",
         "integrations.IntegrationConfig": "fas fa-plug",
+        "integrations.CarrierConfig": "fas fa-shipping-fast",
         "integrations.IntegrationLog": "fas fa-exchange-alt",
         "authtoken.TokenProxy": "fas fa-key",
     },

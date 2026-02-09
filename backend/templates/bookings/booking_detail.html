@@ -365,6 +365,50 @@
                         </p>
                         {% endif %}
 
+                        <!-- Carrier Integration (staff only) -->
+                        {% if not user.profile.customer and booking.carrier_request_status %}
+                        <h5 class="mb-3"><i class="fas fa-satellite-dish me-2 text-themed-primary"></i>Carrier Integration</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Request Status</p>
+                                <p class="fw-bold">
+                                    {% if booking.carrier_request_status == 'CONFIRMED' %}
+                                    <span class="badge bg-success">{{ booking.get_carrier_request_status_display }}</span>
+                                    {% elif booking.carrier_request_status == 'REJECTED' or booking.carrier_request_status == 'FAILED' %}
+                                    <span class="badge bg-danger">{{ booking.get_carrier_request_status_display }}</span>
+                                    {% elif booking.carrier_request_status == 'SUBMITTED' or booking.carrier_request_status == 'PENDING' %}
+                                    <span class="badge bg-warning text-dark">{{ booking.get_carrier_request_status_display }}</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">{{ booking.get_carrier_request_status_display }}</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            {% if booking.carrier_confirmation_ref %}
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Confirmation Ref</p>
+                                <p class="fw-bold">{{ booking.carrier_confirmation_ref }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.carrier_config %}
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Carrier API</p>
+                                <p class="fw-bold">{{ booking.carrier_config.carrier_name }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.container_numbers %}
+                            <div class="col-md-3">
+                                <p class="text-muted mb-1">Container Numbers</p>
+                                <p class="fw-bold">{{ booking.container_numbers|linebreaksbr }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if booking.carrier_request_error %}
+                        <div class="alert alert-danger small mb-4">
+                            <i class="fas fa-exclamation-circle me-1"></i>{{ booking.carrier_request_error }}
+                        </div>
+                        {% endif %}
+                        {% endif %}
+
                         <!-- Rejection reason -->
                         {% if booking.status == 'REJECTED' and booking.rejection_reason %}
                         <div class="alert alert-danger">

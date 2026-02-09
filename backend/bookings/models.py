@@ -303,6 +303,40 @@ class Booking(models.Model):
         help_text='Last FMS push error message'
     )
 
+    # Carrier integration
+    carrier_config = models.ForeignKey(
+        'integrations.CarrierConfig', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='bookings',
+        help_text='Carrier API config used for this booking'
+    )
+    CARRIER_REQUEST_STATUS_CHOICES = [
+        ('', 'Not Submitted'),
+        ('PENDING', 'Pending Submission'),
+        ('SUBMITTED', 'Submitted to Carrier'),
+        ('CONFIRMED', 'Carrier Confirmed'),
+        ('REJECTED', 'Carrier Rejected'),
+        ('FAILED', 'Submission Failed'),
+        ('CANCELLED', 'Cancelled with Carrier'),
+    ]
+    carrier_request_status = models.CharField(
+        max_length=20, blank=True, default='',
+        choices=CARRIER_REQUEST_STATUS_CHOICES,
+        help_text='Status of carrier API booking request'
+    )
+    carrier_request_error = models.TextField(
+        blank=True,
+        help_text='Last carrier API error message'
+    )
+    carrier_confirmation_ref = models.CharField(
+        max_length=100, blank=True,
+        help_text='Carrier-side confirmation reference from their API'
+    )
+    container_numbers = models.TextField(
+        blank=True,
+        help_text='Carrier-assigned container numbers (one per line)'
+    )
+
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
 

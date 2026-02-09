@@ -23,6 +23,13 @@
                 <form method="post" novalidate>
                     {% csrf_token %}
                     <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Carrier API Integration</label>
+                            {{ form.carrier_config }}
+                            <div class="form-text text-muted">Select a carrier API to auto-submit this booking, or leave blank for manual handling.</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label">Carrier Name</label>
                             {{ form.carrier_name }}

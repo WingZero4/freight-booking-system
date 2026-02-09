@@ -331,11 +331,15 @@ class CarrierDetailsForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
+            'carrier_config',
             'carrier_name', 'vessel_name', 'voyage_number',
             'cargo_cutoff_date', 'etd', 'eta',
             'carrier_booking_ref', 'contract_number',
         ]
         widgets = {
+            'carrier_config': forms.Select(
+                attrs={'class': 'form-select'}
+            ),
             'carrier_name': forms.TextInput(
                 attrs={'class': 'form-control',
                        'placeholder': 'e.g. Maersk, MSC, CMA CGM'}
@@ -371,6 +375,11 @@ class CarrierDetailsForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field_name in self.fields:
             self.fields[field_name].required = False
+        # Only show active carrier configs in dropdown
+        from integrations.models import CarrierConfig
+        self.fields['carrier_config'].queryset = (
+            CarrierConfig.objects.filter(is_active=True)
+        )
 
     def clean(self):
         cleaned = super().clean()

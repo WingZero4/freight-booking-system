@@ -106,10 +106,12 @@ class BookingAdmin(admin.ModelAdmin):
         'created_at', 'updated_at', 'submitted_at', 'confirmed_at',
         'in_transit_at', 'confirmed_by',
         'rejected_at', 'rejected_by', 'rejection_reason',
-        'completed_at', 'cancelled_at', 'cancelled_by',
+        'completed_at', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
         'fms_shipment_id', 'hbl_number', 'mbl_number',
         'hawb_number', 'mawb_number',
         'fms_push_status', 'fms_push_error',
+        'carrier_request_status', 'carrier_request_error',
+        'carrier_confirmation_ref', 'container_numbers',
     ]
     inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, AuditLogInline]
 
@@ -140,6 +142,12 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Instructions', {
             'fields': ('special_instructions',)
+        }),
+        ('Carrier Integration', {
+            'fields': ('carrier_config', 'carrier_request_status',
+                       'carrier_request_error', 'carrier_confirmation_ref',
+                       'container_numbers'),
+            'classes': ('collapse',)
         }),
         ('FMS Integration', {
             'fields': ('fms_shipment_id', 'hbl_number', 'mbl_number',

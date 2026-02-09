@@ -1,7 +1,8 @@
 """
-Models for FMS (Freight Management System) integration.
+Models for integration layer.
 
 IntegrationConfig: Per-customer FMS connection settings.
+CarrierConfig: Per-carrier API connection settings.
 IntegrationLog: Audit trail for every push/callback event.
 """
 from django.db import models
@@ -62,8 +63,81 @@ class IntegrationConfig(models.Model):
         verbose_name_plural = 'FMS integration configs'
 
 
+class CarrierConfig(models.Model):
+    """Global carrier API configuration (one per shipping line / airline)."""
+
+    CARRIER_TYPE_CHOICES = [
+        ('ocean', 'Ocean Carrier'),
+        ('air', 'Air Carrier'),
+        ('rail', 'Rail Carrier'),
+        ('trucking', 'Trucking Carrier'),
+    ]
+
+    ADAPTER_CHOICES = [
+        ('carrier_webhook', 'Generic Webhook (JSON POST)'),
+        ('dcsa', 'DCSA Booking API v2'),
+        ('one_record', 'IATA ONE Record'),
+    ]
+
+    AUTH_TYPE_CHOICES = [
+        ('token', 'API Token / Bearer'),
+        ('oauth2', 'OAuth 2.0 Client Credentials'),
+        ('basic', 'Basic Auth'),
+    ]
+
+    carrier_code = models.CharField(
+        max_length=20, unique=True,
+        help_text='SCAC code for ocean (e.g. MAEU), IATA code for air (e.g. LH)'
+    )
+    carrier_name = models.CharField(max_length=100, help_text='Display name e.g. Maersk')
+    carrier_type = models.CharField(max_length=20, choices=CARRIER_TYPE_CHOICES)
+
+    adapter_type = models.CharField(max_length=30, choices=ADAPTER_CHOICES)
+    api_endpoint = models.URLField(help_text='Carrier API base URL')
+    auth_type = models.CharField(
+        max_length=20, choices=AUTH_TYPE_CHOICES, default='token'
+    )
+    api_key = models.CharField(
+        max_length=500, blank=True,
+        help_text='API key or OAuth client ID'
+    )
+    api_secret = models.CharField(
+        max_length=500, blank=True,
+        help_text='API secret or OAuth client secret'
+    )
+    extra_config = models.JSONField(
+        default=dict, blank=True,
+        help_text='Carrier-specific settings (JSON)'
+    )
+
+    supports_async_callback = models.BooleanField(
+        default=True,
+        help_text='Carrier confirms via async callback (vs synchronous response)'
+    )
+    auto_chain_to_fms = models.BooleanField(
+        default=True,
+        help_text='Automatically push to customer FMS after carrier confirms'
+    )
+    callback_secret = models.CharField(
+        max_length=200, blank=True,
+        help_text='Shared secret for validating carrier callback signatures'
+    )
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.carrier_code} — {self.carrier_name}"
+
+    class Meta:
+        verbose_name = 'carrier config'
+        verbose_name_plural = 'carrier configs'
+        ordering = ['carrier_name']
+
+
 class IntegrationLog(models.Model):
-    """Audit trail for FMS integration events."""
+    """Audit trail for FMS and carrier integration events."""
 
     EVENT_CHOICES = [
         ('PUSH', 'Push to FMS'),
@@ -73,6 +147,13 @@ class IntegrationLog(models.Model):
         ('UPDATE', 'Milestone Update'),
         ('CANCEL', 'Cancellation Sent'),
         ('RETRY', 'Manual Retry'),
+        ('CARRIER_SUBMIT', 'Carrier Booking Submitted'),
+        ('CARRIER_SUCCESS', 'Carrier Submission Accepted'),
+        ('CARRIER_FAILED', 'Carrier Submission Failed'),
+        ('CARRIER_CALLBACK', 'Carrier Callback Received'),
+        ('CARRIER_CONFIRMED', 'Carrier Booking Confirmed'),
+        ('CARRIER_REJECTED', 'Carrier Booking Rejected'),
+        ('CARRIER_CANCEL', 'Carrier Cancellation Sent'),
     ]
 
     booking = models.ForeignKey(
@@ -81,6 +162,10 @@ class IntegrationLog(models.Model):
     )
     config = models.ForeignKey(
         IntegrationConfig, on_delete=models.SET_NULL,
+        null=True, blank=True
+    )
+    carrier_config = models.ForeignKey(
+        CarrierConfig, on_delete=models.SET_NULL,
         null=True, blank=True
     )
     event = models.CharField(max_length=20, choices=EVENT_CHOICES)
@@ -108,5 +193,5 @@ class IntegrationLog(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        verbose_name = 'FMS integration log'
-        verbose_name_plural = 'FMS integration logs'
+        verbose_name = 'integration log'
+        verbose_name_plural = 'integration logs'

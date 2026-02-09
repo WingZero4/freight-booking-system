@@ -114,6 +114,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     references = serializers.SerializerMethodField()
     timestamps = serializers.SerializerMethodField()
     fms = serializers.SerializerMethodField()
+    carrier_integration = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -121,7 +122,8 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             'id', 'booking_number', 'status', 'transport_mode',
             'incoterms', 'incoterms_location',
             'route', 'carrier', 'container', 'cargo',
-            'parties', 'documents', 'references', 'timestamps', 'fms',
+            'parties', 'documents', 'references', 'timestamps',
+            'fms', 'carrier_integration',
         ]
 
     def get_route(self, obj):
@@ -200,6 +202,27 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             'push_error': obj.fms_push_error,
         }
 
+    def get_carrier_integration(self, obj):
+        carrier_config = getattr(obj, 'carrier_config', None)
+        request = self.context.get('request')
+        is_staff = request and request.user and request.user.is_staff
+        result = {
+            'request_status': obj.carrier_request_status,
+            'confirmation_ref': obj.carrier_confirmation_ref,
+            'container_numbers': (
+                [cn for cn in obj.container_numbers.split('\n') if cn]
+                if obj.container_numbers else []
+            ),
+        }
+        # Staff-only fields
+        if is_staff:
+            result['carrier_config_id'] = obj.carrier_config_id
+            result['carrier_config_name'] = (
+                carrier_config.carrier_name if carrier_config else None
+            )
+            result['request_error'] = obj.carrier_request_error
+        return result
+
 
 class FMSCallbackSerializer(serializers.Serializer):
     """Serializer for FMS callback payload (reference numbers flowing back)."""
@@ -213,3 +236,24 @@ class FMSCallbackSerializer(serializers.Serializer):
         required=False, allow_blank=True, max_length=50)
     mawb_number = serializers.CharField(
         required=False, allow_blank=True, max_length=50)
+
+
+class CarrierCallbackSerializer(serializers.Serializer):
+    """Serializer for carrier callback payload (booking confirmation/rejection)."""
+    status = serializers.ChoiceField(
+        choices=['CONFIRMED', 'REJECTED', 'AMENDMENT_REQUIRED'],
+    )
+    carrier_booking_ref = serializers.CharField(
+        required=False, allow_blank=True, max_length=100)
+    vessel_name = serializers.CharField(
+        required=False, allow_blank=True, max_length=100)
+    voyage_number = serializers.CharField(
+        required=False, allow_blank=True, max_length=50)
+    etd = serializers.DateField(required=False, allow_null=True)
+    eta = serializers.DateField(required=False, allow_null=True)
+    container_numbers = serializers.ListField(
+        child=serializers.CharField(max_length=20),
+        required=False, default=list,
+    )
+    message = serializers.CharField(
+        required=False, allow_blank=True, max_length=1000)
