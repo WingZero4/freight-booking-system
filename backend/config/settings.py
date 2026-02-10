@@ -162,6 +162,10 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'DJANGO_DEFAULT_FROM_EMAIL', 'noreply@freightbooking.com'
 )
 
+# LLM Import (Anthropic Claude API)
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+ANTHROPIC_MODEL = os.environ.get('ANTHROPIC_MODEL', 'claude-sonnet-4-5-20250929')
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

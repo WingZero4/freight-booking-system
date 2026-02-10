@@ -1,0 +1,255 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Preview - {{ theme_portal_name|default:"Freight Booking" }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-11">
+        <!-- Summary Card -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    <i class="fas fa-search me-2"></i>Import Preview
+                </h4>
+                <span class="text-muted small">
+                    <i class="fas fa-file me-1"></i>{{ import_data.filename }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="fs-3 fw-bold">{{ import_data.summary.total }}</div>
+                        <div class="text-muted small">Total Found</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="fs-3 fw-bold text-success">{{ import_data.summary.valid }}</div>
+                        <div class="text-muted small">Ready to Create</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="fs-3 fw-bold text-warning">{{ import_data.summary.warnings }}</div>
+                        <div class="text-muted small">Warnings</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="fs-3 fw-bold text-danger">{{ import_data.summary.errors }}</div>
+                        <div class="text-muted small">Errors</div>
+                    </div>
+                </div>
+
+                {% if import_data.extraction_notes %}
+                <div class="alert alert-info mt-3 mb-0 small">
+                    <i class="fas fa-robot me-1"></i>
+                    <strong>AI Notes:</strong> {{ import_data.extraction_notes }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Booking Cards -->
+        <form method="post" action="{% url 'booking_import_confirm' %}" id="confirmForm">
+            {% csrf_token %}
+            <input type="hidden" name="import_id" value="{{ import_data.import_id }}" />
+
+            <!-- Select controls -->
+            {% if import_data.summary.valid > 0 or import_data.summary.warnings > 0 %}
+            <div class="mb-2 d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAll">
+                    Select All Valid
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="selectNone">
+                    Deselect All
+                </button>
+            </div>
+            {% endif %}
+
+            {% for entry in import_data.bookings %}
+            <div class="card mb-2 border-start border-4
+                {% if entry.status == 'valid' %}border-success
+                {% elif entry.status == 'warning' %}border-warning
+                {% else %}border-danger{% endif %}">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <div class="d-flex align-items-center">
+                        {% if entry.status != 'error' %}
+                        <input type="checkbox" class="form-check-input me-2 booking-checkbox"
+                               name="selected_bookings"
+                               value="{{ forloop.counter0 }}"
+                               data-status="{{ entry.status }}"
+                               {% if entry.status == 'valid' %}checked{% endif %}>
+                        {% else %}
+                        <i class="fas fa-times-circle text-danger me-2" title="Cannot import — has errors"></i>
+                        {% endif %}
+                        <strong>Booking #{{ forloop.counter }}</strong>
+                        <span class="text-muted ms-2 small">({{ entry.row_reference }})</span>
+                    </div>
+                    <div>
+                        <span class="badge {% if entry.confidence == 'high' %}bg-success{% elif entry.confidence == 'medium' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                            {{ entry.confidence }} confidence
+                        </span>
+                        <span class="badge {% if entry.status == 'valid' %}bg-success{% elif entry.status == 'warning' %}bg-warning text-dark{% else %}bg-danger{% endif %} ms-1">
+                            {{ entry.status }}
+                        </span>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary py-0 ms-1"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#detail-{{ forloop.counter0 }}">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body py-2">
+                    <!-- Booking fields summary -->
+                    <div class="row small mb-1">
+                        <div class="col-md-2">
+                            <strong>Mode:</strong>
+                            {{ entry.booking_data.transport_mode|default:"--" }}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>Route:</strong>
+                            {{ entry.booking_data.origin_port_code|default:"?" }}
+                            &rarr;
+                            {{ entry.booking_data.destination_port_code|default:"?" }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Ready:</strong>
+                            {{ entry.booking_data.cargo_ready_date|default:"--" }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Container:</strong>
+                            {{ entry.booking_data.container_count|default:"1" }}x
+                            {{ entry.booking_data.container_type_code|default:"?" }}
+                        </div>
+                        <div class="col-md-2">
+                            <strong>Terms:</strong>
+                            {{ entry.booking_data.incoterms|default:"FOB" }}
+                        </div>
+                        <div class="col-md-1">
+                            {% if entry.booking_data.external_reference %}
+                            <strong>Ref:</strong> {{ entry.booking_data.external_reference }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Issues -->
+                    {% if entry.issues %}
+                    <div class="mb-1">
+                        {% for issue in entry.issues %}
+                        <span class="badge bg-warning text-dark me-1 mb-1 small">
+                            <i class="fas fa-exclamation-triangle me-1"></i>{{ issue }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Validation errors -->
+                    {% if entry.validation_errors %}
+                    <div class="mb-1">
+                        {% for field, err in entry.validation_errors.items %}
+                        <span class="badge bg-danger me-1 mb-1 small">
+                            {{ err }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Expandable detail -->
+                    <div class="collapse" id="detail-{{ forloop.counter0 }}">
+                        <hr class="my-2">
+                        <h6 class="small fw-bold mb-1">
+                            Cargo Items ({{ entry.items_data|length }})
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm small mb-2">
+                                <thead>
+                                    <tr>
+                                        <th>Description</th>
+                                        <th>Package</th>
+                                        <th class="text-end">Qty</th>
+                                        <th class="text-end">Weight (kg)</th>
+                                        <th>HS Code</th>
+                                        <th class="text-end">Volume (CBM)</th>
+                                        <th>Origin</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in entry.items_data %}
+                                    <tr>
+                                        <td>{{ item.description|default:"--" }}</td>
+                                        <td>{{ item.package_type|default:"--" }}</td>
+                                        <td class="text-end">{{ item.quantity|default:"--" }}</td>
+                                        <td class="text-end">{{ item.weight_kg|default:"--" }}</td>
+                                        <td>{{ item.hs_code|default:"" }}</td>
+                                        <td class="text-end">{{ item.volume_cbm|default:"" }}</td>
+                                        <td>{{ item.country_of_origin|default:"" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {% if entry.booking_data.commodity_description %}
+                        <p class="small mb-1">
+                            <strong>Commodity:</strong>
+                            {{ entry.booking_data.commodity_description }}
+                        </p>
+                        {% endif %}
+
+                        {% if entry.booking_data.special_instructions %}
+                        <p class="small mb-0">
+                            <strong>Instructions:</strong>
+                            {{ entry.booking_data.special_instructions }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Action buttons -->
+            <div class="d-flex gap-2 mt-3 mb-4">
+                {% if import_data.summary.valid > 0 or import_data.summary.warnings > 0 %}
+                <button type="submit" class="btn btn-primary" id="createBtn">
+                    <i class="fas fa-check me-1"></i>Create Selected Bookings
+                </button>
+                {% endif %}
+                <a href="{% url 'booking_import' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-redo me-1"></i>Upload Different File
+                </a>
+                <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var checkboxes = document.querySelectorAll('.booking-checkbox');
+
+    var selectAll = document.getElementById('selectAll');
+    if (selectAll) {
+        selectAll.addEventListener('click', function() {
+            checkboxes.forEach(function(cb) {
+                cb.checked = (cb.dataset.status === 'valid');
+            });
+        });
+    }
+
+    var selectNone = document.getElementById('selectNone');
+    if (selectNone) {
+        selectNone.addEventListener('click', function() {
+            checkboxes.forEach(function(cb) { cb.checked = false; });
+        });
+    }
+
+    var createBtn = document.getElementById('createBtn');
+    if (createBtn) {
+        document.getElementById('confirmForm').addEventListener('submit', function() {
+            createBtn.disabled = true;
+            createBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Creating bookings...';
+        });
+    }
+});
+</script>
+{% endblock %}

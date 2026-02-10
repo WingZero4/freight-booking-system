@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, import_views
 
 urlpatterns = [
     # Dashboard
@@ -18,9 +18,12 @@ urlpatterns = [
     path('bookings/<int:booking_id>/complete/',
          views.ops_complete_booking, name='ops_complete_booking'),
 
-    # Booking CRUD (export MUST come before <int:booking_id>)
+    # Booking CRUD (export/import MUST come before <int:booking_id>)
     path('bookings/', views.booking_list, name='booking_list'),
     path('bookings/export/', views.booking_export_csv, name='booking_export_csv'),
+    path('bookings/import/', import_views.booking_import, name='booking_import'),
+    path('bookings/import/preview/', import_views.booking_import_preview, name='booking_import_preview'),
+    path('bookings/import/confirm/', import_views.booking_import_confirm, name='booking_import_confirm'),
     path('bookings/create/', views.booking_create, name='booking_create'),
     path('bookings/<int:booking_id>/', views.booking_detail, name='booking_detail'),
     path('bookings/<int:booking_id>/edit/', views.booking_edit, name='booking_edit'),

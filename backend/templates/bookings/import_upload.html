@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Bookings - {{ theme_portal_name|default:"Freight Booking" }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-file-import me-2"></i>Import Bookings
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-4">
+                    Upload a CSV, Excel (.xlsx), or PDF file containing booking data.
+                    Our AI will extract and map the data to create draft bookings.
+                </p>
+
+                <form method="post" enctype="multipart/form-data" id="importForm" novalidate>
+                    {% csrf_token %}
+
+                    <!-- File Upload -->
+                    <div class="mb-4">
+                        <label for="import_file" class="form-label fw-bold">
+                            <i class="fas fa-upload me-1"></i>Select File
+                        </label>
+                        <input type="file" class="form-control" id="import_file"
+                               name="import_file" accept=".csv,.xlsx,.pdf" required>
+                        <div class="form-text">
+                            Supported formats: CSV, Excel (.xlsx), PDF.
+                            Maximum file size: 5 MB. Maximum 50 bookings per file.
+                        </div>
+                    </div>
+
+                    <!-- Format guidance -->
+                    <div class="accordion mb-4" id="formatHelp">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#formatGuidance">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    File Format Guidance
+                                </button>
+                            </h2>
+                            <div id="formatGuidance" class="accordion-collapse collapse"
+                                 data-bs-parent="#formatHelp">
+                                <div class="accordion-body small">
+                                    <p><strong>Your file should contain these fields (column names are flexible &mdash; the AI will map them automatically):</strong></p>
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr><th>Field</th><th>Required</th><th>Examples</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td>Transport mode</td><td>Yes</td><td>Sea FCL, Air, Rail</td></tr>
+                                            <tr><td>Origin port</td><td>Yes</td><td>CNSHA, Shanghai, USLAX</td></tr>
+                                            <tr><td>Destination port</td><td>Yes</td><td>USLAX, Los Angeles</td></tr>
+                                            <tr><td>Cargo ready date</td><td>Yes</td><td>2026-03-15, 03/15/2026</td></tr>
+                                            <tr><td>Container type</td><td>Yes</td><td>20GP, 40HQ, 40ft High Cube</td></tr>
+                                            <tr><td>Item description</td><td>Yes</td><td>LCD Monitors, Textiles</td></tr>
+                                            <tr><td>Quantity</td><td>Yes</td><td>100, 50</td></tr>
+                                            <tr><td>Weight (kg)</td><td>Yes</td><td>5000, 1200.5</td></tr>
+                                            <tr><td>INCOTERMS</td><td>No</td><td>FOB, CIF, EXW</td></tr>
+                                            <tr><td>Reference number</td><td>No</td><td>PO-12345</td></tr>
+                                            <tr><td>HS code</td><td>No</td><td>85287200</td></tr>
+                                            <tr><td>Package type</td><td>No</td><td>Pallet, Carton, Crate</td></tr>
+                                            <tr><td>Volume (CBM)</td><td>No</td><td>25.5</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auto-create option -->
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox"
+                               id="auto_create" name="auto_create">
+                        <label class="form-check-label" for="auto_create">
+                            <i class="fas fa-bolt me-1 text-warning"></i>
+                            Auto-create valid bookings as drafts (skip preview)
+                        </label>
+                        <div class="form-text">
+                            If checked, all valid bookings will be created immediately
+                            as drafts. Bookings with missing or invalid fields are skipped.
+                        </div>
+                    </div>
+
+                    <!-- AI disclosure -->
+                    <div class="alert alert-light border small mb-4">
+                        <i class="fas fa-robot me-1"></i>
+                        <strong>AI Processing:</strong>
+                        File contents will be sent to the Anthropic Claude AI service
+                        for intelligent field mapping and extraction. No files are stored
+                        on external servers.
+                    </div>
+
+                    <hr>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="importBtn">
+                            <i class="fas fa-magic me-1"></i>Analyze &amp; Preview
+                        </button>
+                        <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('importForm').addEventListener('submit', function() {
+    var btn = document.getElementById('importBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Analyzing with AI...';
+});
+</script>
+{% endblock %}
