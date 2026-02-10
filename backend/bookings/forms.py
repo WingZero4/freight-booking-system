@@ -14,6 +14,7 @@ class BookingForm(forms.ModelForm):
             'transport_mode',
             'origin_port', 'destination_port', 'cargo_ready_date',
             'container_type', 'container_count',
+            'chargeable_weight_kg', 'flight_number',
             'incoterms', 'incoterms_location',
             'commodity_description', 'is_hazardous',
             'external_reference', 'special_instructions',
@@ -28,6 +29,13 @@ class BookingForm(forms.ModelForm):
             'container_type': forms.Select(attrs={'class': 'form-select'}),
             'container_count': forms.NumberInput(
                 attrs={'class': 'form-control', 'min': 1, 'max': 999}
+            ),
+            'chargeable_weight_kg': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 0.01, 'step': '0.01',
+                       'placeholder': 'Chargeable weight'}
+            ),
+            'flight_number': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'e.g. CX890'}
             ),
             'incoterms': forms.Select(attrs={'class': 'form-select'}),
             'incoterms_location': forms.TextInput(
@@ -58,6 +66,11 @@ class BookingForm(forms.ModelForm):
         self.fields['commodity_description'].required = False
         self.fields['is_hazardous'].required = False
         self.fields['external_reference'].required = False
+        # Mode-specific fields — all optional at form level; clean() enforces per mode
+        self.fields['container_type'].required = False
+        self.fields['container_count'].required = False
+        self.fields['chargeable_weight_kg'].required = False
+        self.fields['flight_number'].required = False
 
     def clean_cargo_ready_date(self):
         cargo_date = self.cleaned_data['cargo_ready_date']
@@ -68,7 +81,9 @@ class BookingForm(forms.ModelForm):
         return cargo_date
 
     def clean_container_count(self):
-        count = self.cleaned_data['container_count']
+        count = self.cleaned_data.get('container_count')
+        if count is None:
+            return None  # Allowed for non-FCL modes
         err = validators.validate_container_count(count)
         if err:
             raise ValidationError(err)
@@ -89,6 +104,30 @@ class BookingForm(forms.ModelForm):
             err = validators.validate_ports_different(origin.pk, dest.pk)
             if err:
                 raise ValidationError(err)
+
+        # Mode-aware field validation and cross-mode cleanup
+        mode = cleaned.get('transport_mode', '')
+        if mode == 'SEA_FCL':
+            if not cleaned.get('container_type'):
+                self.add_error('container_type', 'Container type is required for FCL shipments.')
+            if not cleaned.get('container_count'):
+                self.add_error('container_count', 'Container count is required for FCL shipments.')
+            # Clear air fields for non-AIR modes
+            cleaned['chargeable_weight_kg'] = None
+            cleaned['flight_number'] = ''
+        elif mode == 'AIR':
+            # Clear container fields for Air mode
+            cleaned['container_type'] = None
+            cleaned['container_count'] = None
+        else:
+            # SEA_LCL, RAIL, TRUCK, MULTIMODAL: container optional, clear air fields
+            if not cleaned.get('container_type'):
+                cleaned['container_type'] = None
+            if not cleaned.get('container_count'):
+                cleaned['container_count'] = None
+            cleaned['chargeable_weight_kg'] = None
+            cleaned['flight_number'] = ''
+
         return cleaned
 
 

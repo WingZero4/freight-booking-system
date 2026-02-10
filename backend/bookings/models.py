@@ -127,7 +127,7 @@ class Party(models.Model):
 
 
 class Port(models.Model):
-    """Seaports"""
+    """Ports (sea, air, rail)"""
     code = models.CharField(max_length=10, unique=True)  # UN/LOCODE
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=100)
@@ -220,9 +220,16 @@ class Booking(models.Model):
         help_text='Deadline for cargo to arrive at port/terminal (set by operations)'
     )
 
-    # Container
-    container_type = models.ForeignKey(ContainerType, on_delete=models.PROTECT)
-    container_count = models.PositiveIntegerField(default=1)
+    # Container (required for Sea FCL only)
+    container_type = models.ForeignKey(
+        ContainerType, on_delete=models.PROTECT,
+        null=True, blank=True,
+        help_text='Container type (required for FCL shipments)'
+    )
+    container_count = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Number of containers (required for FCL shipments)'
+    )
 
     # Trade terms (Phase 1.5)
     incoterms = models.CharField(
@@ -250,6 +257,16 @@ class Booking(models.Model):
     total_volume_cbm = models.DecimalField(
         max_digits=10, decimal_places=3, null=True, blank=True,
         help_text='Total cargo volume in cubic meters (auto-calculated from items)'
+    )
+
+    # Air freight fields
+    chargeable_weight_kg = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text='Chargeable weight in kg (max of actual vs volumetric weight)'
+    )
+    flight_number = models.CharField(
+        max_length=20, blank=True,
+        help_text='Flight number for air freight (e.g. CX890)'
     )
 
     # Integration tracking (Phase 1.5)
@@ -390,6 +407,10 @@ class Booking(models.Model):
 
     def __str__(self):
         return f"{self.booking_number} ({self.status})"
+
+    @property
+    def requires_container(self):
+        return self.transport_mode == 'SEA_FCL'
 
     def save(self, *args, **kwargs):
         if not self.booking_number:

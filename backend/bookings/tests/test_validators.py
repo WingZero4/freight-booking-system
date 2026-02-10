@@ -88,9 +88,10 @@ class TestValidateContainerCount(SimpleTestCase):
         err = validators.validate_container_count('abc')
         self.assertIn('number', err)
 
-    def test_none_invalid(self):
+    def test_none_allowed(self):
+        """None is allowed for non-FCL modes."""
         err = validators.validate_container_count(None)
-        self.assertIn('number', err)
+        self.assertIsNone(err)
 
 
 class TestValidateIncoterms(SimpleTestCase):
@@ -508,6 +509,7 @@ class TestValidateBookingData(SimpleTestCase):
             'origin_port': 1,
             'destination_port': 2,
             'cargo_ready_date': date.today() + timedelta(days=7),
+            'container_type': 1,
             'container_count': 2,
             'incoterms': 'FOB',
         }

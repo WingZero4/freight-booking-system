@@ -85,7 +85,7 @@ class BookingListSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)
     origin = serializers.CharField(source='origin_port.code', read_only=True)
     destination = serializers.CharField(source='destination_port.code', read_only=True)
-    container = serializers.CharField(source='container_type.code', read_only=True)
+    container = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -99,6 +99,11 @@ class BookingListSerializer(serializers.ModelSerializer):
             'fms_push_status',
             'created_at', 'updated_at',
         ]
+
+    def get_container(self, obj):
+        if obj.container_type:
+            return obj.container_type.code
+        return None
 
 
 class BookingDetailSerializer(serializers.ModelSerializer):
@@ -121,6 +126,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'booking_number', 'status', 'transport_mode',
             'incoterms', 'incoterms_location',
+            'chargeable_weight_kg', 'flight_number',
             'route', 'carrier', 'container', 'cargo',
             'parties', 'documents', 'references', 'timestamps',
             'fms', 'carrier_integration',
@@ -145,11 +151,13 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         }
 
     def get_container(self, obj):
-        return {
-            'type_code': obj.container_type.code,
-            'type_name': obj.container_type.name,
-            'count': obj.container_count,
-        }
+        if obj.container_type:
+            return {
+                'type_code': obj.container_type.code,
+                'type_name': obj.container_type.name,
+                'count': obj.container_count,
+            }
+        return None
 
     def get_cargo(self, obj):
         items = obj.items.all()

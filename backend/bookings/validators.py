@@ -69,7 +69,9 @@ def validate_cargo_ready_date(cargo_date, existing_date=None):
 
 
 def validate_container_count(count):
-    """Container count must be between 1 and 999."""
+    """Container count must be between 1 and 999, or None for non-FCL modes."""
+    if count is None:
+        return None  # Allowed for non-FCL
     try:
         count = int(count)
     except (TypeError, ValueError):
@@ -271,10 +273,24 @@ def validate_booking_data(data, is_edit=False, existing_booking=None):
     if err:
         errors['cargo_ready_date'] = err
 
-    # Container count
-    err = validate_container_count(data.get('container_count', 1))
-    if err:
-        errors['container_count'] = err
+    # Container fields — only required for Sea FCL
+    mode = data.get('transport_mode', 'SEA_FCL')
+    if mode == 'SEA_FCL':
+        if not data.get('container_type') and not data.get('container_type_id'):
+            errors['container_type'] = 'Container type is required for FCL.'
+        cc = data.get('container_count')
+        if cc is None:
+            errors['container_count'] = 'Container count is required for FCL.'
+        else:
+            err = validate_container_count(cc)
+            if err:
+                errors['container_count'] = err
+    else:
+        cc = data.get('container_count')
+        if cc is not None:
+            err = validate_container_count(cc)
+            if err:
+                errors['container_count'] = err
 
     # INCOTERMS
     err = validate_incoterms(data.get('incoterms'))

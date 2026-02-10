@@ -99,7 +99,7 @@
                     <tr>
                         <td class="fw-bold">{{ booking.booking_number }}</td>
                         <td>{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
-                        <td>{{ booking.container_count }}x {{ booking.container_type.code }}</td>
+                        <td>{% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}</td>
                         <td>{{ booking.cargo_ready_date|date:"M d, Y" }}</td>
                         <td>
                             <span class="badge

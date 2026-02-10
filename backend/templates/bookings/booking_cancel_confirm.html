@@ -20,8 +20,8 @@
                             <p class="fw-bold">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</p>
                         </div>
                         <div class="col-6">
-                            <p class="text-muted mb-1">Container</p>
-                            <p class="fw-bold">{{ booking.container_count }} x {{ booking.container_type.code }}</p>
+                            <p class="text-muted mb-1">{% if booking.container_type %}Container{% else %}Mode{% endif %}</p>
+                            <p class="fw-bold">{% if booking.container_type %}{{ booking.container_count }} x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}</p>
                         </div>
                     </div>
                     <div class="row">

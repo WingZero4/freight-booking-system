@@ -82,10 +82,10 @@
                         </div>
                     </div>
 
-                    <!-- Schedule & Container Section -->
-                    <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-themed-primary"></i>Schedule &amp; Container</h5>
+                    <!-- Schedule Section -->
+                    <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-themed-primary"></i>Schedule</h5>
                     <div class="row mb-4">
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label for="{{ form.cargo_ready_date.id_for_label }}" class="form-label">Cargo Ready Date *</label>
                             {{ form.cargo_ready_date }}
                             {% if form.cargo_ready_date.errors %}
@@ -94,23 +94,59 @@
                             </div>
                             {% endif %}
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="{{ form.container_type.id_for_label }}" class="form-label">Container Type *</label>
-                            {{ form.container_type }}
-                            {% if form.container_type.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.container_type.errors %}{{ error }}{% endfor %}
+                    </div>
+
+                    <!-- Container Section (shown for Sea FCL, optional for others, hidden for Air) -->
+                    <div id="container-section">
+                        <h5 class="mb-3"><i class="fas fa-box me-2 text-themed-primary"></i>Container</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.container_type.id_for_label }}" class="form-label">
+                                    Container Type <span class="container-required">*</span>
+                                </label>
+                                {{ form.container_type }}
+                                {% if form.container_type.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.container_type.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.container_count.id_for_label }}" class="form-label">
+                                    Quantity <span class="container-required">*</span>
+                                </label>
+                                {{ form.container_count }}
+                                {% if form.container_count.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.container_count.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <label for="{{ form.container_count.id_for_label }}" class="form-label">Quantity *</label>
-                            {{ form.container_count }}
-                            {% if form.container_count.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.container_count.errors %}{{ error }}{% endfor %}
+                    </div>
+
+                    <!-- Air Freight Section (shown only for Air mode) -->
+                    <div id="air-section" style="display:none;">
+                        <h5 class="mb-3"><i class="fas fa-plane me-2 text-themed-primary"></i>Air Freight Details</h5>
+                        <div class="row mb-4">
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.chargeable_weight_kg.id_for_label }}" class="form-label">Chargeable Weight (kg)</label>
+                                {{ form.chargeable_weight_kg }}
+                                {% if form.chargeable_weight_kg.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.chargeable_weight_kg.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
+                                {{ form.flight_number }}
+                                {% if form.flight_number.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.flight_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
 
@@ -286,4 +322,50 @@
 
 {% block extra_js %}
 <script src="{% static 'js/formset.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var modeSelect = document.getElementById('id_transport_mode');
+    var containerSection = document.getElementById('container-section');
+    var airSection = document.getElementById('air-section');
+    var stars = document.querySelectorAll('.container-required');
+
+    function toggleSections(shouldClear) {
+        var mode = modeSelect.value;
+        if (mode === 'SEA_FCL') {
+            containerSection.style.display = '';
+            airSection.style.display = 'none';
+            stars.forEach(function(s) { s.style.display = ''; });
+            if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number']);
+        } else if (mode === 'AIR') {
+            containerSection.style.display = 'none';
+            airSection.style.display = '';
+            if (shouldClear) clearFields(['id_container_type', 'id_container_count']);
+        } else {
+            // SEA_LCL, RAIL, TRUCK, MULTIMODAL: container optional
+            containerSection.style.display = '';
+            airSection.style.display = 'none';
+            stars.forEach(function(s) { s.style.display = 'none'; });
+            if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number']);
+        }
+    }
+
+    function clearFields(ids) {
+        ids.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                if (el.tagName === 'SELECT') {
+                    el.selectedIndex = 0;
+                } else {
+                    el.value = '';
+                }
+            }
+        });
+    }
+
+    modeSelect.addEventListener('change', function() {
+        toggleSections(true);
+    });
+    toggleSections(false); // Run on page load — don't clear values
+});
+</script>
 {% endblock %}

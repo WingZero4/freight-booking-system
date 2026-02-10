@@ -38,7 +38,7 @@
                         </div>
                         <small class="text-muted">
                             {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
-                            &middot; {{ booking.container_count }}x {{ booking.container_type.code }}
+                            {% if booking.container_type %}&middot; {{ booking.container_count }}x {{ booking.container_type.code }}{% endif %}
                         </small>
                     </a>
                     {% endfor %}

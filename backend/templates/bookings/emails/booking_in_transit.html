@@ -15,8 +15,8 @@
           <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
         </tr>
         <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Container</td>
-          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.container_count }}x {{ booking.container_type.code }}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">{% if booking.container_type %}Container{% else %}Mode{% endif %}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}</td>
         </tr>
         {% if booking.vessel_name %}
         <tr>

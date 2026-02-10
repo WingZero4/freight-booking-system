@@ -59,8 +59,8 @@ def _build_user_message(file_content: str, reference_data: dict) -> str:
 - origin_port_code (string): UN/LOCODE from the port reference list below
 - destination_port_code (string): UN/LOCODE from the port reference list below
 - cargo_ready_date (string): YYYY-MM-DD format
-- container_type_code (string): Code from the container type reference list below
-- container_count (integer): >= 1, default 1
+- container_type_code (string|null): Code from list below. REQUIRED for SEA_FCL. Optional/null for AIR, SEA_LCL, RAIL, TRUCK, MULTIMODAL.
+- container_count (integer|null): >= 1. REQUIRED for SEA_FCL. null for other modes.
 
 ### Optional Booking Fields:
 - incoterms (string): FOB | CFR | CIF | EXW | FCA | CPT | CIP | DAP | DPU | DDP | FAS (default: FOB)
@@ -69,6 +69,8 @@ def _build_user_message(file_content: str, reference_data: dict) -> str:
 - is_hazardous (boolean): default false
 - external_reference (string): customer PO/reference number
 - special_instructions (string): any special handling notes
+- chargeable_weight_kg (number|null): Chargeable weight for air freight (max of actual vs volumetric). null for non-air.
+- flight_number (string|null): Flight number for air freight. null for non-air.
 
 ### Cargo Item Fields (at least 1 per booking):
 Required: description (string), package_type (PALLET|CARTON|CRATE|DRUM|BAG|BUNDLE|PACKAGE|OTHER), quantity (integer >= 1), weight_kg (decimal > 0)
@@ -104,7 +106,9 @@ Optional: hs_code (6-10 digit string), volume_cbm (decimal), length_cm (decimal)
         "commodity_description": "",
         "is_hazardous": false,
         "external_reference": "",
-        "special_instructions": ""
+        "special_instructions": "",
+        "chargeable_weight_kg": null,
+        "flight_number": null
       }},
       "items": [
         {{
@@ -127,7 +131,9 @@ Optional: hs_code (6-10 digit string), volume_cbm (decimal), length_cm (decimal)
     }}
   ],
   "extraction_notes": "Summary of how the data was interpreted"
-}}"""
+}}
+
+Note: For AIR bookings, set container_type_code and container_count to null. For SEA_FCL, container fields are required."""
 
 
 def _parse_response(response_text: str) -> dict:

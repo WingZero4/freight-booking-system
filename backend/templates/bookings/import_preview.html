@@ -113,9 +113,16 @@
                             {{ entry.booking_data.cargo_ready_date|default:"--" }}
                         </div>
                         <div class="col-md-2">
+                            {% if entry.booking_data.transport_mode == 'AIR' %}
+                            <strong>Air:</strong>
+                            {% if entry.booking_data.flight_number %}{{ entry.booking_data.flight_number }}{% else %}--{% endif %}
+                            {% elif entry.booking_data.container_type_code %}
                             <strong>Container:</strong>
                             {{ entry.booking_data.container_count|default:"1" }}x
-                            {{ entry.booking_data.container_type_code|default:"?" }}
+                            {{ entry.booking_data.container_type_code }}
+                            {% else %}
+                            <strong>Container:</strong> --
+                            {% endif %}
                         </div>
                         <div class="col-md-2">
                             <strong>Terms:</strong>

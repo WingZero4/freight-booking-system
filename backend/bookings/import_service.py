@@ -181,22 +181,25 @@ def _validate_booking_entry(entry, index, ref_data):
     if origin_result and dest_result and origin_result[0] == dest_result[0]:
         validation_errors['ports'] = 'Origin and destination cannot be the same'
 
-    # Resolve container type
-    ct_code = booking_data.get('container_type_code')
-    ct_result = _resolve_container_type(ct_code, ref_data)
-    if ct_result:
-        booking_data['container_type_id'] = ct_result[0]
-        booking_data['container_type_code'] = ct_result[1]
-    elif ct_code:
-        validation_errors['container_type'] = f'Unknown container type: {ct_code}'
-    else:
-        validation_errors['container_type'] = 'Required field missing'
-
-    # Validate transport mode
+    # Validate transport mode (before container, since container depends on mode)
     valid_modes = {'SEA_FCL', 'SEA_LCL', 'AIR', 'RAIL', 'TRUCK', 'MULTIMODAL'}
     mode = booking_data.get('transport_mode')
     if not mode or mode not in valid_modes:
         validation_errors['transport_mode'] = f'Invalid transport mode: {mode}'
+        mode = 'SEA_FCL'  # Default for validation logic below
+
+    # Resolve container type (required for Sea FCL only)
+    ct_code = booking_data.get('container_type_code')
+    if ct_code:
+        ct_result = _resolve_container_type(ct_code, ref_data)
+        if ct_result:
+            booking_data['container_type_id'] = ct_result[0]
+            booking_data['container_type_code'] = ct_result[1]
+        else:
+            validation_errors['container_type'] = f'Unknown container type: {ct_code}'
+    elif mode == 'SEA_FCL':
+        validation_errors['container_type'] = 'Container type is required for FCL shipments'
+    # else: container_type is optional for non-FCL — no error
 
     # Parse and validate cargo ready date
     raw_date = booking_data.get('cargo_ready_date')
@@ -206,16 +209,24 @@ def _validate_booking_entry(entry, index, ref_data):
     else:
         validation_errors['cargo_ready_date'] = 'Required field missing'
 
-    # Validate container count
+    # Validate container count (required for Sea FCL only)
     cc = booking_data.get('container_count')
-    if cc is None:
-        booking_data['container_count'] = 1
-    elif not isinstance(cc, int) or cc < 1:
-        try:
-            booking_data['container_count'] = max(1, int(cc))
-        except (ValueError, TypeError):
+    if mode == 'SEA_FCL':
+        if cc is None:
             booking_data['container_count'] = 1
-            issues.append('Container count defaulted to 1')
+        elif not isinstance(cc, int) or cc < 1:
+            try:
+                booking_data['container_count'] = max(1, int(cc))
+            except (ValueError, TypeError):
+                booking_data['container_count'] = 1
+                issues.append('Container count defaulted to 1')
+    else:
+        # Non-FCL: keep None if not provided
+        if cc is not None:
+            try:
+                booking_data['container_count'] = max(1, int(cc))
+            except (ValueError, TypeError):
+                booking_data['container_count'] = None
 
     # Validate incoterms
     valid_incoterms = {
@@ -373,8 +384,10 @@ def _create_single_booking(booking_entry, customer, user, request):
         'origin_port': bd.get('origin_port_id', ''),
         'destination_port': bd.get('destination_port_id', ''),
         'cargo_ready_date': bd.get('cargo_ready_date', ''),
-        'container_type': bd.get('container_type_id', ''),
-        'container_count': bd.get('container_count', 1),
+        'container_type': bd.get('container_type_id') or '',
+        'container_count': bd.get('container_count') or '',
+        'chargeable_weight_kg': bd.get('chargeable_weight_kg') or '',
+        'flight_number': bd.get('flight_number') or '',
         'incoterms': bd.get('incoterms', 'FOB'),
         'incoterms_location': bd.get('incoterms_location', '') or '',
         'commodity_description': bd.get('commodity_description', '') or '',

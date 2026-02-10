@@ -114,6 +114,8 @@ class BookingService:
             'is_hazardous': booking.is_hazardous,
             'special_instructions': booking.special_instructions,
             'external_reference': booking.external_reference,
+            'chargeable_weight_kg': str(booking.chargeable_weight_kg) if booking.chargeable_weight_kg else None,
+            'flight_number': booking.flight_number,
         }
 
     # ─── Create ───────────────────────────────────────────────────────

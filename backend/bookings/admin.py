@@ -92,7 +92,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_display = [
         'booking_number', 'customer', 'transport_mode',
         'origin_port', 'destination_port',
-        'container_type', 'container_count',
+        'container_display',
         'cargo_ready_date', 'status',
     ]
     list_filter = ['status', 'transport_mode', 'incoterms', 'source_channel',
@@ -128,8 +128,10 @@ class BookingAdmin(admin.ModelAdmin):
         ('Trade Terms', {
             'fields': ('incoterms', 'incoterms_location')
         }),
-        ('Container', {
-            'fields': ('container_type', 'container_count')
+        ('Container / Equipment', {
+            'fields': ('container_type', 'container_count',
+                       'chargeable_weight_kg', 'flight_number'),
+            'description': 'Container fields for FCL; weight/flight for Air',
         }),
         ('Cargo Summary', {
             'fields': ('commodity_description', 'is_hazardous',
@@ -169,6 +171,14 @@ class BookingAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    @admin.display(description='Container')
+    def container_display(self, obj):
+        if obj.container_type and obj.container_count:
+            return f"{obj.container_count}x {obj.container_type.code}"
+        elif obj.container_type:
+            return obj.container_type.code
+        return '-'
 
     actions = ['confirm_bookings', 'cancel_bookings']
 

@@ -630,6 +630,7 @@ class TestAuditHelpers(ServiceTestBase):
             'cargo_ready_date', 'container_type', 'container_count',
             'incoterms', 'incoterms_location', 'commodity_description',
             'is_hazardous', 'special_instructions', 'external_reference',
+            'chargeable_weight_kg', 'flight_number',
         }
         self.assertEqual(set(snap.keys()), expected_keys)
 
