@@ -183,6 +183,157 @@ class BookingService:
 
         return booking
 
+    # ─── Dict-based create/update (API and EDI channels) ────────────
+
+    @classmethod
+    def create_booking_from_data(cls, data, items_data, customer, user,
+                                  request=None, source_channel='API',
+                                  parties_data=None):
+        """
+        Create a booking from validated data dicts (API/EDI channels).
+
+        Args:
+            data: dict with Booking model fields. Port/ContainerType
+                  should be model instances (not PKs).
+            items_data: list of dicts matching BookingItem fields.
+            customer: Customer instance.
+            user: User performing the action.
+            request: Optional HttpRequest for audit logging.
+            source_channel: 'API', 'EDI', etc.
+            parties_data: Optional list of dicts for BookingParty.
+
+        Returns the new Booking instance.
+        """
+        with transaction.atomic():
+            booking = Booking(
+                customer=customer,
+                created_by=user,
+                source_channel=source_channel,
+                transport_mode=data['transport_mode'],
+                origin_port=data['origin_port'],
+                destination_port=data['destination_port'],
+                cargo_ready_date=data['cargo_ready_date'],
+                container_type=data.get('container_type'),
+                container_count=data.get('container_count'),
+                incoterms=data.get('incoterms', 'FOB'),
+                incoterms_location=data.get('incoterms_location', ''),
+                commodity_description=data.get('commodity_description', ''),
+                is_hazardous=data.get('is_hazardous', False),
+                external_reference=data.get('external_reference', ''),
+                special_instructions=data.get('special_instructions', ''),
+                chargeable_weight_kg=data.get('chargeable_weight_kg'),
+                flight_number=data.get('flight_number', ''),
+            )
+            booking.save()
+
+            for item_data in items_data:
+                BookingItem.objects.create(
+                    booking=booking,
+                    description=item_data['description'],
+                    package_type=item_data.get('package_type', 'PACKAGE'),
+                    quantity=item_data['quantity'],
+                    weight_kg=item_data['weight_kg'],
+                    hs_code=item_data.get('hs_code', ''),
+                    volume_cbm=item_data.get('volume_cbm'),
+                    length_cm=item_data.get('length_cm'),
+                    width_cm=item_data.get('width_cm'),
+                    height_cm=item_data.get('height_cm'),
+                    marks_and_numbers=item_data.get('marks_and_numbers', ''),
+                    is_hazardous=item_data.get('is_hazardous', False),
+                    un_number=item_data.get('un_number', ''),
+                    imo_class=item_data.get('imo_class', ''),
+                    country_of_origin=item_data.get('country_of_origin', ''),
+                )
+
+            if parties_data:
+                for party_data in parties_data:
+                    BookingParty.objects.create(
+                        booking=booking,
+                        role=party_data['role'],
+                        company_name=party_data['company_name'],
+                        contact_name=party_data.get('contact_name', ''),
+                        address_text=party_data.get('address_text', ''),
+                        email=party_data.get('email', ''),
+                        phone=party_data.get('phone', ''),
+                        tax_id=party_data.get('tax_id', ''),
+                    )
+
+            booking.recalculate_totals()
+
+            cls._log(
+                booking, 'CREATED', user=user, request=request,
+                new_value=cls._booking_snapshot(booking),
+                notes=f'Created via {source_channel}',
+            )
+
+        return booking
+
+    @classmethod
+    def update_booking_from_data(cls, booking, data, user, request=None,
+                                  items_data=None):
+        """
+        Update a DRAFT booking from validated data dicts.
+
+        Args:
+            booking: Existing Booking instance (must be DRAFT).
+            data: dict of fields to update. Only provided keys are changed.
+            user: User performing the action.
+            request: Optional HttpRequest for audit logging.
+            items_data: If provided, replaces all existing items.
+
+        Returns the updated Booking instance.
+        Raises ValueError if booking is not DRAFT.
+        """
+        if booking.status != 'DRAFT':
+            raise ValueError('Only draft bookings can be edited.')
+
+        old = cls._booking_snapshot(booking)
+
+        with transaction.atomic():
+            updatable_fields = [
+                'transport_mode', 'origin_port', 'destination_port',
+                'cargo_ready_date', 'container_type', 'container_count',
+                'incoterms', 'incoterms_location', 'commodity_description',
+                'is_hazardous', 'external_reference', 'special_instructions',
+                'chargeable_weight_kg', 'flight_number',
+            ]
+            for field in updatable_fields:
+                if field in data:
+                    setattr(booking, field, data[field])
+
+            booking.save()
+
+            if items_data is not None:
+                booking.items.all().delete()
+                for item_data in items_data:
+                    BookingItem.objects.create(
+                        booking=booking,
+                        description=item_data['description'],
+                        package_type=item_data.get('package_type', 'PACKAGE'),
+                        quantity=item_data['quantity'],
+                        weight_kg=item_data['weight_kg'],
+                        hs_code=item_data.get('hs_code', ''),
+                        volume_cbm=item_data.get('volume_cbm'),
+                        length_cm=item_data.get('length_cm'),
+                        width_cm=item_data.get('width_cm'),
+                        height_cm=item_data.get('height_cm'),
+                        marks_and_numbers=item_data.get('marks_and_numbers', ''),
+                        is_hazardous=item_data.get('is_hazardous', False),
+                        un_number=item_data.get('un_number', ''),
+                        imo_class=item_data.get('imo_class', ''),
+                        country_of_origin=item_data.get('country_of_origin', ''),
+                    )
+
+            booking.recalculate_totals()
+
+            cls._log(
+                booking, 'UPDATED', user=user, request=request,
+                old_value=old,
+                new_value=cls._booking_snapshot(booking),
+            )
+
+        return booking
+
     # ─── Status transitions ───────────────────────────────────────────
 
     @classmethod

@@ -195,3 +195,74 @@ class IntegrationLog(models.Model):
         ordering = ['-created_at']
         verbose_name = 'integration log'
         verbose_name_plural = 'integration logs'
+
+
+class WebhookSubscription(models.Model):
+    """Customer webhook subscription for booking events."""
+
+    EVENT_CHOICES = [
+        ('booking.created', 'Booking Created'),
+        ('booking.submitted', 'Booking Submitted'),
+        ('booking.confirmed', 'Booking Confirmed'),
+        ('booking.rejected', 'Booking Rejected'),
+        ('booking.in_transit', 'Booking In Transit'),
+        ('booking.completed', 'Booking Completed'),
+        ('booking.cancelled', 'Booking Cancelled'),
+    ]
+
+    customer = models.ForeignKey(
+        'bookings.Customer', on_delete=models.CASCADE,
+        related_name='webhook_subscriptions',
+    )
+    url = models.URLField(help_text='Webhook delivery URL (HTTPS required)')
+    events = models.JSONField(
+        default=list,
+        help_text='List of event types to subscribe to',
+    )
+    secret = models.CharField(
+        max_length=200,
+        help_text='Shared secret for HMAC-SHA256 signature verification',
+    )
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Delivery tracking
+    last_delivery_at = models.DateTimeField(null=True, blank=True)
+    consecutive_failures = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.customer.code} -> {self.url} ({len(self.events)} events)"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'webhook subscription'
+        verbose_name_plural = 'webhook subscriptions'
+
+
+class WebhookDelivery(models.Model):
+    """Log of each webhook delivery attempt."""
+
+    subscription = models.ForeignKey(
+        WebhookSubscription, on_delete=models.CASCADE,
+        related_name='deliveries',
+    )
+    event_type = models.CharField(max_length=30)
+    payload = models.JSONField()
+
+    # Delivery result
+    response_status = models.IntegerField(null=True, blank=True)
+    response_body = models.TextField(blank=True, max_length=2000)
+    error_message = models.TextField(blank=True)
+    success = models.BooleanField(default=False)
+
+    attempt_number = models.IntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'webhook delivery'
+        verbose_name_plural = 'webhook deliveries'

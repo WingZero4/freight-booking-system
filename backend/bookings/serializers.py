@@ -3,7 +3,10 @@ DRF serializers for the freight booking system.
 
 BookingSerializer produces the canonical JSON format used by FMS adapters.
 """
+from decimal import Decimal
+
 from rest_framework import serializers
+from . import validators
 from .models import (
     Booking, BookingItem, BookingDocument, BookingParty,
     Customer, Port, ContainerType,
@@ -200,15 +203,19 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         }
 
     def get_fms(self, obj):
-        return {
+        request = self.context.get('request')
+        is_staff = request and request.user and request.user.is_staff
+        result = {
             'shipment_id': obj.fms_shipment_id,
             'hbl_number': obj.hbl_number,
             'mbl_number': obj.mbl_number,
             'hawb_number': obj.hawb_number,
             'mawb_number': obj.mawb_number,
             'push_status': obj.fms_push_status,
-            'push_error': obj.fms_push_error,
         }
+        if is_staff:
+            result['push_error'] = obj.fms_push_error
+        return result
 
     def get_carrier_integration(self, obj):
         carrier_config = getattr(obj, 'carrier_config', None)
@@ -265,3 +272,253 @@ class CarrierCallbackSerializer(serializers.Serializer):
     )
     message = serializers.CharField(
         required=False, allow_blank=True, max_length=1000)
+
+
+# ─── Write serializers (API create/update) ────────────────────────────
+
+
+class BookingItemWriteSerializer(serializers.Serializer):
+    """Writable serializer for cargo items."""
+    description = serializers.CharField(max_length=500)
+    package_type = serializers.ChoiceField(
+        choices=BookingItem.PACKAGE_TYPE_CHOICES, default='PACKAGE',
+    )
+    quantity = serializers.IntegerField(min_value=1, max_value=99999)
+    weight_kg = serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal('0.01'),
+    )
+    hs_code = serializers.CharField(max_length=10, required=False, default='')
+    volume_cbm = serializers.DecimalField(
+        max_digits=10, decimal_places=3, required=False, allow_null=True, default=None,
+    )
+    length_cm = serializers.DecimalField(
+        max_digits=8, decimal_places=2, required=False, allow_null=True, default=None,
+    )
+    width_cm = serializers.DecimalField(
+        max_digits=8, decimal_places=2, required=False, allow_null=True, default=None,
+    )
+    height_cm = serializers.DecimalField(
+        max_digits=8, decimal_places=2, required=False, allow_null=True, default=None,
+    )
+    marks_and_numbers = serializers.CharField(
+        max_length=500, required=False, default='',
+    )
+    is_hazardous = serializers.BooleanField(required=False, default=False)
+    un_number = serializers.CharField(max_length=4, required=False, default='')
+    imo_class = serializers.CharField(max_length=10, required=False, default='')
+    country_of_origin = serializers.CharField(
+        max_length=2, required=False, default='',
+    )
+
+
+class BookingPartyWriteSerializer(serializers.Serializer):
+    """Writable serializer for inline party data."""
+    role = serializers.ChoiceField(choices=BookingParty.ROLE_CHOICES)
+    company_name = serializers.CharField(max_length=255)
+    contact_name = serializers.CharField(
+        max_length=255, required=False, default='',
+    )
+    address_text = serializers.CharField(required=False, default='')
+    email = serializers.EmailField(required=False, allow_blank=True, default='')
+    phone = serializers.CharField(max_length=50, required=False, default='')
+    tax_id = serializers.CharField(max_length=50, required=False, default='')
+
+
+class BookingCreateSerializer(serializers.Serializer):
+    """
+    Top-level serializer for POST /api/v1/bookings/.
+
+    Ports and container types are specified by code (not PK).
+    """
+    # Required
+    transport_mode = serializers.ChoiceField(
+        choices=Booking.TRANSPORT_MODE_CHOICES,
+    )
+    origin_port = serializers.SlugRelatedField(
+        slug_field='code', queryset=Port.objects.filter(is_active=True),
+    )
+    destination_port = serializers.SlugRelatedField(
+        slug_field='code', queryset=Port.objects.filter(is_active=True),
+    )
+    cargo_ready_date = serializers.DateField()
+    incoterms = serializers.ChoiceField(
+        choices=Booking.INCOTERMS_CHOICES, default='FOB',
+    )
+
+    # Conditionally required (Sea FCL needs container)
+    container_type = serializers.SlugRelatedField(
+        slug_field='code', queryset=ContainerType.objects.all(),
+        required=False, allow_null=True,
+    )
+    container_count = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1, max_value=999,
+    )
+
+    # Optional
+    incoterms_location = serializers.CharField(
+        max_length=255, required=False, default='',
+    )
+    commodity_description = serializers.CharField(
+        max_length=500, required=False, default='',
+    )
+    is_hazardous = serializers.BooleanField(required=False, default=False)
+    external_reference = serializers.CharField(
+        max_length=100, required=False, default='',
+    )
+    special_instructions = serializers.CharField(required=False, default='')
+    chargeable_weight_kg = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False,
+        allow_null=True, default=None,
+    )
+    flight_number = serializers.CharField(
+        max_length=20, required=False, default='',
+    )
+
+    # Staff only: specify customer
+    customer_code = serializers.CharField(max_length=20, required=False)
+
+    # Nested
+    items = BookingItemWriteSerializer(many=True)
+    parties = BookingPartyWriteSerializer(many=True, required=False, default=list)
+
+    # Idempotency
+    idempotency_key = serializers.CharField(
+        max_length=100, required=False,
+    )
+
+    def validate_items(self, value):
+        if not value:
+            raise serializers.ValidationError('At least one cargo item is required.')
+        return value
+
+    def validate(self, attrs):
+        # Cross-field validation
+        data = {
+            'transport_mode': attrs['transport_mode'],
+            'origin_port': attrs['origin_port'].pk,
+            'destination_port': attrs['destination_port'].pk,
+            'cargo_ready_date': attrs['cargo_ready_date'],
+            'container_type': attrs.get('container_type'),
+            'container_type_id': (
+                attrs['container_type'].pk if attrs.get('container_type') else None
+            ),
+            'container_count': attrs.get('container_count'),
+            'incoterms': attrs.get('incoterms', 'FOB'),
+        }
+        errors = validators.validate_booking_data(data)
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+
+class BookingUpdateSerializer(serializers.Serializer):
+    """
+    Serializer for PATCH /api/v1/bookings/{id}/.
+
+    All fields optional. Only DRAFT bookings can be updated.
+    Items replaced wholesale if provided (not merged).
+    """
+    transport_mode = serializers.ChoiceField(
+        choices=Booking.TRANSPORT_MODE_CHOICES, required=False,
+    )
+    origin_port = serializers.SlugRelatedField(
+        slug_field='code', queryset=Port.objects.filter(is_active=True),
+        required=False,
+    )
+    destination_port = serializers.SlugRelatedField(
+        slug_field='code', queryset=Port.objects.filter(is_active=True),
+        required=False,
+    )
+    cargo_ready_date = serializers.DateField(required=False)
+    incoterms = serializers.ChoiceField(
+        choices=Booking.INCOTERMS_CHOICES, required=False,
+    )
+    container_type = serializers.SlugRelatedField(
+        slug_field='code', queryset=ContainerType.objects.all(),
+        required=False, allow_null=True,
+    )
+    container_count = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1, max_value=999,
+    )
+    incoterms_location = serializers.CharField(max_length=255, required=False)
+    commodity_description = serializers.CharField(max_length=500, required=False)
+    is_hazardous = serializers.BooleanField(required=False)
+    external_reference = serializers.CharField(max_length=100, required=False)
+    special_instructions = serializers.CharField(required=False)
+    chargeable_weight_kg = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, allow_null=True,
+    )
+    flight_number = serializers.CharField(max_length=20, required=False)
+
+    # If provided, replaces all existing items
+    items = BookingItemWriteSerializer(many=True, required=False)
+
+    def validate_items(self, value):
+        if value is not None and len(value) == 0:
+            raise serializers.ValidationError(
+                'At least one cargo item is required.',
+            )
+        return value
+
+    def validate(self, attrs):
+        booking = self.context.get('booking')
+        if not booking:
+            raise serializers.ValidationError('Booking context required.')
+        if booking.status != 'DRAFT':
+            raise serializers.ValidationError(
+                'Only draft bookings can be updated.',
+            )
+
+        # Merge with existing booking for cross-field validation
+        merged = {
+            'transport_mode': attrs.get(
+                'transport_mode', booking.transport_mode,
+            ),
+            'origin_port': (
+                attrs['origin_port'].pk if 'origin_port' in attrs
+                else booking.origin_port_id
+            ),
+            'destination_port': (
+                attrs['destination_port'].pk if 'destination_port' in attrs
+                else booking.destination_port_id
+            ),
+            'cargo_ready_date': attrs.get(
+                'cargo_ready_date', booking.cargo_ready_date,
+            ),
+            'container_type': attrs.get(
+                'container_type', booking.container_type,
+            ),
+            'container_type_id': (
+                attrs['container_type'].pk
+                if 'container_type' in attrs and attrs['container_type']
+                else booking.container_type_id
+            ),
+            'container_count': attrs.get(
+                'container_count', booking.container_count,
+            ),
+            'incoterms': attrs.get('incoterms', booking.incoterms),
+        }
+        errors = validators.validate_booking_data(
+            merged, is_edit=True, existing_booking=booking,
+        )
+        if errors:
+            raise serializers.ValidationError(errors)
+        return attrs
+
+
+class DocumentUploadSerializer(serializers.Serializer):
+    """Serializer for POST /api/v1/bookings/{id}/documents/."""
+    document_type = serializers.ChoiceField(
+        choices=BookingDocument.DOCUMENT_TYPE_CHOICES,
+    )
+    file = serializers.FileField()
+    notes = serializers.CharField(max_length=255, required=False, default='')
+
+    def validate_file(self, value):
+        err = validators.validate_file_extension(value.name)
+        if err:
+            raise serializers.ValidationError(err)
+        err = validators.validate_file_size(value.size)
+        if err:
+            raise serializers.ValidationError(err)
+        return value

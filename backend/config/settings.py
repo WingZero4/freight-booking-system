@@ -52,6 +52,9 @@ INSTALLED_APPS = [
     # Third-party
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
+    'corsheaders',
+    'django_filters',
     # Our apps
     'bookings',
     'integrations',
@@ -59,6 +62,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -177,7 +181,34 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 25,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/minute',
+        'user': '120/minute',
+    },
 }
+
+# drf-spectacular (OpenAPI / Swagger)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Freight Booking System API',
+    'DESCRIPTION': 'REST API for freight booking management, webhook events, and EDI integration.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
+# CORS
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    'CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:8000'
+).split(',')
+CORS_ALLOW_CREDENTIALS = True
 
 # Security settings (enabled when DEBUG is False)
 if not DEBUG:
@@ -221,6 +252,8 @@ JAZZMIN_SETTINGS = {
         "integrations.IntegrationConfig": "fas fa-plug",
         "integrations.CarrierConfig": "fas fa-shipping-fast",
         "integrations.IntegrationLog": "fas fa-exchange-alt",
+        "integrations.WebhookSubscription": "fas fa-satellite-dish",
+        "integrations.WebhookDelivery": "fas fa-paper-plane",
         "authtoken.TokenProxy": "fas fa-key",
     },
     "default_icon_parents": "fas fa-folder",
