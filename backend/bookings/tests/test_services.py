@@ -640,3 +640,230 @@ class TestAuditHelpers(ServiceTestBase):
         log = AuditLog.objects.filter(booking=booking).first()
         self.assertIsNone(log.ip_address)
         self.assertEqual(log.user_agent, '')
+
+
+# ─── Cancel policy (confirmed bookings) ─────────────────────────────
+
+
+class TestCancelPolicy(ServiceTestBase):
+    """Tests for the confirmed-booking cancel policy."""
+
+    def test_cancel_confirmed_by_customer_fails(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        with self.assertRaises(ValueError) as ctx:
+            BookingService.cancel_booking(
+                booking, user=self.user, reason='Customer wants cancel',
+            )
+        self.assertIn('staff', str(ctx.exception).lower())
+
+    def test_cancel_confirmed_by_staff_without_reason_fails(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        with self.assertRaises(ValueError) as ctx:
+            BookingService.cancel_booking(booking, user=self.staff, reason='')
+        self.assertIn('reason', str(ctx.exception).lower())
+
+    def test_cancel_confirmed_by_staff_with_reason_succeeds(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        BookingService.cancel_booking(
+            booking, user=self.staff, reason='Customer requested',
+        )
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'CANCELLED')
+        self.assertEqual(booking.cancellation_reason, 'Customer requested')
+
+    def test_cancel_confirmed_with_null_reason_fails(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        with self.assertRaises(ValueError):
+            BookingService.cancel_booking(
+                booking, user=self.staff, reason=None,
+            )
+
+    def test_cancel_confirmed_whitespace_reason_fails(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        with self.assertRaises(ValueError):
+            BookingService.cancel_booking(
+                booking, user=self.staff, reason='   ',
+            )
+
+
+# ─── Submit guard (FCL container check) ─────────────────────────────
+
+
+class TestSubmitGuard(ServiceTestBase):
+    """Tests for the FCL container requirement on submit."""
+
+    def test_submit_fcl_without_container_type_fails(self):
+        booking = create_booking(
+            self.customer, self.user,
+            transport_mode='SEA_FCL', container_type=None, container_count=2,
+        )
+        create_booking_item(booking)
+        with self.assertRaises(ValueError) as ctx:
+            BookingService.submit_booking(booking, self.user)
+        self.assertIn('container', str(ctx.exception).lower())
+
+    def test_submit_fcl_without_container_count_fails(self):
+        booking = create_booking(
+            self.customer, self.user,
+            transport_mode='SEA_FCL', container_count=None,
+        )
+        create_booking_item(booking)
+        with self.assertRaises(ValueError) as ctx:
+            BookingService.submit_booking(booking, self.user)
+        self.assertIn('container', str(ctx.exception).lower())
+
+    def test_submit_air_without_container_succeeds(self):
+        booking = create_booking(
+            self.customer, self.user,
+            transport_mode='AIR', container_type=None, container_count=None,
+        )
+        create_booking_item(booking)
+        BookingService.submit_booking(booking, self.user)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'SUBMITTED')
+
+
+# ─── Dict-based create (API/EDI channels) ───────────────────────────
+
+
+class TestCreateBookingFromData(ServiceTestBase):
+    """Tests for BookingService.create_booking_from_data."""
+
+    def _data(self, **overrides):
+        data = {
+            'transport_mode': 'SEA_FCL',
+            'origin_port': self.port_origin,
+            'destination_port': self.port_dest,
+            'cargo_ready_date': date.today() + timedelta(days=14),
+            'container_type': self.container_type,
+            'container_count': 2,
+            'incoterms': 'FOB',
+        }
+        data.update(overrides)
+        return data
+
+    def _items(self):
+        return [
+            {
+                'description': 'Test cargo',
+                'quantity': 10,
+                'weight_kg': Decimal('500.00'),
+                'package_type': 'CARTON',
+            },
+        ]
+
+    def test_create_from_data_success(self):
+        booking = BookingService.create_booking_from_data(
+            data=self._data(), items_data=self._items(),
+            customer=self.customer, user=self.user,
+        )
+        self.assertEqual(booking.status, 'DRAFT')
+        self.assertEqual(booking.customer, self.customer)
+        self.assertEqual(booking.items.count(), 1)
+
+    def test_create_from_data_with_parties(self):
+        parties = [
+            {'role': 'SHIPPER', 'company_name': 'Shipper Co'},
+            {'role': 'CONSIGNEE', 'company_name': 'Consignee Co'},
+        ]
+        booking = BookingService.create_booking_from_data(
+            data=self._data(), items_data=self._items(),
+            customer=self.customer, user=self.user,
+            parties_data=parties,
+        )
+        self.assertEqual(booking.booking_parties.count(), 2)
+        roles = set(booking.booking_parties.values_list('role', flat=True))
+        self.assertEqual(roles, {'SHIPPER', 'CONSIGNEE'})
+
+    def test_create_from_data_source_channel(self):
+        booking = BookingService.create_booking_from_data(
+            data=self._data(), items_data=self._items(),
+            customer=self.customer, user=self.user,
+            source_channel='EDI',
+        )
+        self.assertEqual(booking.source_channel, 'EDI')
+
+    def test_create_from_data_generates_booking_number(self):
+        booking = BookingService.create_booking_from_data(
+            data=self._data(), items_data=self._items(),
+            customer=self.customer, user=self.user,
+        )
+        self.assertTrue(booking.booking_number.startswith('BK-'))
+
+    def test_create_from_data_recalculates_totals(self):
+        booking = BookingService.create_booking_from_data(
+            data=self._data(), items_data=self._items(),
+            customer=self.customer, user=self.user,
+        )
+        self.assertEqual(booking.total_weight_kg, Decimal('500.00'))
+
+
+# ─── Dict-based update (API channel) ────────────────────────────────
+
+
+class TestUpdateBookingFromData(ServiceTestBase):
+    """Tests for BookingService.update_booking_from_data."""
+
+    def _create_draft(self):
+        return BookingService.create_booking_from_data(
+            data={
+                'transport_mode': 'SEA_FCL',
+                'origin_port': self.port_origin,
+                'destination_port': self.port_dest,
+                'cargo_ready_date': date.today() + timedelta(days=14),
+                'container_type': self.container_type,
+                'container_count': 2,
+                'incoterms': 'FOB',
+            },
+            items_data=[{
+                'description': 'Original cargo',
+                'quantity': 5,
+                'weight_kg': Decimal('200.00'),
+                'package_type': 'CARTON',
+            }],
+            customer=self.customer,
+            user=self.user,
+        )
+
+    def test_update_from_data_changes_fields(self):
+        booking = self._create_draft()
+        updated = BookingService.update_booking_from_data(
+            booking,
+            data={'commodity_description': 'Updated description'},
+            user=self.user,
+        )
+        self.assertEqual(updated.commodity_description, 'Updated description')
+
+    def test_update_from_data_replaces_items(self):
+        booking = self._create_draft()
+        self.assertEqual(booking.items.count(), 1)
+        new_items = [
+            {'description': 'New A', 'quantity': 3, 'weight_kg': Decimal('100.00')},
+            {'description': 'New B', 'quantity': 7, 'weight_kg': Decimal('300.00')},
+        ]
+        updated = BookingService.update_booking_from_data(
+            booking, data={}, user=self.user, items_data=new_items,
+        )
+        self.assertEqual(updated.items.count(), 2)
+        self.assertEqual(updated.total_weight_kg, Decimal('400.00'))
+
+    def test_update_from_data_non_draft_fails(self):
+        booking = self._create_draft()
+        booking.status = 'SUBMITTED'
+        booking.save()
+        with self.assertRaises(ValueError):
+            BookingService.update_booking_from_data(
+                booking, data={'commodity_description': 'Fail'}, user=self.user,
+            )
+
+    def test_update_from_data_partial_update(self):
+        booking = self._create_draft()
+        original_mode = booking.transport_mode
+        BookingService.update_booking_from_data(
+            booking,
+            data={'special_instructions': 'Handle carefully'},
+            user=self.user,
+        )
+        booking.refresh_from_db()
+        self.assertEqual(booking.special_instructions, 'Handle carefully')
+        self.assertEqual(booking.transport_mode, original_mode)

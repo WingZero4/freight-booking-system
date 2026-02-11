@@ -214,3 +214,142 @@ class TestEDIImportService(TestCase):
         result = process_edi_file(SAMPLE_IFTMBF, self.customer, self.user)
         booking = Booking.objects.first()
         self.assertEqual(booking.booking_parties.count(), 2)
+
+
+# ---------------------------------------------------------------------------
+# EDI validation (cross-field checks in edi_service)
+# ---------------------------------------------------------------------------
+
+
+class TestEDIValidation(TestCase):
+    """Tests for cross-field validation in the EDI import pipeline."""
+
+    def setUp(self):
+        self.customer = Customer.objects.create(
+            name='Val Corp', code='VAL01', is_active=True,
+        )
+        Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
+        Port.objects.create(code='USNYC', name='New York', country='US')
+        self.user = User.objects.create_user('valuser', 'val@test.com', 'pass123')
+
+    def test_edi_same_origin_dest_port_fails(self):
+        msg = MINIMAL_IFTMBF.replace('LOC+11+USNYC', 'LOC+11+CNSHA')
+        result = process_edi_file(msg, self.customer, self.user)
+        self.assertGreater(len(result['errors']), 0)
+        self.assertEqual(len(result['created']), 0)
+
+    def test_edi_fcl_no_container_creates_with_warning(self):
+        # SAMPLE_IFTMBF is FCL (TSR+17++FCL) but has no container info.
+        # Container fields should be soft warnings, not hard errors.
+        result = process_edi_file(SAMPLE_IFTMBF, self.customer, self.user)
+        self.assertEqual(len(result['created']), 1)
+        container_warnings = [
+            w for w in result['warnings']
+            if 'container' in w.lower()
+        ]
+        self.assertGreater(len(container_warnings), 0)
+
+    def test_edi_past_cargo_ready_date_fails(self):
+        msg = SAMPLE_IFTMBF.replace('DTM+133:20260301:102', 'DTM+133:20200101:102')
+        result = process_edi_file(msg, self.customer, self.user)
+        self.assertGreater(len(result['errors']), 0)
+        self.assertTrue(
+            any('cargo_ready_date' in e or 'past' in e.lower() for e in result['errors']),
+        )
+        self.assertEqual(len(result['created']), 0)
+
+    def test_edi_invalid_incoterms_fails(self):
+        # Inject a bad incoterms via a modified parser output — easiest way
+        # is to create a message with TSR that sets incoterms to an invalid code.
+        # For this test, we patch the parser return value.
+        from unittest.mock import patch
+        parsed = {
+            'booking_data': {
+                'origin_port_code': 'CNSHA',
+                'destination_port_code': 'USNYC',
+                'transport_mode': 'SEA_FCL',
+                'incoterms': 'INVALID',
+                'cargo_ready_date': date.today() + timedelta(days=7),
+            },
+            'items_data': [
+                {'description': 'Test', 'quantity': 1, 'weight_kg': 10},
+            ],
+            'parties_data': [],
+            'issues': [],
+        }
+        with patch('integrations.edi.edi_service.parse_iftmbf', return_value=parsed):
+            result = process_edi_file('dummy', self.customer, self.user)
+        self.assertGreater(len(result['errors']), 0)
+        self.assertTrue(
+            any('incoterms' in e.lower() for e in result['errors']),
+        )
+
+    def test_edi_air_mode_no_container_no_warning(self):
+        # AIR mode should NOT produce container warnings
+        from unittest.mock import patch
+        parsed = {
+            'booking_data': {
+                'origin_port_code': 'CNSHA',
+                'destination_port_code': 'USNYC',
+                'transport_mode': 'AIR',
+                'incoterms': 'FOB',
+                'cargo_ready_date': date.today() + timedelta(days=7),
+            },
+            'items_data': [
+                {'description': 'Air cargo', 'quantity': 1, 'weight_kg': 50},
+            ],
+            'parties_data': [],
+            'issues': [],
+        }
+        with patch('integrations.edi.edi_service.parse_iftmbf', return_value=parsed):
+            result = process_edi_file('dummy', self.customer, self.user)
+        self.assertEqual(len(result['created']), 1)
+        container_warnings = [
+            w for w in result['warnings'] if 'container' in w.lower()
+        ]
+        self.assertEqual(len(container_warnings), 0)
+
+
+class TestEDIValidationEdgeCases(TestCase):
+    """Edge case tests for EDI validation."""
+
+    def setUp(self):
+        self.customer = Customer.objects.create(
+            name='Edge Corp', code='EDGE01', is_active=True,
+        )
+        Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
+        Port.objects.create(code='USNYC', name='New York', country='US')
+        self.user = User.objects.create_user('edgeuser', 'edge@test.com', 'pass123')
+
+    def test_edi_container_warnings_include_operator_message(self):
+        result = process_edi_file(SAMPLE_IFTMBF, self.customer, self.user)
+        container_warnings = [
+            w for w in result['warnings'] if 'container' in w.lower()
+        ]
+        for w in container_warnings:
+            self.assertIn('operator', w.lower())
+
+    def test_edi_multiple_hard_errors_all_reported(self):
+        # Same ports + bad incoterms + past date = multiple errors
+        from unittest.mock import patch
+        parsed = {
+            'booking_data': {
+                'origin_port_code': 'CNSHA',
+                'destination_port_code': 'CNSHA',  # same port
+                'transport_mode': 'SEA_FCL',
+                'incoterms': 'INVALID',
+                'cargo_ready_date': date(2020, 1, 1),  # past date
+            },
+            'items_data': [
+                {'description': 'Test', 'quantity': 1, 'weight_kg': 10},
+            ],
+            'parties_data': [],
+            'issues': [],
+        }
+        # Same-port error triggers early return before validation, so
+        # use valid different ports but test incoterms + past date together.
+        parsed['booking_data']['destination_port_code'] = 'USNYC'
+        with patch('integrations.edi.edi_service.parse_iftmbf', return_value=parsed):
+            result = process_edi_file('dummy', self.customer, self.user)
+        # Should have both incoterms and cargo_ready_date errors
+        self.assertGreaterEqual(len(result['errors']), 2)
