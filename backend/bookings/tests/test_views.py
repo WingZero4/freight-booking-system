@@ -771,3 +771,57 @@ class ThemingTests(ViewTestBase):
         # No <img> tag should appear in the navbar brand area
         content = resp.content.decode()
         self.assertNotIn('<img src="', content.split('navbar-brand')[1].split('</a>')[0])
+
+
+# ─── Document download auth ──────────────────────────────────────────
+
+
+class TestDocumentDownloadAuth(ViewTestBase):
+    """Tests for authenticated document downloads."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.booking = create_booking(cls.customer, cls.user)
+        create_booking_item(cls.booking)
+        cls.doc = create_document(cls.booking, cls.user)
+
+    def test_document_download_requires_login(self):
+        url = reverse(
+            'booking_document_download',
+            args=[self.booking.id, self.doc.id],
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/login/', resp.url)
+
+    def test_document_download_customer_own_booking(self):
+        self._login_customer()
+        url = reverse(
+            'booking_document_download',
+            args=[self.booking.id, self.doc.id],
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp['Content-Disposition'],
+            f'attachment; filename="{self.doc.original_filename}"',
+        )
+
+    def test_document_download_other_customer_blocked(self):
+        self._login_customer2()
+        url = reverse(
+            'booking_document_download',
+            args=[self.booking.id, self.doc.id],
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+    def test_document_download_staff_any_booking(self):
+        self._login_staff()
+        url = reverse(
+            'booking_document_download',
+            args=[self.booking.id, self.doc.id],
+        )
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)

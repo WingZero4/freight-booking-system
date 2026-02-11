@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Avg, F
-from django.http import Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
 
 from .models import Booking, BookingItem, BookingDocument, Party, BookingParty, AuditLog
@@ -393,6 +393,18 @@ def booking_document_delete(request, booking_id, document_id):
             messages.error(request, str(e))
 
     return redirect('booking_detail', booking_id=booking.id)
+
+
+@login_required
+def booking_document_download(request, booking_id, document_id):
+    """Download a document with authentication and permission check."""
+    booking = get_booking_for_user(booking_id, request.user)
+    document = get_object_or_404(BookingDocument, id=document_id, booking=booking)
+    return FileResponse(
+        document.file.open('rb'),
+        as_attachment=True,
+        filename=document.original_filename,
+    )
 
 
 # ─── Parties (address book) ──────────────────────────────────────────

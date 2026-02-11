@@ -666,7 +666,7 @@
                                     <tr>
                                         <td><span class="badge bg-light text-dark">{{ doc.get_document_type_display }}</span></td>
                                         <td>
-                                            <a href="{{ doc.file.url }}" target="_blank" class="text-decoration-none">
+                                            <a href="{% url 'booking_document_download' booking.id doc.id %}" target="_blank" class="text-decoration-none">
                                                 <i class="fas fa-download me-1"></i>{{ doc.original_filename }}
                                             </a>
                                         </td>

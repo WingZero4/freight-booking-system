@@ -37,6 +37,8 @@ urlpatterns = [
          views.booking_document_upload, name='booking_document_upload'),
     path('bookings/<int:booking_id>/documents/<int:document_id>/delete/',
          views.booking_document_delete, name='booking_document_delete'),
+    path('bookings/<int:booking_id>/documents/<int:document_id>/download/',
+         views.booking_document_download, name='booking_document_download'),
 
     # Booking party assignment
     path('bookings/<int:booking_id>/parties/add/',
