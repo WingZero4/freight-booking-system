@@ -100,6 +100,21 @@ def process_edi_file(file_content, customer, user, request=None):
                 f'Item {i + 1}: description defaulted.',
             )
 
+    # Run cross-field validation (same checks as API serializer).
+    # Container fields missing from EDI are treated as warnings (not errors)
+    # since the booking is created as DRAFT for operators to complete.
+    from bookings.validators import validate_booking_data
+    validation_errors = validate_booking_data(booking_data)
+    container_fields = {'container_type', 'container_count'}
+    hard_errors = {k: v for k, v in validation_errors.items() if k not in container_fields}
+    soft_errors = {k: v for k, v in validation_errors.items() if k in container_fields}
+    if hard_errors:
+        for field, msg in hard_errors.items():
+            result['errors'].append(f'{field}: {msg}')
+        return result
+    for field, msg in soft_errors.items():
+        result['warnings'].append(f'{field}: {msg} (requires operator completion)')
+
     try:
         booking = BookingService.create_booking_from_data(
             data=booking_data,

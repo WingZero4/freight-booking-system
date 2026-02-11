@@ -343,6 +343,9 @@ class BookingService:
             raise ValueError('Only draft bookings can be submitted.')
         if not booking.items.exists():
             raise ValueError('Cannot submit a booking with no cargo items.')
+        if booking.transport_mode == 'SEA_FCL':
+            if not booking.container_type or not booking.container_count:
+                raise ValueError('FCL bookings require container type and count before submission.')
 
         with transaction.atomic():
             booking.recalculate_totals()
@@ -573,6 +576,12 @@ class BookingService:
         """
         if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
             raise ValueError('This booking cannot be cancelled.')
+
+        if booking.status == 'CONFIRMED':
+            if not user or not user.is_staff:
+                raise ValueError('Only staff can cancel confirmed bookings.')
+            if not reason or not reason.strip():
+                raise ValueError('A cancellation reason is required for confirmed bookings.')
 
         with transaction.atomic():
             booking.status = 'CANCELLED'
