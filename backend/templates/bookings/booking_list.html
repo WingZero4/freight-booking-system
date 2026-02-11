@@ -110,7 +110,7 @@
                     {% if not user.profile.customer %}<td>{{ booking.customer.code }}</td>{% endif %}
                     <td><small>{{ booking.get_transport_mode_display }}</small></td>
                     <td>{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
-                    <td>{% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}</td>
+                    <td>{% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% else %}-{% endif %}</td>
                     <td>{{ booking.cargo_ready_date|date:"M d, Y" }}</td>
                     <td>
                         <span class="badge
@@ -163,7 +163,7 @@
                 </p>
                 <p class="card-text">
                     <i class="fas fa-box me-1 text-muted"></i>
-                    {% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}
+                    {% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% elif booking.chargeable_weight_kg %}{{ booking.chargeable_weight_kg }} kg{% else %}-{% endif %}
                 </p>
                 <p class="card-text">
                     <i class="fas fa-calendar me-1 text-muted"></i>
