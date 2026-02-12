@@ -18,7 +18,7 @@ urlpatterns = [
     path('', include('bookings.urls')),
     path('register/', register, name='register'),
     path('login/', auth_views.LoginView.as_view(), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(http_method_names=['get', 'post']), name='logout'),
+    path('logout/', auth_views.LogoutView.as_view(http_method_names=['get', 'post'], next_page='/login/'), name='logout'),
 
     # Password reset
     path('password_reset/',
