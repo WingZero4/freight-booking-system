@@ -158,12 +158,17 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/login/'
 
-# Email backend (console for development, switch to SMTP for production)
+# Email backend (console for development, SMTP for production)
 EMAIL_BACKEND = os.environ.get(
     'DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend'
 )
+EMAIL_HOST = os.environ.get('DJANGO_EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('DJANGO_EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('DJANGO_EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('DJANGO_EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('DJANGO_EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get(
-    'DJANGO_DEFAULT_FROM_EMAIL', 'noreply@freightbooking.com'
+    'DJANGO_DEFAULT_FROM_EMAIL', 'pretfitllc@gmail.com'
 )
 
 # LLM Import (Anthropic Claude API)
