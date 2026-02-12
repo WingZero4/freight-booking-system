@@ -47,6 +47,17 @@ def _send_notification(subject, template_name, context, recipient_list):
         logger.exception('Failed to send notification: %s', subject)
 
 
+def notify_booking_submitted(booking):
+    """Notify customer that their booking has been submitted for review."""
+    emails = _get_customer_emails(booking)
+    _send_notification(
+        subject=f'Booking {booking.booking_number} Submitted',
+        template_name='bookings/emails/booking_submitted.html',
+        context={'booking': booking},
+        recipient_list=emails,
+    )
+
+
 def notify_booking_confirmed(booking):
     """Notify customer that their booking has been confirmed."""
     emails = _get_customer_emails(booking)
@@ -86,6 +97,28 @@ def notify_booking_completed(booking):
     _send_notification(
         subject=f'Booking {booking.booking_number} Completed',
         template_name='bookings/emails/booking_completed.html',
+        context={'booking': booking},
+        recipient_list=emails,
+    )
+
+
+def notify_booking_cancelled(booking):
+    """Notify customer that their booking has been cancelled."""
+    emails = _get_customer_emails(booking)
+    _send_notification(
+        subject=f'Booking {booking.booking_number} Cancelled',
+        template_name='bookings/emails/booking_cancelled.html',
+        context={'booking': booking},
+        recipient_list=emails,
+    )
+
+
+def notify_booking_resubmitted(booking):
+    """Notify customer that their rejected booking is back in draft for revision."""
+    emails = _get_customer_emails(booking)
+    _send_notification(
+        subject=f'Booking {booking.booking_number} — Ready for Revision',
+        template_name='bookings/emails/booking_resubmitted.html',
         context={'booking': booking},
         recipient_list=emails,
     )

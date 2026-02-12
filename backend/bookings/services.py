@@ -355,6 +355,8 @@ class BookingService:
 
             cls._log(booking, 'SUBMITTED', user=user, request=request)
 
+        notifications.notify_booking_submitted(booking)
+
     @classmethod
     def confirm_booking(cls, booking, user=None, request=None):
         """Confirm a SUBMITTED booking (operations action)."""
@@ -597,6 +599,7 @@ class BookingService:
                 notes=reason,
             )
 
+        notifications.notify_booking_cancelled(booking)
         _safe_fms_dispatch('dispatch_cancellation', booking)
         _safe_carrier_dispatch('dispatch_carrier_cancellation', booking)
 
@@ -616,6 +619,8 @@ class BookingService:
 
             cls._log(booking, 'RESUBMITTED', user=user, request=request,
                      notes='Booking returned to draft for revision')
+
+        notifications.notify_booking_resubmitted(booking)
 
     # ─── Documents ────────────────────────────────────────────────────
 

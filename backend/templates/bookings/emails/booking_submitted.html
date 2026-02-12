@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden;">
+    <div style="background: #0d6efd; color: #fff; padding: 20px 24px;">
+      <h2 style="margin: 0;">Booking Submitted</h2>
+    </div>
+    <div style="padding: 24px;">
+      <p>Your booking <strong>{{ booking.booking_number }}</strong> has been submitted for review.</p>
+
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Route</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">{% if booking.container_type %}Container{% else %}Mode{% endif %}</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{% if booking.container_type %}{{ booking.container_count }}x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Cargo Ready</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.cargo_ready_date|date:"M d, Y" }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Total Weight</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.total_weight_kg }} kg</td>
+        </tr>
+      </table>
+
+      <p style="color: #666; font-size: 14px;">Our operations team will review your booking shortly. You will receive a notification once it has been confirmed or if any changes are needed.</p>
+    </div>
+    <div style="background: #f8f9fa; padding: 16px 24px; font-size: 12px; color: #999;">
+      Freight Booking Portal &mdash; Automated notification
+    </div>
+  </div>
+</body>
+</html>
