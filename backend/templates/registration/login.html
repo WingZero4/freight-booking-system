@@ -20,6 +20,15 @@
                         <h3 class="text-center mb-2 login-header">{{ theme_portal_name|default:"Freight Booking" }}</h3>
                         <p class="text-center text-muted mb-4">Customer Portal</p>
 
+                        {% if messages %}
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+
                         {% if form.errors %}
                         <div class="alert alert-danger">
                             Invalid username or password.
@@ -44,11 +53,12 @@
                                 Forgot Password?
                             </a>
                         </div>
-
-                        <hr class="my-4">
-                        <p class="text-center text-muted small mb-0">
-                            Demo: acme_user / demo123
-                        </p>
+                        <div class="text-center mt-2">
+                            <span class="small text-muted">Don't have an account?</span>
+                            <a href="{% url 'register' %}" class="text-decoration-none small fw-semibold">
+                                Register here
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -30,6 +30,13 @@
                         </div>
                     </div>
                     <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Select Carrier</label>
+                            {{ form.carrier_select }}
+                            <div class="form-text text-muted">{{ form.carrier_select.help_text }}</div>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label">Carrier Name</label>
                             {{ form.carrier_name }}
@@ -80,4 +87,28 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var carrierSelect = document.getElementById('id_carrier_select');
+    var carrierName = document.getElementById('id_carrier_name');
+    if (carrierSelect && carrierName) {
+        new TomSelect('#id_carrier_select', {
+            plugins: ['dropdown_input'],
+            create: false,
+            placeholder: 'Search carriers...',
+        });
+        carrierSelect.addEventListener('change', function() {
+            var selected = carrierSelect.options[carrierSelect.selectedIndex];
+            if (selected && selected.value) {
+                var text = selected.textContent;
+                var dash = text.indexOf(' - ');
+                carrierName.value = dash > -1 ? text.substring(dash + 3) : text;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

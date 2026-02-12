@@ -18,6 +18,10 @@ urlpatterns = [
     path('bookings/<int:booking_id>/complete/',
          views.ops_complete_booking, name='ops_complete_booking'),
 
+    # Registration approval (staff)
+    path('ops/registrations/', views.ops_pending_registrations, name='ops_pending_registrations'),
+    path('ops/registrations/<int:profile_id>/', views.ops_approve_registration, name='ops_approve_registration'),
+
     # Booking CRUD (export/import MUST come before <int:booking_id>)
     path('bookings/', views.booking_list, name='booking_list'),
     path('bookings/export/', views.booking_export_csv, name='booking_export_csv'),

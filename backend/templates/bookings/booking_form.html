@@ -366,6 +366,15 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleSections(true);
     });
     toggleSections(false); // Run on page load — don't clear values
+
+    // Initialize Tom Select on port dropdowns
+    var tsConfig = {plugins: ['dropdown_input'], create: false};
+    if (document.getElementById('id_origin_port')) {
+        new TomSelect('#id_origin_port', tsConfig);
+    }
+    if (document.getElementById('id_destination_port')) {
+        new TomSelect('#id_destination_port', tsConfig);
+    }
 });
 </script>
 {% endblock %}

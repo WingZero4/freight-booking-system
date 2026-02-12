@@ -1,6 +1,7 @@
 from django.contrib import admin
+from django.utils import timezone
 from .models import (
-    Customer, UserProfile, Port, ContainerType,
+    Customer, UserProfile, Port, ContainerType, Carrier,
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog,
 )
@@ -26,20 +27,38 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'get_email', 'customer', 'role', 'phone']
-    list_filter = ['role', 'customer']
+    list_display = ['user', 'get_email', 'customer', 'role', 'phone', 'approval_status']
+    list_filter = ['role', 'customer', 'approval_status']
     search_fields = ['user__username', 'user__email', 'customer__name', 'customer__code']
     list_select_related = ['user', 'customer']
+    readonly_fields = ['approved_by', 'approved_at']
+    actions = ['approve_registrations']
 
     def get_email(self, obj):
         return obj.user.email
     get_email.short_description = 'Email'
 
+    @admin.action(description='Approve selected registrations')
+    def approve_registrations(self, request, queryset):
+        count = 0
+        for profile in queryset.filter(approval_status='PENDING'):
+            profile.approval_status = 'APPROVED'
+            profile.approved_by = request.user
+            profile.approved_at = timezone.now()
+            profile.save()
+            profile.user.is_active = True
+            profile.user.save()
+            if profile.customer:
+                profile.customer.is_active = True
+                profile.customer.save()
+            count += 1
+        self.message_user(request, f'{count} registration(s) approved.')
+
 
 @admin.register(Port)
 class PortAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'country', 'is_active']
-    list_filter = ['country', 'is_active']
+    list_display = ['code', 'name', 'country', 'region', 'is_active']
+    list_filter = ['region', 'country', 'is_active']
     search_fields = ['code', 'name']
 
 
@@ -47,6 +66,13 @@ class PortAdmin(admin.ModelAdmin):
 class ContainerTypeAdmin(admin.ModelAdmin):
     list_display = ['code', 'name', 'size_ft']
     ordering = ['size_ft', 'code']
+
+
+@admin.register(Carrier)
+class CarrierAdmin(admin.ModelAdmin):
+    list_display = ['scac_code', 'name', 'carrier_type', 'is_active']
+    list_filter = ['carrier_type', 'is_active']
+    search_fields = ['scac_code', 'name']
 
 
 # ─── Booking inlines ─────────────────────────────────────────────────

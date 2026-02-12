@@ -52,10 +52,25 @@ class UserProfile(models.Model):
         ('SALES', 'Sales'),
     ]
 
+    APPROVAL_STATUS_CHOICES = [
+        ('PENDING', 'Pending Approval'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='USER')
     phone = models.CharField(max_length=50, blank=True)
+    approval_status = models.CharField(
+        max_length=20, choices=APPROVAL_STATUS_CHOICES, default='APPROVED',
+    )
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='approved_profiles',
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
 
     def __str__(self):
         if self.customer:
@@ -128,16 +143,29 @@ class Party(models.Model):
 
 class Port(models.Model):
     """Ports (sea, air, rail)"""
+    REGION_CHOICES = [
+        ('EAST_ASIA', 'East Asia'),
+        ('SOUTHEAST_ASIA', 'Southeast Asia'),
+        ('SOUTH_ASIA', 'South Asia'),
+        ('MIDDLE_EAST', 'Middle East'),
+        ('EUROPE', 'Europe'),
+        ('NORTH_AMERICA', 'North America'),
+        ('SOUTH_AMERICA', 'South America'),
+        ('AFRICA', 'Africa'),
+        ('OCEANIA', 'Oceania'),
+    ]
+
     code = models.CharField(max_length=10, unique=True)  # UN/LOCODE
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=100)
+    region = models.CharField(max_length=30, choices=REGION_CHOICES, default='NORTH_AMERICA')
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return f"{self.code} - {self.name}"
 
     class Meta:
-        ordering = ['code']
+        ordering = ['country', 'name']
 
 
 class ContainerType(models.Model):
@@ -151,6 +179,30 @@ class ContainerType(models.Model):
 
     class Meta:
         ordering = ['size_ft', 'code']
+
+
+class Carrier(models.Model):
+    """Shipping line / airline reference data"""
+    CARRIER_TYPE_CHOICES = [
+        ('OCEAN', 'Ocean Carrier'),
+        ('AIR', 'Air Carrier'),
+        ('RAIL', 'Rail Carrier'),
+        ('TRUCKING', 'Trucking Carrier'),
+    ]
+
+    scac_code = models.CharField(
+        max_length=10, unique=True,
+        help_text='SCAC code for ocean, IATA code for air',
+    )
+    name = models.CharField(max_length=100)
+    carrier_type = models.CharField(max_length=20, choices=CARRIER_TYPE_CHOICES, default='OCEAN')
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"[{self.scac_code}] {self.name}"
+
+    class Meta:
+        ordering = ['name']
 
 
 class Booking(models.Model):

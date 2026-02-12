@@ -1,19 +1,35 @@
 def nav_active(request):
     """Set the active navigation item based on the current URL path."""
     path = request.path
+    context = {}
     if path.startswith('/ops/'):
-        return {'nav_active': 'ops'}
+        context['nav_active'] = 'ops'
     elif path == '/bookings/create/':
-        return {'nav_active': 'new_booking'}
+        context['nav_active'] = 'new_booking'
     elif path.startswith('/bookings/import'):
-        return {'nav_active': 'import'}
+        context['nav_active'] = 'import'
     elif path.startswith('/bookings/'):
-        return {'nav_active': 'bookings'}
+        context['nav_active'] = 'bookings'
     elif path.startswith('/parties/'):
-        return {'nav_active': 'parties'}
+        context['nav_active'] = 'parties'
     elif path == '/':
-        return {'nav_active': 'dashboard'}
-    return {'nav_active': ''}
+        context['nav_active'] = 'dashboard'
+    else:
+        context['nav_active'] = ''
+
+    # Pending registrations badge for staff nav
+    if hasattr(request, 'user') and request.user.is_authenticated:
+        try:
+            profile = request.user.profile
+            if not profile.customer:  # staff/ops user
+                from bookings.models import UserProfile
+                context['pending_registrations_count'] = UserProfile.objects.filter(
+                    approval_status='PENDING'
+                ).count()
+        except Exception:
+            pass
+
+    return context
 
 
 def customer_theme(request):

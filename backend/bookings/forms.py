@@ -2,7 +2,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from datetime import date
-from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port
+from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier
 from . import validators
 
 
@@ -59,8 +59,9 @@ class BookingForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['origin_port'].queryset = Port.objects.filter(is_active=True)
-        self.fields['destination_port'].queryset = Port.objects.filter(is_active=True)
+        grouped = self._grouped_port_choices()
+        self.fields['origin_port'].choices = grouped
+        self.fields['destination_port'].choices = grouped
         self.fields['special_instructions'].required = False
         self.fields['incoterms_location'].required = False
         self.fields['commodity_description'].required = False
@@ -129,6 +130,20 @@ class BookingForm(forms.ModelForm):
             cleaned['flight_number'] = ''
 
         return cleaned
+
+    @staticmethod
+    def _grouped_port_choices():
+        """Build grouped choices for port select: [(country, [(pk, label), ...]), ...]"""
+        ports = Port.objects.filter(is_active=True).order_by('country', 'name')
+        groups = {}
+        for port in ports:
+            groups.setdefault(port.country, []).append(
+                (port.pk, f"{port.code} - {port.name}")
+            )
+        choices = [('', '---------')]
+        for country in sorted(groups.keys()):
+            choices.append((country, groups[country]))
+        return choices
 
 
 class BookingItemForm(forms.ModelForm):
@@ -367,6 +382,14 @@ class BookingPartySelectForm(forms.Form):
 
 class CarrierDetailsForm(forms.ModelForm):
     """Form for staff to enter/edit carrier details on a booking."""
+    carrier_select = forms.ModelChoiceField(
+        queryset=Carrier.objects.filter(is_active=True),
+        required=False,
+        label='Select Carrier',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text='Select a known carrier, or type a custom name below',
+    )
+
     class Meta:
         model = Booking
         fields = [
@@ -422,6 +445,10 @@ class CarrierDetailsForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        # Auto-fill carrier_name from carrier_select if not manually entered
+        selected = cleaned.get('carrier_select')
+        if selected and not cleaned.get('carrier_name'):
+            cleaned['carrier_name'] = selected.name
         etd = cleaned.get('etd')
         eta = cleaned.get('eta')
         if etd and eta and eta < etd:

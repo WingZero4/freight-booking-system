@@ -18,6 +18,19 @@
     </a>
 </div>
 
+<!-- PENDING REGISTRATIONS ALERT -->
+{% if pending_registrations_count %}
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+    <i class="fas fa-user-clock me-2 fs-5"></i>
+    <div class="flex-grow-1">
+        <strong>{{ pending_registrations_count }}</strong> pending registration{{ pending_registrations_count|pluralize }} waiting for review.
+    </div>
+    <a href="{% url 'ops_pending_registrations' %}" class="btn btn-warning btn-sm ms-3">
+        <i class="fas fa-eye me-1"></i>Review
+    </a>
+</div>
+{% endif %}
+
 <!-- ACTION REQUIRED -->
 <div class="row mb-4">
     <!-- Pending Confirmation -->

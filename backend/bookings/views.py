@@ -10,7 +10,10 @@ from django.db.models import Q, Avg, F
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
 
-from .models import Booking, BookingItem, BookingDocument, Party, BookingParty, AuditLog
+from django.db import transaction
+
+from .models import Booking, BookingItem, BookingDocument, Party, BookingParty, AuditLog, UserProfile
+from .notifications import _send_notification
 from .forms import (
     BookingForm, BookingItemFormSet, BookingDocumentForm,
     PartyForm, BookingPartySelectForm,
@@ -634,6 +637,10 @@ def ops_dashboard(request):
         .order_by('-performed_at')[:20]
     )
 
+    pending_registrations_count = UserProfile.objects.filter(
+        approval_status='PENDING'
+    ).count()
+
     return render(request, 'bookings/ops/dashboard.html', {
         'pending_confirmation': pending_confirmation,
         'needs_carrier': needs_carrier,
@@ -643,6 +650,7 @@ def ops_dashboard(request):
         'submitted_this_week': submitted_this_week,
         'avg_confirm_hours': avg_confirm_hours,
         'recent_activity': recent_activity,
+        'pending_registrations_count': pending_registrations_count,
     })
 
 
@@ -950,3 +958,70 @@ def booking_export_csv(request):
         writer.writerow(row)
 
     return response
+
+
+# ── Registration Approval ────────────────────────────────────────────
+
+@staff_required
+def ops_pending_registrations(request):
+    """List all pending registration requests."""
+    pending = (
+        UserProfile.objects.filter(approval_status='PENDING')
+        .select_related('user', 'customer')
+        .order_by('-user__date_joined')
+    )
+    return render(request, 'bookings/ops/pending_registrations.html', {
+        'pending_registrations': pending,
+    })
+
+
+@staff_required
+def ops_approve_registration(request, profile_id):
+    """Approve or reject a pending registration."""
+    profile = get_object_or_404(UserProfile, id=profile_id, approval_status='PENDING')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'approve':
+            with transaction.atomic():
+                profile.approval_status = 'APPROVED'
+                profile.approved_by = request.user
+                profile.approved_at = timezone.now()
+                profile.save()
+
+                profile.user.is_active = True
+                profile.user.save()
+
+                if profile.customer:
+                    profile.customer.is_active = True
+                    profile.customer.save()
+
+            _send_notification(
+                subject='Account Approved - Freight Booking Portal',
+                template_name='registration/emails/registration_approved.html',
+                context={'user': profile.user, 'customer': profile.customer},
+                recipient_list=[profile.user.email],
+            )
+            messages.success(request, f'Registration for {profile.user.username} has been approved.')
+
+        elif action == 'reject':
+            reason = request.POST.get('reason', '')
+            with transaction.atomic():
+                profile.approval_status = 'REJECTED'
+                profile.rejection_reason = reason
+                profile.save()
+
+            _send_notification(
+                subject='Registration Update - Freight Booking Portal',
+                template_name='registration/emails/registration_rejected.html',
+                context={'user': profile.user, 'customer': profile.customer, 'reason': reason},
+                recipient_list=[profile.user.email],
+            )
+            messages.success(request, f'Registration for {profile.user.username} has been rejected.')
+
+        return redirect('ops_pending_registrations')
+
+    return render(request, 'bookings/ops/approve_registration.html', {
+        'profile': profile,
+    })
