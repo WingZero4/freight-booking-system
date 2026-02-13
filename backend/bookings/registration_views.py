@@ -19,6 +19,23 @@ def register(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             with transaction.atomic():
+                # Clean up any previous rejected/inactive registration
+                # with the same username or email
+                old_user = User.objects.filter(
+                    username=form.cleaned_data['username'],
+                    is_active=False,
+                ).first()
+                if old_user:
+                    # Delete old profile, customer, and user
+                    try:
+                        old_profile = old_user.profile
+                        if old_profile.customer:
+                            old_profile.customer.delete()
+                        old_profile.delete()
+                    except UserProfile.DoesNotExist:
+                        pass
+                    old_user.delete()
+
                 code = _generate_customer_code(form.cleaned_data['company_name'])
 
                 customer = Customer.objects.create(
