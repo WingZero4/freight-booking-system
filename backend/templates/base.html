@@ -41,21 +41,9 @@
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
                             <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                            {% if not user.profile.customer and pending_registrations_count %}<span class="badge bg-warning text-dark ms-1">{{ pending_registrations_count }}</span>{% endif %}
                         </a>
                     </li>
-                    {% if not user.profile.customer %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if nav_active == 'ops' %}active{% endif %}" href="{% url 'ops_dashboard' %}">
-                            <i class="fas fa-headset me-1"></i>Operations
-                            {% if pending_registrations_count %}<span class="badge bg-warning text-dark ms-1">{{ pending_registrations_count }}</span>{% endif %}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if nav_active == 'users' %}active{% endif %}" href="{% url 'ops_user_list' %}">
-                            <i class="fas fa-users me-1"></i>Users
-                        </a>
-                    </li>
-                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'bookings' %}active{% endif %}" href="{% url 'booking_list' %}">
                             <i class="fas fa-list me-1"></i>Bookings
@@ -80,16 +68,35 @@
                     </li>
                 </ul>
                 <div class="navbar-nav">
-                    <span class="navbar-text me-3">
-                        <i class="fas fa-user me-1"></i>{{ user.username }}
-                        {% if user.profile.customer %}({{ user.profile.customer.code }}){% endif %}
-                    </span>
-                    <form method="post" action="{% url 'logout' %}" class="d-inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-navbar-logout btn-sm">
-                            <i class="fas fa-sign-out-alt me-1"></i>Logout
-                        </button>
-                    </form>
+                    <div class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user me-1"></i>{{ user.username }}
+                            {% if user.profile.customer %}({{ user.profile.customer.code }}){% endif %}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% if not user.profile.customer %}
+                            <li>
+                                <a class="dropdown-item {% if nav_active == 'users' %}active{% endif %}" href="{% url 'ops_user_list' %}">
+                                    <i class="fas fa-users me-2"></i>Manage Users
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'admin:index' %}">
+                                    <i class="fas fa-cog me-2"></i>Admin Panel
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li>
+                                <form method="post" action="{% url 'logout' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </div>
             {% endif %}

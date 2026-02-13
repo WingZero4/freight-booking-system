@@ -68,9 +68,9 @@ def dashboard(request):
     """Dashboard with booking summary statistics"""
     customer = get_user_customer(request.user)
 
-    # Staff users get the operations dashboard
+    # Staff users get the operations dashboard directly (no redirect)
     if customer is None:
-        return redirect('ops_dashboard')
+        return ops_dashboard(request)
 
     bookings = Booking.objects.filter(customer=customer)
 
