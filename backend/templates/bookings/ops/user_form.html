@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+
+{% block title %}Add {% if user_type == 'staff' %}Staff{% else %}Customer{% endif %} User - Freight Booking{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3>
+        <i class="fas fa-user-plus me-2"></i>
+        Add {% if user_type == 'staff' %}Staff / Ops{% else %}Customer{% endif %} User
+    </h3>
+    <a href="{% url 'ops_user_list' %}" class="btn btn-themed-outline btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Back to Users
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-4">
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger">
+            {% for error in form.non_field_errors %}
+            <p class="mb-0">{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <h6 class="text-muted mb-3"><i class="fas fa-user me-1"></i> Personal Information</h6>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_first_name" class="form-label">First Name *</label>
+                    {{ form.first_name }}
+                    {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_last_name" class="form-label">Last Name *</label>
+                    {{ form.last_name }}
+                    {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_email" class="form-label">Email *</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_phone" class="form-label">Phone</label>
+                    {{ form.phone }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_username" class="form-label">Username *</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}<div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_role" class="form-label">Role *</label>
+                    {{ form.role }}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_password" class="form-label">Password *</label>
+                    {{ form.password }}
+                    {% if form.password.errors %}<div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_password_confirm" class="form-label">Confirm Password *</label>
+                    {{ form.password_confirm }}
+                    {% if form.password_confirm.errors %}<div class="text-danger small mt-1">{{ form.password_confirm.errors.0 }}</div>{% endif %}
+                </div>
+            </div>
+
+            {% if user_type == 'customer' %}
+            <hr class="my-4">
+
+            <h6 class="text-muted mb-3"><i class="fas fa-building me-1"></i> Customer Assignment</h6>
+            <div class="mb-3">
+                {% for radio in form.customer_mode %}
+                <div class="form-check form-check-inline">
+                    {{ radio.tag }}
+                    <label class="form-check-label" for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div id="existing-customer-section" class="mb-3">
+                <label for="id_existing_customer" class="form-label">Select Customer *</label>
+                {{ form.existing_customer }}
+                {% if form.existing_customer.errors %}<div class="text-danger small mt-1">{{ form.existing_customer.errors.0 }}</div>{% endif %}
+            </div>
+
+            <div id="new-customer-section" style="display: none;">
+                <div class="mb-3">
+                    <label for="id_company_name" class="form-label">Company Name *</label>
+                    {{ form.company_name }}
+                    {% if form.company_name.errors %}<div class="text-danger small mt-1">{{ form.company_name.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="id_company_email" class="form-label">Company Email</label>
+                        {{ form.company_email }}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_company_phone" class="form-label">Company Phone</label>
+                        {{ form.company_phone }}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="id_company_address" class="form-label">Address</label>
+                    {{ form.company_address }}
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="id_company_city" class="form-label">City</label>
+                        {{ form.company_city }}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_company_country" class="form-label">Country</label>
+                        {{ form.company_country }}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-themed-primary">
+                    <i class="fas fa-save me-1"></i>Create User
+                </button>
+                <a href="{% url 'ops_user_list' %}" class="btn btn-themed-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if user_type == 'customer' %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var radios = document.querySelectorAll('input[name="customer_mode"]');
+    var existingSection = document.getElementById('existing-customer-section');
+    var newSection = document.getElementById('new-customer-section');
+
+    function toggle() {
+        var checked = document.querySelector('input[name="customer_mode"]:checked');
+        if (!checked) return;
+        var mode = checked.value;
+        existingSection.style.display = mode === 'existing' ? '' : 'none';
+        newSection.style.display = mode === 'new' ? '' : 'none';
+    }
+
+    radios.forEach(function(r) { r.addEventListener('change', toggle); });
+    toggle();
+});
+</script>
+{% endif %}
+{% endblock %}

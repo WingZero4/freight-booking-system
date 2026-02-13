@@ -13,9 +13,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="fas fa-headset me-2"></i>Operations Dashboard</h3>
-    <a href="{% url 'booking_list' %}" class="btn btn-themed-outline btn-sm">
-        <i class="fas fa-list me-1"></i>All Bookings
-    </a>
+    <div>
+        <a href="{% url 'ops_user_list' %}" class="btn btn-themed-outline btn-sm me-2">
+            <i class="fas fa-users me-1"></i>Manage Users
+        </a>
+        <a href="{% url 'booking_list' %}" class="btn btn-themed-outline btn-sm">
+            <i class="fas fa-list me-1"></i>All Bookings
+        </a>
+    </div>
 </div>
 
 <!-- PENDING REGISTRATIONS ALERT -->

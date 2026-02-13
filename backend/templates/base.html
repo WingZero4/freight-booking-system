@@ -50,6 +50,11 @@
                             {% if pending_registrations_count %}<span class="badge bg-warning text-dark ms-1">{{ pending_registrations_count }}</span>{% endif %}
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if nav_active == 'users' %}active{% endif %}" href="{% url 'ops_user_list' %}">
+                            <i class="fas fa-users me-1"></i>Users
+                        </a>
+                    </li>
                     {% endif %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'bookings' %}active{% endif %}" href="{% url 'booking_list' %}">

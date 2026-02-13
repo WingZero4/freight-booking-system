@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}User Management - Freight Booking{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="fas fa-users me-2"></i>User Management</h3>
+    <div>
+        <a href="{% url 'ops_dashboard' %}" class="btn btn-themed-outline btn-sm me-2">
+            <i class="fas fa-arrow-left me-1"></i>Dashboard
+        </a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-themed-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                <i class="fas fa-plus me-1"></i>Add User
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item" href="{% url 'ops_user_add_staff' %}">
+                        <i class="fas fa-headset me-2"></i>Staff / Ops User
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="{% url 'ops_user_add_customer' %}">
+                        <i class="fas fa-building me-2"></i>Customer User
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <input type="text" name="q" class="form-control form-control-sm"
+                       placeholder="Search users..." value="{{ search_query }}">
+            </div>
+            <div class="col-md-2">
+                <select name="type" class="form-select form-select-sm">
+                    <option value="">All Types</option>
+                    <option value="staff" {% if type_filter == 'staff' %}selected{% endif %}>Staff</option>
+                    <option value="customer" {% if type_filter == 'customer' %}selected{% endif %}>Customer</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-themed-outline btn-sm w-100">
+                    <i class="fas fa-filter me-1"></i>Filter
+                </button>
+            </div>
+            {% if search_query or type_filter or status_filter %}
+            <div class="col-md-2">
+                <a href="{% url 'ops_user_list' %}" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="fas fa-times me-1"></i>Clear
+                </a>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- User Table -->
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Type</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in page_obj %}
+                <tr>
+                    <td><strong>{{ u.username }}</strong></td>
+                    <td>{{ u.get_full_name|default:"-" }}</td>
+                    <td>{{ u.email|default:"-" }}</td>
+                    <td>
+                        {% if u.profile.customer %}
+                            <span class="badge bg-secondary">{{ u.profile.customer.name }} ({{ u.profile.customer.code }})</span>
+                        {% else %}
+                            <span class="badge bg-info">Staff</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.profile.get_role_display|default:"-" }}</td>
+                    <td>
+                        {% if u.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-danger">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.last_login %}
+                            {{ u.last_login|date:"M d, Y H:i" }}
+                        {% else %}
+                            <span class="text-muted">Never</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'ops_user_edit' u.id %}" class="btn btn-outline-primary" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if u != request.user %}
+                            <form method="post" action="{% url 'ops_user_toggle_active' u.id %}" class="d-inline">
+                                {% csrf_token %}
+                                {% if u.is_active %}
+                                <button type="submit" class="btn btn-outline-warning" title="Deactivate"
+                                        onclick="return confirm('Deactivate user {{ u.username|escapejs }}?')">
+                                    <i class="fas fa-ban"></i>
+                                </button>
+                                {% else %}
+                                <button type="submit" class="btn btn-outline-success" title="Activate">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                {% endif %}
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="fas fa-users fa-2x mb-2 d-block"></i>
+                        No users found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<nav class="mt-3">
+    <ul class="pagination justify-content-center mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if type_filter %}&type={{ type_filter|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}">
+                &laquo; Previous
+            </a>
+        </li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+        <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+            <a class="page-link" href="?page={{ num }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if type_filter %}&type={{ type_filter|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}">
+                {{ num }}
+            </a>
+        </li>
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query|urlencode }}{% endif %}{% if type_filter %}&type={{ type_filter|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}">
+                Next &raquo;
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

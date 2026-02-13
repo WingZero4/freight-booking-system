@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, import_views
+from . import views, import_views, user_management_views
 
 urlpatterns = [
     # Dashboard
@@ -21,6 +21,13 @@ urlpatterns = [
     # Registration approval (staff)
     path('ops/registrations/', views.ops_pending_registrations, name='ops_pending_registrations'),
     path('ops/registrations/<int:profile_id>/', views.ops_approve_registration, name='ops_approve_registration'),
+
+    # User management (staff)
+    path('ops/users/', user_management_views.ops_user_list, name='ops_user_list'),
+    path('ops/users/add/staff/', user_management_views.ops_user_add_staff, name='ops_user_add_staff'),
+    path('ops/users/add/customer/', user_management_views.ops_user_add_customer, name='ops_user_add_customer'),
+    path('ops/users/<int:user_id>/edit/', user_management_views.ops_user_edit, name='ops_user_edit'),
+    path('ops/users/<int:user_id>/toggle-active/', user_management_views.ops_user_toggle_active, name='ops_user_toggle_active'),
 
     # Booking CRUD (export/import MUST come before <int:booking_id>)
     path('bookings/', views.booking_list, name='booking_list'),
