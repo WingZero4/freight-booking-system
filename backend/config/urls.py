@@ -10,6 +10,10 @@ from drf_spectacular.views import (
 from bookings.registration_views import register
 
 urlpatterns = [
+    # Admin logout must come before admin/ to intercept it
+    path('admin/logout/', auth_views.LogoutView.as_view(
+        http_method_names=['get', 'post'], next_page='/admin/login/'
+    )),
     path('admin/', admin.site.urls),
     path('api/v1/', include('bookings.api_urls')),
     path('api/schema/', SpectacularAPIView.as_view(permission_classes=[IsAdminUser]), name='schema'),

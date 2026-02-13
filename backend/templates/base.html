@@ -79,9 +79,12 @@
                         <i class="fas fa-user me-1"></i>{{ user.username }}
                         {% if user.profile.customer %}({{ user.profile.customer.code }}){% endif %}
                     </span>
-                    <a class="btn btn-navbar-logout btn-sm" href="{% url 'logout' %}">
-                        <i class="fas fa-sign-out-alt me-1"></i>Logout
-                    </a>
+                    <form method="post" action="{% url 'logout' %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-navbar-logout btn-sm">
+                            <i class="fas fa-sign-out-alt me-1"></i>Logout
+                        </button>
+                    </form>
                 </div>
             </div>
             {% endif %}
