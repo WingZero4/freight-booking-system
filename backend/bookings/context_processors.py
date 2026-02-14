@@ -4,8 +4,12 @@ def nav_active(request):
     context = {}
     if path.startswith('/ops/users'):
         context['nav_active'] = 'users'
+    elif path.startswith('/ops/reports'):
+        context['nav_active'] = 'reports'
     elif path.startswith('/ops/'):
         context['nav_active'] = 'dashboard'
+    elif path.startswith('/profile/'):
+        context['nav_active'] = 'profile'
     elif path == '/bookings/create/':
         context['nav_active'] = 'new_booking'
     elif path.startswith('/bookings/import'):

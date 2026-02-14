@@ -74,6 +74,60 @@
     </div>
 </div>
 
+<!-- Monthly Trend & Transport Mode -->
+<div class="row mb-4">
+    <div class="col-md-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Monthly Trend (Last 6 Months)</h6></div>
+            <div class="card-body p-0">
+                {% if monthly_trend %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Month</th><th class="text-end">Created</th><th class="text-end">Completed</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for m in monthly_trend %}
+                            <tr>
+                                <td>{{ m.month|date:"M Y" }}</td>
+                                <td class="text-end">{{ m.created }}</td>
+                                <td class="text-end">{{ m.completed }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">No data yet</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><h6 class="mb-0"><i class="fas fa-shipping-fast me-2"></i>Transport Modes</h6></div>
+            <div class="card-body p-0">
+                {% if transport_breakdown %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th>Mode</th><th class="text-end">Bookings</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for t in transport_breakdown %}
+                            <tr><td>{{ t.display }}</td><td class="text-end">{{ t.count }}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">No data yet</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Recent Bookings -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">

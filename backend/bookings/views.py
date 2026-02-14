@@ -1,12 +1,13 @@
 import csv
 from functools import wraps
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q, Avg, F
+from django.db.models import Q, Avg, F, Count
+from django.db.models.functions import TruncMonth
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
 
@@ -87,10 +88,65 @@ def dashboard(request):
         'customer', 'origin_port', 'destination_port', 'container_type'
     )[:5]
 
+    # Monthly trend (last 6 months)
+    six_months_ago = timezone.now() - timedelta(days=180)
+    monthly_trend = (
+        bookings.filter(created_at__gte=six_months_ago)
+        .annotate(month=TruncMonth('created_at'))
+        .values('month')
+        .annotate(
+            created=Count('id'),
+            completed=Count('id', filter=Q(status='COMPLETED')),
+        )
+        .order_by('month')
+    )
+
+    # Transport mode breakdown
+    transport_breakdown = (
+        bookings.values('transport_mode')
+        .annotate(count=Count('id'))
+        .order_by('-count')
+    )
+    transport_labels = dict(Booking.TRANSPORT_MODE_CHOICES)
+    for item in transport_breakdown:
+        item['display'] = transport_labels.get(item['transport_mode'], item['transport_mode'])
+
     return render(request, 'bookings/dashboard.html', {
         'stats': stats,
         'recent_bookings': recent_bookings,
+        'monthly_trend': monthly_trend,
+        'transport_breakdown': transport_breakdown,
     })
+
+
+# ─── Profile ─────────────────────────────────────────────────────────
+
+@login_required
+def profile_edit(request):
+    """Allow users to edit their own profile (name, email, phone)."""
+    from .profile_forms import ProfileEditForm
+
+    # Ensure profile exists (handles createsuperuser accounts)
+    UserProfile.objects.get_or_create(
+        user=request.user, defaults={'role': 'ADMIN', 'approval_status': 'APPROVED'}
+    )
+
+    if request.method == 'POST':
+        form = ProfileEditForm(request.POST, user_instance=request.user)
+        if form.is_valid():
+            request.user.first_name = form.cleaned_data['first_name']
+            request.user.last_name = form.cleaned_data['last_name']
+            request.user.email = form.cleaned_data['email']
+            request.user.save(update_fields=['first_name', 'last_name', 'email'])
+            profile = request.user.profile
+            profile.phone = form.cleaned_data.get('phone', '')
+            profile.save(update_fields=['phone'])
+            messages.success(request, 'Profile updated successfully.')
+            return redirect('dashboard')
+    else:
+        form = ProfileEditForm(user_instance=request.user)
+
+    return render(request, 'bookings/profile_edit.html', {'form': form})
 
 
 # ─── Booking list ─────────────────────────────────────────────────────
@@ -128,9 +184,15 @@ def booking_list(request):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
     if date_from:
-        bookings = bookings.filter(created_at__date__gte=date_from)
+        try:
+            bookings = bookings.filter(created_at__date__gte=date.fromisoformat(date_from))
+        except ValueError:
+            date_from = ''
     if date_to:
-        bookings = bookings.filter(created_at__date__lte=date_to)
+        try:
+            bookings = bookings.filter(created_at__date__lte=date.fromisoformat(date_to))
+        except ValueError:
+            date_to = ''
 
     # Sorting
     sort_by = request.GET.get('sort', '-created_at')
@@ -907,6 +969,20 @@ def booking_export_csv(request):
             Q(destination_port__name__icontains=search_query) |
             Q(external_reference__icontains=search_query)
         )
+
+    # Date range filter
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    if date_from:
+        try:
+            bookings = bookings.filter(created_at__date__gte=date.fromisoformat(date_from))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            bookings = bookings.filter(created_at__date__lte=date.fromisoformat(date_to))
+        except ValueError:
+            pass
 
     bookings = bookings.order_by('-created_at')
 

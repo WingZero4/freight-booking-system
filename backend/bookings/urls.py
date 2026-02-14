@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, import_views, user_management_views
+from . import views, import_views, user_management_views, report_views, pdf_views
 
 urlpatterns = [
     # Dashboard
@@ -29,6 +29,12 @@ urlpatterns = [
     path('ops/users/<int:user_id>/edit/', user_management_views.ops_user_edit, name='ops_user_edit'),
     path('ops/users/<int:user_id>/toggle-active/', user_management_views.ops_user_toggle_active, name='ops_user_toggle_active'),
 
+    # Profile
+    path('profile/', views.profile_edit, name='profile_edit'),
+
+    # Reports (staff)
+    path('ops/reports/', report_views.ops_reports, name='ops_reports'),
+
     # Booking CRUD (export/import MUST come before <int:booking_id>)
     path('bookings/', views.booking_list, name='booking_list'),
     path('bookings/export/', views.booking_export_csv, name='booking_export_csv'),
@@ -42,6 +48,12 @@ urlpatterns = [
     path('bookings/<int:booking_id>/cancel/', views.booking_cancel, name='booking_cancel'),
     path('bookings/<int:booking_id>/resubmit/', views.booking_resubmit, name='booking_resubmit'),
     path('bookings/<int:booking_id>/clone/', views.booking_clone, name='booking_clone'),
+
+    # PDF downloads
+    path('bookings/<int:booking_id>/pdf/confirmation/',
+         pdf_views.booking_confirmation_pdf, name='booking_confirmation_pdf'),
+    path('bookings/<int:booking_id>/pdf/shipping-advice/',
+         pdf_views.shipping_advice_pdf, name='shipping_advice_pdf'),
 
     # Documents
     path('bookings/<int:booking_id>/documents/upload/',

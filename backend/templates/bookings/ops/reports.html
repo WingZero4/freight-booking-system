@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-bar me-2"></i>Reports</h2>
+    <a href="{% url 'booking_export_csv' %}?date_from={{ start_date|date:'Y-m-d' }}&date_to={{ end_date|date:'Y-m-d' }}" class="btn btn-outline-success">
+        <i class="fas fa-file-csv me-1"></i>Export CSV
+    </a>
+</div>
+
+<!-- Date Range Filter -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label for="id_date_from" class="form-label">From</label>
+                <input type="date" name="date_from" id="id_date_from" class="form-control" value="{{ start_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="id_date_to" class="form-label">To</label>
+                <input type="date" name="date_to" id="id_date_to" class="form-control" value="{{ end_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-filter me-1"></i>Apply
+                </button>
+            </div>
+            <div class="col-md-4">
+                <div class="btn-group w-100">
+                    <a href="?preset=7d" class="btn btn-outline-secondary">7 Days</a>
+                    <a href="?" class="btn btn-outline-secondary">30 Days</a>
+                    <a href="?preset=90d" class="btn btn-outline-secondary">90 Days</a>
+                    <a href="?preset=ytd" class="btn btn-outline-secondary">YTD</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ total }}</h3>
+                <small class="text-muted">Total Bookings</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0 text-success">{{ status_counts.COMPLETED|default:"0" }}</h3>
+                <small class="text-muted">Completed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0 text-primary">{{ status_counts.CONFIRMED|default:"0" }}</h3>
+                <small class="text-muted">Confirmed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{% if avg_confirm_hours %}{{ avg_confirm_hours }}h{% else %}&mdash;{% endif %}</h3>
+                <small class="text-muted">Avg. Confirmation Time</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Status Breakdown -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>By Status</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Status</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="badge bg-secondary">Draft</span></td><td class="text-end">{{ status_counts.DRAFT|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-info text-dark">Submitted</span></td><td class="text-end">{{ status_counts.SUBMITTED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-primary">Confirmed</span></td><td class="text-end">{{ status_counts.CONFIRMED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-danger">Rejected</span></td><td class="text-end">{{ status_counts.REJECTED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-warning text-dark">In Transit</span></td><td class="text-end">{{ status_counts.IN_TRANSIT|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-success">Completed</span></td><td class="text-end">{{ status_counts.COMPLETED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-dark">Cancelled</span></td><td class="text-end">{{ status_counts.CANCELLED|default:"0" }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transport Mode Breakdown -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>By Transport Mode</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Mode</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_transport %}
+                        <tr><td>{{ item.display }}</td><td class="text-end">{{ item.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted text-center">No data</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Top Customers -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>Top 10 Customers</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Customer</th><th>Code</th><th class="text-end">Bookings</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_customer %}
+                        <tr>
+                            <td>{{ item.customer__name }}</td>
+                            <td><code>{{ item.customer__code }}</code></td>
+                            <td class="text-end">{{ item.count }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-muted text-center">No data</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Source Channel Breakdown -->
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>By Source Channel</strong></div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Channel</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_channel %}
+                        <tr><td>{{ item.display }}</td><td class="text-end">{{ item.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted text-center">No data</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

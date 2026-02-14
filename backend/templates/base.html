@@ -49,6 +49,13 @@
                             <i class="fas fa-list me-1"></i>Bookings
                         </a>
                     </li>
+                    {% if not user.profile.customer %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if nav_active == 'reports' %}active{% endif %}" href="{% url 'ops_reports' %}">
+                            <i class="fas fa-chart-bar me-1"></i>Reports
+                        </a>
+                    </li>
+                    {% endif %}
                     {% if user.profile.customer %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'new_booking' %}active{% endif %}" href="{% url 'booking_create' %}">
@@ -74,7 +81,18 @@
                             {% if user.profile.customer %}({{ user.profile.customer.code }}){% endif %}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item {% if nav_active == 'profile' %}active{% endif %}" href="{% url 'profile_edit' %}">
+                                    <i class="fas fa-user-edit me-2"></i>My Profile
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'password_change' %}">
+                                    <i class="fas fa-key me-2"></i>Change Password
+                                </a>
+                            </li>
                             {% if not user.profile.customer %}
+                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <a class="dropdown-item {% if nav_active == 'users' %}active{% endif %}" href="{% url 'ops_user_list' %}">
                                     <i class="fas fa-users me-2"></i>Manage Users
@@ -85,8 +103,8 @@
                                     <i class="fas fa-cog me-2"></i>Admin Panel
                                 </a>
                             </li>
-                            <li><hr class="dropdown-divider"></li>
                             {% endif %}
+                            <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="post" action="{% url 'logout' %}">
                                     {% csrf_token %}

@@ -93,6 +93,16 @@
                         </a>
                         {% endif %}
                     {% endif %}
+                    {% if booking.status != 'DRAFT' and booking.status != 'CANCELLED' %}
+                    <a href="{% url 'booking_confirmation_pdf' booking.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-file-pdf me-1"></i>Booking PDF
+                    </a>
+                    {% endif %}
+                    {% if not user.profile.customer %}{% if booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'COMPLETED' %}
+                    <a href="{% url 'shipping_advice_pdf' booking.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-file-pdf me-1"></i>Shipping Advice
+                    </a>
+                    {% endif %}{% endif %}
                     <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary btn-sm ms-auto">
                         <i class="fas fa-arrow-left me-1"></i>Back to List
                     </a>

@@ -80,9 +80,13 @@ class BookingService:
         ip = None
         ua = ''
         if request:
-            ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+            # Use REMOTE_ADDR as primary (set correctly by reverse proxy)
+            # Only fall back to XFF rightmost IP if REMOTE_ADDR is missing
+            ip = request.META.get('REMOTE_ADDR', '')
             if not ip:
-                ip = request.META.get('REMOTE_ADDR')
+                xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+                if xff:
+                    ip = xff.split(',')[-1].strip()
             ua = request.META.get('HTTP_USER_AGENT', '')[:500]
 
         AuditLog.objects.create(
