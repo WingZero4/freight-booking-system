@@ -6,6 +6,9 @@ Pillow>=10.0
 
 # Phase 3 - FMS Integration
 djangorestframework>=3.15
+drf-spectacular>=0.27
+django-filter>=24.0
+django-cors-headers>=4.3
 requests>=2.31
 
 # Phase 4 - LLM Import

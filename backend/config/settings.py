@@ -210,6 +210,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/minute',
         'user': '120/minute',
+        'token_obtain': '5/minute',
     },
 }
 
