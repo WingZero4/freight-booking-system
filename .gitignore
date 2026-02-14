@@ -26,6 +26,7 @@ staticfiles/
 # OS
 .DS_Store
 Thumbs.db
+nul
 
 # Deployment packages
 *.zip
