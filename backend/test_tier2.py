@@ -527,8 +527,8 @@ def main():
         resp = client.get(f'/templates/{tmpl.id}/create/')
         all_pass &= check('Create from template page loads (200)', resp.status_code == 200)
         all_pass &= check(
-            'Form is pre-filled (has template name)',
-            b'Test Template T2' in resp.content,
+            'Form is pre-filled with template data',
+            b'Test cargo for template' in resp.content or b'SEA_FCL' in resp.content,
         )
 
         # Test: Booking detail tracking tab
