@@ -89,6 +89,10 @@ def main():
     created_bookings = []
     created_notifications_before = Notification.objects.count()
 
+    # Pre-configure Django test client settings
+    from django.conf import settings
+    _ssl_redirect = getattr(settings, 'SECURE_SSL_REDIRECT', False)
+
     try:
         # ── Feature 1: In-App Notifications ──────────────────
         header('Feature 1: In-App Notifications')
@@ -487,9 +491,10 @@ def main():
         header('HTTP Integration: Django Test Client')
 
         from django.test import Client
-        from django.conf import settings
         if 'testserver' not in settings.ALLOWED_HOSTS:
             settings.ALLOWED_HOSTS.append('testserver')
+        # Disable SSL redirect for test client (it makes HTTP requests)
+        settings.SECURE_SSL_REDIRECT = False
 
         client = Client()
         client.force_login(customer_user)
@@ -544,10 +549,17 @@ def main():
             {'template_name': 'HTTP Test Template'},
             follow=True,
         )
+        if resp.status_code != 200:
+            print(f'    DEBUG: save-template returned {resp.status_code}')
         all_pass &= check('Save as template works (200)', resp.status_code == 200)
         http_tmpl = BookingTemplate.objects.filter(
             customer=customer, name='HTTP Test Template'
         ).first()
+        if http_tmpl is None:
+            # Check if the form had errors
+            if hasattr(resp, 'context') and resp.context and 'form' in resp.context:
+                print(f'    DEBUG: form errors = {resp.context["form"].errors}')
+            print(f'    DEBUG: response URL chain = {getattr(resp, "redirect_chain", "N/A")}')
         all_pass &= check('Template created via HTTP', http_tmpl is not None)
 
         # Test: Staff bulk action page
@@ -577,6 +589,9 @@ def main():
         )
 
     finally:
+        # Restore SSL redirect setting
+        settings.SECURE_SSL_REDIRECT = _ssl_redirect
+
         # ── Cleanup ────────────────────────────────────────────
         header('Cleanup')
 
