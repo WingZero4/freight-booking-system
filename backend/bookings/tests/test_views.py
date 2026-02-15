@@ -112,10 +112,11 @@ class TestDashboard(ViewTestBase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn('stats', resp.context)
 
-    def test_staff_redirects_to_ops(self):
+    def test_staff_sees_ops_dashboard(self):
         self._login_staff()
         resp = self.client.get(reverse('dashboard'))
-        self.assertRedirects(resp, reverse('ops_dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Operations Dashboard')
 
 
 # ─── Booking list ────────────────────────────────────────────────────
