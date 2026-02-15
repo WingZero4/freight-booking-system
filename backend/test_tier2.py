@@ -487,12 +487,19 @@ def main():
         header('HTTP Integration: Django Test Client')
 
         from django.test import Client
+        from django.conf import settings
+        if 'testserver' not in settings.ALLOWED_HOSTS:
+            settings.ALLOWED_HOSTS.append('testserver')
 
         client = Client()
         client.force_login(customer_user)
 
         # Test: Notification list page loads
         resp = client.get('/notifications/')
+        if resp.status_code != 200:
+            print(f'    DEBUG: /notifications/ returned {resp.status_code}')
+            if hasattr(resp, 'url'):
+                print(f'    DEBUG: redirect to {resp.url}')
         all_pass &= check('Notification list page loads (200)', resp.status_code == 200)
         all_pass &= check(
             'Notification list has page_obj',
@@ -565,8 +572,8 @@ def main():
         resp = client.get('/templates/', follow=True)
         all_pass &= check(
             'Staff redirected from template list',
-            resp.status_code == 200 and b'Templates are only available' in resp.content
-            or resp.redirect_chain,
+            (resp.status_code == 200 and b'Templates are only available' in resp.content)
+            or bool(resp.redirect_chain),
         )
 
     finally:
