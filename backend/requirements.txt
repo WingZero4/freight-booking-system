@@ -24,3 +24,4 @@ reportlab>=4.0
 
 # Database
 psycopg2-binary>=2.9
+mysqlclient>=2.2

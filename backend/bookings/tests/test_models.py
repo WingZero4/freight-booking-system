@@ -360,3 +360,35 @@ class TestPartyModel(TestCase):
         party = create_party(self.customer, company_name='Acme', role='CONSIGNEE')
         self.assertIn('Acme', str(party))
         self.assertIn('Consignee', str(party))
+
+    def test_default_auto_replaces_existing(self):
+        """Setting a new default should auto-clear the previous default."""
+        p1 = create_party(self.customer, company_name='First', role='SHIPPER', is_default=True)
+        p2 = create_party(self.customer, company_name='Second', role='SHIPPER', is_default=True)
+        p1.refresh_from_db()
+        self.assertFalse(p1.is_default)
+        self.assertTrue(p2.is_default)
+
+    def test_default_different_roles_coexist(self):
+        """Different roles can each have their own default."""
+        p1 = create_party(self.customer, company_name='Shipper', role='SHIPPER', is_default=True)
+        p2 = create_party(self.customer, company_name='Consignee', role='CONSIGNEE', is_default=True)
+        p1.refresh_from_db()
+        self.assertTrue(p1.is_default)
+        self.assertTrue(p2.is_default)
+
+    def test_default_different_customers_coexist(self):
+        """Same role defaults on different customers don't interfere."""
+        other = create_customer(code='OTHER', name='Other Customer')
+        p1 = create_party(self.customer, role='SHIPPER', is_default=True)
+        p2 = create_party(other, role='SHIPPER', is_default=True)
+        p1.refresh_from_db()
+        self.assertTrue(p1.is_default)
+        self.assertTrue(p2.is_default)
+
+    def test_resaving_existing_default_keeps_it(self):
+        """Re-saving the existing default party should not clear itself."""
+        p1 = create_party(self.customer, role='SHIPPER', is_default=True)
+        p1.save()  # re-save
+        p1.refresh_from_db()
+        self.assertTrue(p1.is_default)

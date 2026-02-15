@@ -129,16 +129,20 @@ class Party(models.Model):
                  self.state, self.postal_code, self.country_code]
         return ', '.join(p for p in parts if p)
 
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.is_default and self.customer_id:
+                # Atomically clear any existing default for this customer+role
+                Party.objects.filter(
+                    customer_id=self.customer_id,
+                    role=self.role,
+                    is_default=True,
+                ).exclude(pk=self.pk).select_for_update().update(is_default=False)
+            super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['company_name']
         verbose_name_plural = 'parties'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['customer', 'role'],
-                condition=models.Q(is_default=True),
-                name='unique_default_party_per_role'
-            )
-        ]
 
 
 class Port(models.Model):
