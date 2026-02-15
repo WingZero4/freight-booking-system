@@ -801,3 +801,53 @@ class AuditLog(models.Model):
     class Meta:
         ordering = ['-performed_at']
         verbose_name_plural = 'audit logs'
+
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('BOOKING_SUBMITTED', 'Booking Submitted'),
+        ('BOOKING_CONFIRMED', 'Booking Confirmed'),
+        ('BOOKING_REJECTED', 'Booking Rejected'),
+        ('BOOKING_IN_TRANSIT', 'Booking In Transit'),
+        ('BOOKING_COMPLETED', 'Booking Completed'),
+        ('BOOKING_CANCELLED', 'Booking Cancelled'),
+        ('BOOKING_RESUBMITTED', 'Booking Resubmitted'),
+        ('GENERAL', 'General'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='notifications',
+    )
+    message = models.CharField(max_length=500)
+    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES, default='GENERAL')
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username}: {self.message[:50]}"
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read', '-created_at']),
+        ]
+
+
+class BookingTemplate(models.Model):
+    customer = models.ForeignKey('Customer', on_delete=models.CASCADE, related_name='booking_templates')
+    name = models.CharField(max_length=100)
+    template_data = models.JSONField()
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.customer.code}: {self.name}"
+
+    class Meta:
+        ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(fields=['customer', 'name'], name='unique_template_per_customer'),
+        ]

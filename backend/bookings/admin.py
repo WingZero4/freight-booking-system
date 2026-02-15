@@ -3,7 +3,7 @@ from django.utils import timezone
 from .models import (
     Customer, UserProfile, Port, ContainerType, Carrier,
     Booking, BookingItem, BookingDocument,
-    Party, BookingParty, AuditLog,
+    Party, BookingParty, AuditLog, Notification, BookingTemplate,
 )
 from .services import BookingService
 
@@ -291,3 +291,34 @@ class AuditLogAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'notification_type', 'message_preview', 'booking', 'is_read', 'created_at']
+    list_filter = ['notification_type', 'is_read']
+    search_fields = ['user__username', 'message', 'booking__booking_number']
+    list_select_related = ['user', 'booking']
+    readonly_fields = [
+        'user', 'booking', 'message', 'notification_type', 'is_read', 'created_at',
+    ]
+    date_hierarchy = 'created_at'
+
+    @admin.display(description='Message')
+    def message_preview(self, obj):
+        return obj.message[:80] + '...' if len(obj.message) > 80 else obj.message
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(BookingTemplate)
+class BookingTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'customer', 'created_by', 'created_at', 'updated_at']
+    list_filter = ['customer']
+    search_fields = ['name', 'customer__name', 'customer__code']
+    list_select_related = ['customer', 'created_by']
+    readonly_fields = ['template_data', 'created_by', 'created_at', 'updated_at']

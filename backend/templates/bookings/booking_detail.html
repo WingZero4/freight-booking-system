@@ -64,6 +64,9 @@
                                 <i class="fas fa-copy me-1"></i>Clone
                             </button>
                         </form>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#saveTemplateModal" title="Save as reusable template">
+                            <i class="fas fa-save me-1"></i>Save as Template
+                        </button>
                         {% endif %}
                     {% else %}
                         {# Staff action buttons #}
@@ -133,6 +136,11 @@
                 <a class="nav-link {% if active_tab == 'documents' %}active{% endif %}" data-bs-toggle="tab" href="#tab-documents" role="tab">
                     <i class="fas fa-paperclip me-1"></i>Documents
                     <span class="badge bg-secondary ms-1">{{ documents|length }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'tracking' %}active{% endif %}" data-bs-toggle="tab" href="#tab-tracking" role="tab">
+                    <i class="fas fa-map-marker-alt me-1"></i>Tracking
                 </a>
             </li>
             <li class="nav-item">
@@ -707,6 +715,83 @@
                 </div>
             </div>
 
+            <!-- Tracking Tab -->
+            <div class="tab-pane fade {% if active_tab == 'tracking' %}show active{% endif %}" id="tab-tracking" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="mb-4"><i class="fas fa-map-marker-alt me-2 text-themed-primary"></i>Shipment Timeline</h5>
+                        <div class="tracking-timeline mb-4">
+                            {% for m in milestones %}
+                            <div class="tracking-milestone {{ m.status }}">
+                                <div class="milestone-icon {{ m.status }}">
+                                    <i class="{{ m.icon }}"></i>
+                                </div>
+                                <div class="milestone-label">{{ m.label }}</div>
+                                <div class="milestone-date">
+                                    {% if m.timestamp %}{{ m.timestamp|date:"M d, Y H:i" }}{% else %}--{% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        {% if booking.status == 'REJECTED' and booking.rejection_reason %}
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-times-circle me-1"></i>Rejection Reason</h6>
+                            {{ booking.rejection_reason }}
+                        </div>
+                        {% endif %}
+                        {% if booking.status == 'CANCELLED' and booking.cancellation_reason %}
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-ban me-1"></i>Cancellation Reason</h6>
+                            {{ booking.cancellation_reason }}
+                        </div>
+                        {% endif %}
+
+                        {% if booking.carrier_name or booking.vessel_name or booking.etd or booking.eta %}
+                        <h5 class="mt-4 mb-3"><i class="fas fa-{% if booking.transport_mode == 'AIR' %}plane{% else %}ship{% endif %} me-2 text-themed-primary"></i>Shipment Details</h5>
+                        <div class="row">
+                            {% if booking.carrier_name %}
+                            <div class="col-md-3 mb-3">
+                                <p class="text-muted mb-1">Carrier</p>
+                                <p class="fw-bold">{{ booking.carrier_name }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.vessel_name %}
+                            <div class="col-md-3 mb-3">
+                                <p class="text-muted mb-1">{% if booking.transport_mode == 'AIR' %}Flight{% else %}Vessel{% endif %}</p>
+                                <p class="fw-bold">{{ booking.vessel_name }}{% if booking.voyage_number %} / {{ booking.voyage_number }}{% endif %}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.etd %}
+                            <div class="col-md-3 mb-3">
+                                <p class="text-muted mb-1">ETD</p>
+                                <p class="fw-bold">{{ booking.etd|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.eta %}
+                            <div class="col-md-3 mb-3">
+                                <p class="text-muted mb-1">ETA</p>
+                                <p class="fw-bold">{{ booking.eta|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.actual_departure_date %}
+                            <div class="col-md-3 mb-3">
+                                <p class="text-muted mb-1">Actual Departure</p>
+                                <p class="fw-bold text-success">{{ booking.actual_departure_date|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
+                            {% if booking.actual_arrival_date %}
+                            <div class="col-md-3 mb-3">
+                                <p class="text-muted mb-1">Actual Arrival</p>
+                                <p class="fw-bold text-success">{{ booking.actual_arrival_date|date:"M d, Y" }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
             <!-- Activity Tab -->
             <div class="tab-pane fade {% if active_tab == 'activity' %}show active{% endif %}" id="tab-activity" role="tabpanel">
                 <div class="card">
@@ -761,4 +846,35 @@
 
     </div>
 </div>
+
+{% if user.profile.customer %}
+<!-- Save as Template Modal -->
+<div class="modal fade" id="saveTemplateModal" tabindex="-1" aria-labelledby="saveTemplateLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" action="{% url 'template_save' booking.id %}">
+            {% csrf_token %}
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="saveTemplateLabel">
+                        <i class="fas fa-save me-1"></i>Save as Template
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Save this booking's route, cargo, and party details as a reusable template for future bookings.</p>
+                    <div class="mb-3">
+                        <label for="template_name" class="form-label">Template Name</label>
+                        <input type="text" class="form-control" id="template_name" name="template_name"
+                               maxlength="100" required placeholder="e.g. Weekly Shanghai to LA shipment">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-themed-primary">Save Template</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -29,11 +29,27 @@ urlpatterns = [
     path('ops/users/<int:user_id>/edit/', user_management_views.ops_user_edit, name='ops_user_edit'),
     path('ops/users/<int:user_id>/toggle-active/', user_management_views.ops_user_toggle_active, name='ops_user_toggle_active'),
 
+    # Notifications
+    path('notifications/', views.notification_list, name='notification_list'),
+    path('notifications/<int:notification_id>/read/',
+         views.notification_mark_read, name='notification_mark_read'),
+    path('notifications/mark-all-read/',
+         views.notification_mark_all_read, name='notification_mark_all_read'),
+
+    # Booking Templates
+    path('templates/', views.template_list, name='template_list'),
+    path('templates/<int:template_id>/create/', views.booking_create_from_template, name='booking_create_from_template'),
+    path('templates/<int:template_id>/delete/', views.template_delete, name='template_delete'),
+    path('bookings/<int:booking_id>/save-template/', views.template_save, name='template_save'),
+
     # Profile
     path('profile/', views.profile_edit, name='profile_edit'),
 
     # Reports (staff)
     path('ops/reports/', report_views.ops_reports, name='ops_reports'),
+
+    # Bulk Operations (staff)
+    path('bookings/bulk-action/', views.ops_bulk_action, name='ops_bulk_action'),
 
     # Booking CRUD (export/import MUST come before <int:booking_id>)
     path('bookings/', views.booking_list, name='booking_list'),

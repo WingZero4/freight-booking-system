@@ -10,6 +10,10 @@ def nav_active(request):
         context['nav_active'] = 'dashboard'
     elif path.startswith('/profile/'):
         context['nav_active'] = 'profile'
+    elif path.startswith('/notifications/'):
+        context['nav_active'] = 'notifications'
+    elif path.startswith('/templates/'):
+        context['nav_active'] = 'templates'
     elif path == '/bookings/create/':
         context['nav_active'] = 'new_booking'
     elif path.startswith('/bookings/import'):
@@ -36,6 +40,18 @@ def nav_active(request):
             pass
 
     return context
+
+
+def notifications_context(request):
+    """Inject unread notification count and recent notifications into template context."""
+    if not hasattr(request, 'user') or not request.user.is_authenticated:
+        return {}
+    from bookings.models import Notification
+    user_notifications = Notification.objects.filter(user=request.user)
+    return {
+        'unread_notifications_count': user_notifications.filter(is_read=False).count(),
+        'recent_notifications': user_notifications.select_related('booking')[:5],
+    }
 
 
 def customer_theme(request):

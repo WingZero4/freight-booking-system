@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Booking Templates - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-copy me-2"></i>Booking Templates</h2>
+</div>
+
+<!-- Search -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-10">
+                <input type="text" name="q" class="form-control" placeholder="Search templates..." value="{{ search_query }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-themed-outline w-100">
+                    <i class="fas fa-search me-1"></i>Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if page_obj.object_list %}
+<div class="row">
+    {% for tmpl in page_obj %}
+    <div class="col-md-4 mb-3">
+        <div class="card h-100 card-booking">
+            <div class="card-body">
+                <h5 class="card-title mb-3">
+                    <i class="fas fa-file-alt me-1 text-themed-primary"></i>{{ tmpl.name }}
+                </h5>
+                <div class="mb-2">
+                    {% with data=tmpl.template_data %}
+                    {% if data.transport_mode %}
+                    <span class="badge bg-themed-primary mb-1">{{ data.transport_mode }}</span>
+                    {% endif %}
+                    {% if data.items %}
+                    <span class="badge bg-secondary mb-1">{{ data.items|length }} item{{ data.items|length|pluralize }}</span>
+                    {% endif %}
+                    {% if data.parties %}
+                    <span class="badge bg-secondary mb-1">{{ data.parties|length }} part{{ data.parties|length|pluralize:"y,ies" }}</span>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <p class="text-muted small mb-1">
+                    <i class="fas fa-clock me-1"></i>Saved {{ tmpl.created_at|timesince }} ago
+                </p>
+                {% if tmpl.template_data.commodity_description %}
+                <p class="text-muted small mb-0">{{ tmpl.template_data.commodity_description|truncatechars:80 }}</p>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent d-flex gap-2">
+                <a href="{% url 'booking_create_from_template' tmpl.id %}" class="btn btn-themed-primary btn-sm">
+                    <i class="fas fa-plus me-1"></i>Create Booking
+                </a>
+                <form method="post" action="{% url 'template_delete' tmpl.id %}"
+                      onsubmit="return confirm('Delete template \u0022{{ tmpl.name|escapejs }}\u0022?');" class="ms-auto">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav aria-label="Template pagination">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}">Previous</a>
+        </li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+            <li class="page-item"><a class="page-link" href="?page={{ num }}&q={{ search_query }}">{{ num }}</a></li>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ search_query }}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="fas fa-copy fa-3x mb-3"></i>
+    <p class="lead">No templates saved yet.</p>
+    <p>Open any booking and click "Save as Template" to create your first template.</p>
+</div>
+{% endif %}
+{% endblock %}

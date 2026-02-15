@@ -13,7 +13,10 @@ from django.utils import timezone
 
 from django.db import transaction
 
-from .models import Booking, BookingItem, BookingDocument, Party, BookingParty, AuditLog, UserProfile
+from .models import (
+    Booking, BookingItem, BookingDocument, Party, BookingParty,
+    AuditLog, UserProfile, Notification, BookingTemplate,
+)
 from .notifications import _send_notification
 from .forms import (
     BookingForm, BookingItemFormSet, BookingDocumentForm,
@@ -289,7 +292,7 @@ def booking_edit(request, booking_id):
 
 @login_required
 def booking_detail(request, booking_id):
-    """View booking details with tabs: Overview, Cargo, Parties, Documents, Activity"""
+    """View booking details with tabs: Overview, Tracking, Cargo, Parties, Documents, Activity"""
     booking = get_booking_for_user(booking_id, request.user)
     customer = get_user_customer(request.user)
 
@@ -307,6 +310,9 @@ def booking_detail(request, booking_id):
 
     audit_logs = booking.audit_logs.select_related('performed_by').all()[:20]
 
+    # Build tracking milestones
+    milestones = _build_tracking_milestones(booking)
+
     return render(request, 'bookings/booking_detail.html', {
         'booking': booking,
         'documents': documents,
@@ -314,8 +320,109 @@ def booking_detail(request, booking_id):
         'parties': parties,
         'party_select_form': party_select_form,
         'audit_logs': audit_logs,
+        'milestones': milestones,
         'active_tab': request.GET.get('tab', 'overview'),
     })
+
+
+def _build_tracking_milestones(booking):
+    """Build a list of tracking milestones for the shipment timeline."""
+    milestones = []
+    is_cancelled = booking.status == 'CANCELLED'
+    is_rejected = booking.status == 'REJECTED'
+
+    # 1. Created
+    milestones.append({
+        'label': 'Created',
+        'icon': 'fas fa-plus-circle',
+        'timestamp': booking.created_at,
+        'status': 'completed',
+    })
+
+    # 2. Submitted
+    if booking.submitted_at:
+        milestones.append({
+            'label': 'Submitted',
+            'icon': 'fas fa-paper-plane',
+            'timestamp': booking.submitted_at,
+            'status': 'completed',
+        })
+    elif not is_cancelled:
+        milestones.append({
+            'label': 'Submitted',
+            'icon': 'fas fa-paper-plane',
+            'timestamp': None,
+            'status': 'pending' if booking.status == 'DRAFT' else 'completed',
+        })
+
+    # 3. Rejected (only if currently rejected)
+    if is_rejected:
+        milestones.append({
+            'label': 'Rejected',
+            'icon': 'fas fa-times-circle',
+            'timestamp': booking.rejected_at,
+            'status': 'rejected',
+        })
+        return milestones
+
+    # 4. Confirmed
+    if booking.confirmed_at:
+        milestones.append({
+            'label': 'Confirmed',
+            'icon': 'fas fa-check-circle',
+            'timestamp': booking.confirmed_at,
+            'status': 'completed',
+        })
+    elif not is_cancelled:
+        milestones.append({
+            'label': 'Confirmed',
+            'icon': 'fas fa-check-circle',
+            'timestamp': None,
+            'status': 'pending',
+        })
+
+    # 5. In Transit
+    if booking.in_transit_at:
+        milestones.append({
+            'label': 'In Transit',
+            'icon': 'fas fa-shipping-fast',
+            'timestamp': booking.in_transit_at,
+            'status': 'active' if booking.status == 'IN_TRANSIT' else 'completed',
+        })
+    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED'):
+        milestones.append({
+            'label': 'In Transit',
+            'icon': 'fas fa-shipping-fast',
+            'timestamp': None,
+            'status': 'pending',
+        })
+
+    # 6. Delivered/Completed
+    if booking.completed_at:
+        milestones.append({
+            'label': 'Delivered',
+            'icon': 'fas fa-flag-checkered',
+            'timestamp': booking.completed_at,
+            'status': 'completed',
+        })
+    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED'):
+        milestones.append({
+            'label': 'Delivered',
+            'icon': 'fas fa-flag-checkered',
+            'timestamp': None,
+            'status': 'pending',
+        })
+
+    # 7. Cancelled (terminal)
+    if is_cancelled:
+        milestones.append({
+            'label': 'Cancelled',
+            'icon': 'fas fa-ban',
+            'timestamp': booking.cancelled_at,
+            'status': 'cancelled',
+        })
+
+    return milestones
 
 
 # ─── Status transitions ──────────────────────────────────────────────
@@ -632,6 +739,70 @@ def booking_party_remove(request, booking_id, booking_party_id):
             messages.error(request, str(e))
 
     return redirect('booking_detail', booking_id=booking.id)
+
+
+# ─── Bulk Operations (Staff) ─────────────────────────────────────────
+
+@staff_required
+def ops_bulk_action(request):
+    """Process bulk actions on multiple bookings (staff only)."""
+    if request.method != 'POST':
+        return redirect('booking_list')
+
+    action = request.POST.get('bulk_action', '')
+    selected_ids = request.POST.getlist('selected_bookings')
+
+    if not action or not selected_ids:
+        messages.warning(request, 'No action or bookings selected.')
+        return redirect('booking_list')
+
+    action_map = {
+        'confirm': ('SUBMITTED', 'confirm_booking'),
+        'in_transit': ('CONFIRMED', 'mark_in_transit'),
+        'complete': ('IN_TRANSIT', 'complete_booking'),
+    }
+
+    if action not in action_map:
+        messages.error(request, f'Invalid bulk action: {action}')
+        return redirect('booking_list')
+
+    required_status, service_method = action_map[action]
+    success_count = 0
+    skip_count = 0
+    error_count = 0
+
+    for booking_id in selected_ids:
+        try:
+            booking = Booking.objects.get(pk=booking_id)
+            if booking.status != required_status:
+                skip_count += 1
+                continue
+            getattr(BookingService, service_method)(
+                booking, user=request.user, request=request,
+            )
+            success_count += 1
+        except Booking.DoesNotExist:
+            error_count += 1
+        except ValueError:
+            error_count += 1
+
+    action_labels = {'confirm': 'confirmed', 'in_transit': 'marked in transit', 'complete': 'completed'}
+    label = action_labels.get(action, action)
+
+    parts = []
+    if success_count:
+        parts.append(f'{success_count} booking(s) {label}')
+    if skip_count:
+        parts.append(f'{skip_count} skipped (wrong status)')
+    if error_count:
+        parts.append(f'{error_count} error(s)')
+
+    if success_count:
+        messages.success(request, '. '.join(parts) + '.')
+    else:
+        messages.warning(request, '. '.join(parts) + '.')
+
+    return redirect('booking_list')
 
 
 # ─── Operations (Staff) ──────────────────────────────────────────────
@@ -1034,6 +1205,282 @@ def booking_export_csv(request):
         writer.writerow(row)
 
     return response
+
+
+# ─── Notifications ────────────────────────────────────────────────────
+
+@login_required
+def notification_list(request):
+    """Paginated list of all notifications for the current user."""
+    notifications = Notification.objects.filter(user=request.user)
+    paginator = Paginator(notifications, 20)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    return render(request, 'bookings/notification_list.html', {
+        'page_obj': page_obj,
+    })
+
+
+@login_required
+def notification_mark_read(request, notification_id):
+    """Mark a single notification as read and redirect to its booking."""
+    if request.method != 'POST':
+        return redirect('notification_list')
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    notification.is_read = True
+    notification.save(update_fields=['is_read'])
+    if notification.booking_id:
+        return redirect('booking_detail', booking_id=notification.booking_id)
+    return redirect('notification_list')
+
+
+@login_required
+def notification_mark_all_read(request):
+    """Mark all notifications as read for the current user."""
+    if request.method == 'POST':
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        messages.success(request, 'All notifications marked as read.')
+    return redirect('notification_list')
+
+
+# ─── Booking Templates ──────────────────────────────────────────────
+
+@login_required
+def template_list(request):
+    """List saved booking templates for the current customer."""
+    customer = get_user_customer(request.user)
+    if not customer:
+        messages.error(request, 'Templates are only available for customer users.')
+        return redirect('dashboard')
+
+    templates = BookingTemplate.objects.filter(customer=customer)
+    search = request.GET.get('q', '')
+    if search:
+        templates = templates.filter(name__icontains=search)
+
+    paginator = Paginator(templates, 12)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'bookings/template_list.html', {
+        'page_obj': page_obj,
+        'search_query': search,
+    })
+
+
+@login_required
+def template_save(request, booking_id):
+    """Save a booking as a reusable template."""
+    booking = get_booking_for_user(booking_id, request.user)
+    customer = get_user_customer(request.user)
+    if not customer:
+        messages.error(request, 'Only customer users can save templates.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method != 'POST':
+        return redirect('booking_detail', booking_id=booking.id)
+
+    template_name = request.POST.get('template_name', '').strip()[:100]
+    if not template_name:
+        messages.error(request, 'Please provide a template name.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    # Check uniqueness
+    if BookingTemplate.objects.filter(customer=customer, name=template_name).exists():
+        messages.error(request, f'A template named "{template_name}" already exists.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    # Serialize booking data
+    template_data = {
+        'transport_mode': booking.transport_mode,
+        'origin_port_id': booking.origin_port_id,
+        'destination_port_id': booking.destination_port_id,
+        'container_type_id': booking.container_type_id,
+        'container_count': booking.container_count,
+        'chargeable_weight_kg': str(booking.chargeable_weight_kg) if booking.chargeable_weight_kg else None,
+        'flight_number': booking.flight_number or '',
+        'incoterms': booking.incoterms,
+        'incoterms_location': booking.incoterms_location or '',
+        'commodity_description': booking.commodity_description or '',
+        'is_hazardous': booking.is_hazardous,
+        'special_instructions': booking.special_instructions or '',
+        'items': [],
+        'parties': [],
+    }
+
+    for item in booking.items.all():
+        template_data['items'].append({
+            'description': item.description,
+            'package_type': item.package_type,
+            'quantity': item.quantity,
+            'weight_kg': str(item.weight_kg),
+            'hs_code': item.hs_code or '',
+            'volume_cbm': str(item.volume_cbm) if item.volume_cbm else None,
+            'length_cm': str(item.length_cm) if item.length_cm else None,
+            'width_cm': str(item.width_cm) if item.width_cm else None,
+            'height_cm': str(item.height_cm) if item.height_cm else None,
+            'marks_and_numbers': item.marks_and_numbers or '',
+            'is_hazardous': item.is_hazardous,
+            'un_number': item.un_number or '',
+            'imo_class': item.imo_class or '',
+            'country_of_origin': item.country_of_origin or '',
+        })
+
+    for bp in booking.booking_parties.all():
+        template_data['parties'].append({
+            'party_id': bp.party_id,
+            'role': bp.role,
+            'company_name': bp.company_name,
+            'contact_name': bp.contact_name or '',
+            'address_text': bp.address_text or '',
+            'email': bp.email or '',
+            'phone': bp.phone or '',
+            'tax_id': bp.tax_id or '',
+        })
+
+    BookingTemplate.objects.create(
+        customer=customer,
+        name=template_name,
+        template_data=template_data,
+        created_by=request.user,
+    )
+    messages.success(request, f'Template "{template_name}" saved successfully.')
+    return redirect('booking_detail', booking_id=booking.id)
+
+
+@login_required
+def template_delete(request, template_id):
+    """Delete a booking template."""
+    customer = get_user_customer(request.user)
+    if not customer:
+        messages.error(request, 'Only customer users can manage templates.')
+        return redirect('dashboard')
+
+    template = get_object_or_404(BookingTemplate, id=template_id, customer=customer)
+    if request.method == 'POST':
+        name = template.name
+        template.delete()
+        messages.success(request, f'Template "{name}" deleted.')
+    return redirect('template_list')
+
+
+@login_required
+def booking_create_from_template(request, template_id):
+    """Create a new booking pre-filled from a template."""
+    customer = get_user_customer(request.user)
+    if not customer:
+        messages.error(request, 'Only customer users can use templates.')
+        return redirect('dashboard')
+
+    template = get_object_or_404(BookingTemplate, id=template_id, customer=customer)
+    data = template.template_data
+
+    if request.method == 'POST':
+        form = BookingForm(request.POST)
+        formset = BookingItemFormSet(request.POST, prefix='items')
+
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                booking = BookingService.create_booking(
+                    form, formset, customer, request.user, request=request,
+                )
+                # Restore parties from template
+                for party_data in data.get('parties', []):
+                    party = None
+                    party_id = party_data.get('party_id')
+                    if party_id:
+                        try:
+                            party = Party.objects.get(
+                                pk=party_id, customer=customer, is_active=True,
+                            )
+                        except Party.DoesNotExist:
+                            pass
+                    BookingParty.objects.create(
+                        booking=booking,
+                        party=party,
+                        role=party_data['role'],
+                        company_name=party_data.get('company_name', ''),
+                        contact_name=party_data.get('contact_name', ''),
+                        address_text=party_data.get('address_text', ''),
+                        email=party_data.get('email', ''),
+                        phone=party_data.get('phone', ''),
+                        tax_id=party_data.get('tax_id', ''),
+                    )
+
+            messages.success(request, f'Booking {booking.booking_number} created from template "{template.name}".')
+            return redirect('booking_detail', booking_id=booking.id)
+    else:
+        # Pre-fill form with template data
+        from decimal import Decimal, InvalidOperation
+        initial = {
+            'transport_mode': data.get('transport_mode'),
+            'origin_port': data.get('origin_port_id'),
+            'destination_port': data.get('destination_port_id'),
+            'container_type': data.get('container_type_id'),
+            'container_count': data.get('container_count'),
+            'flight_number': data.get('flight_number', ''),
+            'incoterms': data.get('incoterms'),
+            'incoterms_location': data.get('incoterms_location', ''),
+            'commodity_description': data.get('commodity_description', ''),
+            'is_hazardous': data.get('is_hazardous', False),
+            'special_instructions': data.get('special_instructions', ''),
+        }
+        cw = data.get('chargeable_weight_kg')
+        if cw:
+            try:
+                initial['chargeable_weight_kg'] = Decimal(cw)
+            except (InvalidOperation, TypeError):
+                pass
+        form = BookingForm(initial=initial)
+
+        # Pre-fill items formset
+        item_data = data.get('items', [])
+        initial_items = []
+        for item in item_data:
+            item_init = {
+                'description': item.get('description', ''),
+                'package_type': item.get('package_type', 'CARTON'),
+                'quantity': item.get('quantity', 1),
+                'weight_kg': item.get('weight_kg', '0'),
+                'hs_code': item.get('hs_code', ''),
+                'marks_and_numbers': item.get('marks_and_numbers', ''),
+                'is_hazardous': item.get('is_hazardous', False),
+                'un_number': item.get('un_number', ''),
+                'imo_class': item.get('imo_class', ''),
+                'country_of_origin': item.get('country_of_origin', ''),
+            }
+            for field in ('volume_cbm', 'length_cm', 'width_cm', 'height_cm'):
+                val = item.get(field)
+                if val:
+                    try:
+                        item_init[field] = Decimal(val)
+                    except (InvalidOperation, TypeError):
+                        pass
+            initial_items.append(item_init)
+
+        if initial_items:
+            from django.forms import inlineformset_factory
+            from .forms import BookingItemForm
+            TemplateItemFormSet = inlineformset_factory(
+                Booking, BookingItem,
+                form=BookingItemForm,
+                extra=len(initial_items),
+                min_num=1,
+                validate_min=True,
+                can_delete=True,
+            )
+            formset = TemplateItemFormSet(
+                prefix='items',
+                initial=initial_items,
+                queryset=BookingItem.objects.none(),
+            )
+        else:
+            formset = BookingItemFormSet(prefix='items')
+
+    return render(request, 'bookings/booking_form.html', {
+        'form': form,
+        'formset': formset,
+        'is_edit': False,
+        'from_template': template,
+    })
 
 
 # ── Registration Approval ────────────────────────────────────────────

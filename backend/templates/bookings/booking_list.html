@@ -83,11 +83,34 @@
 
 {% if view_mode == 'table' %}
 <!-- Table View -->
+{% if not user.profile.customer %}
+<form method="post" action="{% url 'ops_bulk_action' %}" id="bulkForm">
+{% csrf_token %}
+{% endif %}
 <div class="card">
+    {% if not user.profile.customer %}
+    <div class="card-header bg-light py-2 d-none" id="bulkActionBar">
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small"><span id="selectedCount">0</span> selected</span>
+            <select name="bulk_action" class="form-select form-select-sm" style="width: auto;">
+                <option value="">-- Action --</option>
+                <option value="confirm">Confirm</option>
+                <option value="in_transit">Mark In Transit</option>
+                <option value="complete">Complete</option>
+            </select>
+            <button type="submit" class="btn btn-themed-primary btn-sm">
+                <i class="fas fa-check me-1"></i>Apply
+            </button>
+        </div>
+    </div>
+    {% endif %}
     <div class="table-responsive">
         <table class="table table-hover mb-0">
             <thead class="table-light">
                 <tr>
+                    {% if not user.profile.customer %}
+                    <th style="width: 40px;"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                    {% endif %}
                     <th>Booking #</th>
                     {% if not user.profile.customer %}<th>Customer</th>{% endif %}
                     <th>Mode</th>
@@ -102,6 +125,9 @@
             <tbody>
                 {% for booking in page_obj %}
                 <tr>
+                    {% if not user.profile.customer %}
+                    <td><input type="checkbox" name="selected_bookings" value="{{ booking.id }}" class="form-check-input bulk-check"></td>
+                    {% endif %}
                     <td class="fw-bold">
                         <a href="{% url 'booking_detail' booking.id %}" class="text-decoration-none">
                             {{ booking.booking_number }}
@@ -137,6 +163,9 @@
         </table>
     </div>
 </div>
+{% if not user.profile.customer %}
+</form>
+{% endif %}
 {% else %}
 <!-- Card View -->
 <div class="row">
@@ -192,5 +221,31 @@
     <a href="{% url 'booking_create' %}" class="btn btn-themed-primary">Create Your First Booking</a>
     {% endif %}
 </div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+{% if not user.profile.customer %}
+<script>
+(function() {
+    var selectAll = document.getElementById('selectAll');
+    var bar = document.getElementById('bulkActionBar');
+    var countEl = document.getElementById('selectedCount');
+    if (!selectAll) return;
+    var checks = document.querySelectorAll('.bulk-check');
+    function updateBar() {
+        var count = document.querySelectorAll('.bulk-check:checked').length;
+        countEl.textContent = count;
+        if (count > 0) { bar.classList.remove('d-none'); } else { bar.classList.add('d-none'); }
+        selectAll.checked = count === checks.length && count > 0;
+    }
+    selectAll.addEventListener('change', function() {
+        checks.forEach(function(cb) { cb.checked = selectAll.checked; });
+        updateBar();
+    });
+    checks.forEach(function(cb) { cb.addEventListener('change', updateBar); });
+})();
+</script>
 {% endif %}
 {% endblock %}
