@@ -100,7 +100,7 @@ class WebhookSubscriptionAdmin(admin.ModelAdmin):
 class WebhookDeliveryAdmin(admin.ModelAdmin):
     list_display = [
         'subscription', 'event_type', 'response_status',
-        'success', 'attempt_number', 'created_at',
+        'success', 'attempt_number', 'next_retry_at', 'created_at',
     ]
     list_filter = ['success', 'event_type']
     search_fields = ['subscription__customer__name', 'event_type']
@@ -108,7 +108,7 @@ class WebhookDeliveryAdmin(admin.ModelAdmin):
     readonly_fields = [
         'subscription', 'event_type', 'payload', 'response_status',
         'response_body', 'error_message', 'success', 'attempt_number',
-        'created_at',
+        'max_attempts', 'next_retry_at', 'created_at',
     ]
 
     def has_add_permission(self, request):

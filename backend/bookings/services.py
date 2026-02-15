@@ -9,6 +9,8 @@ BookingService. This ensures:
 
 Views and serializers should NEVER mutate Booking/BookingItem directly.
 """
+import threading
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -23,33 +25,52 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_fms_dispatch(func, *args, **kwargs):
-    """Call an FMS dispatch function, swallowing all errors.
+    """Call an FMS dispatch function in a background thread.
 
     FMS integration is fire-and-forget — failures must never
-    block booking status transitions.
+    block booking status transitions. The dispatch runs in a
+    daemon thread so the HTTP response returns immediately.
+    The background worker recovers any dispatches that fail
+    due to thread/process termination.
     """
-    try:
-        from integrations import dispatch as fms_dispatch
-        getattr(fms_dispatch, func)(*args, **kwargs)
-    except Exception:
-        booking = args[0] if args else None
-        booking_num = getattr(booking, 'booking_number', '?')
-        logger.exception('FMS dispatch (%s) failed for %s', func, booking_num)
+    def _run():
+        from django.db import close_old_connections
+        close_old_connections()
+        try:
+            from integrations import dispatch as fms_dispatch
+            getattr(fms_dispatch, func)(*args, **kwargs)
+        except Exception:
+            booking = args[0] if args else None
+            booking_num = getattr(booking, 'booking_number', '?')
+            logger.exception('FMS dispatch (%s) failed for %s', func, booking_num)
+        finally:
+            close_old_connections()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
 
 
 def _safe_carrier_dispatch(func, *args, **kwargs):
-    """Call a carrier dispatch function, swallowing all errors.
+    """Call a carrier dispatch function in a background thread.
 
     Carrier integration is fire-and-forget — failures must never
     block booking status transitions.
     """
-    try:
-        from integrations import carrier_dispatch
-        getattr(carrier_dispatch, func)(*args, **kwargs)
-    except Exception:
-        booking = args[0] if args else None
-        booking_num = getattr(booking, 'booking_number', '?')
-        logger.exception('Carrier dispatch (%s) failed for %s', func, booking_num)
+    def _run():
+        from django.db import close_old_connections
+        close_old_connections()
+        try:
+            from integrations import carrier_dispatch
+            getattr(carrier_dispatch, func)(*args, **kwargs)
+        except Exception:
+            booking = args[0] if args else None
+            booking_num = getattr(booking, 'booking_number', '?')
+            logger.exception('Carrier dispatch (%s) failed for %s', func, booking_num)
+        finally:
+            close_old_connections()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
 
 
 def _should_defer_fms_push(booking):

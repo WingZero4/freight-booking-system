@@ -257,9 +257,11 @@ class WebhookDelivery(models.Model):
     response_status = models.IntegerField(null=True, blank=True)
     response_body = models.TextField(blank=True, max_length=2000)
     error_message = models.TextField(blank=True)
-    success = models.BooleanField(default=False)
+    success = models.BooleanField(default=False, db_index=True)
 
     attempt_number = models.IntegerField(default=1)
+    max_attempts = models.IntegerField(default=5)
+    next_retry_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
