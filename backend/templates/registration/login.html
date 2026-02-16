@@ -9,16 +9,194 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="{% static 'css/theme.css' %}" rel="stylesheet">
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Background half */
+        .login-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .login-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .login-bg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(30, 42, 74, 0.85) 0%, rgba(30, 42, 74, 0.6) 50%, rgba(0, 0, 0, 0.4) 100%);
+        }
+
+        /* Form panel */
+        .login-panel {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 2rem;
+        }
+
+        .login-card-wrapper {
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .login-card {
+            border: none;
+            border-radius: 1rem;
+            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-brand {
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-brand-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--theme-primary);
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .login-brand-icon i {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+
+        .login-brand h2 {
+            color: var(--theme-primary);
+            font-weight: 700;
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .login-brand p {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 0;
+        }
+
+        .login-card .form-control {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1.5px solid #dee2e6;
+            font-size: 0.95rem;
+        }
+
+        .login-card .form-control:focus {
+            border-color: var(--theme-primary);
+            box-shadow: 0 0 0 3px rgba(30, 42, 74, 0.1);
+        }
+
+        .login-card .form-label {
+            font-weight: 500;
+            font-size: 0.875rem;
+            color: #495057;
+        }
+
+        .login-card .btn-themed-primary {
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .login-footer {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        /* Tagline floated over the background */
+        .login-tagline {
+            position: fixed;
+            bottom: 2.5rem;
+            left: 2.5rem;
+            z-index: 1;
+            color: rgba(255, 255, 255, 0.9);
+            max-width: 500px;
+        }
+
+        .login-tagline h1 {
+            font-weight: 700;
+            font-size: 2.25rem;
+            line-height: 1.2;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+            margin-bottom: 0.5rem;
+        }
+
+        .login-tagline p {
+            font-size: 1.05rem;
+            opacity: 0.85;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .login-tagline {
+                display: none;
+            }
+        }
+    </style>
 </head>
-<body class="bg-light">
-    <div class="container">
-        <div class="row justify-content-center mt-5">
-            <div class="col-md-4">
-                <div class="card shadow login-card">
-                    <div class="card-body p-4">
-                        <h3 class="text-center mb-2 login-header">{{ theme_portal_name|default:"Freight Booking" }}</h3>
-                        <p class="text-center text-muted mb-4">Customer Portal</p>
+<body>
+    <div class="login-page">
+        <!-- Background image -->
+        <div class="login-bg">
+            <img src="{% static 'img/login-bg.jpg' %}" alt="">
+            <div class="login-bg-overlay"></div>
+        </div>
+
+        <!-- Tagline -->
+        <div class="login-tagline d-none d-lg-block">
+            <h1>Global Freight,<br>Simplified.</h1>
+            <p>Manage bookings, track shipments, and streamline your supply chain.</p>
+        </div>
+
+        <!-- Login form panel -->
+        <div class="login-panel">
+            <div class="login-card-wrapper">
+                <div class="card login-card">
+                    <div class="card-body p-4 p-md-5">
+                        <div class="login-brand">
+                            {% if theme_logo_url %}
+                            <img src="{{ theme_logo_url }}" alt="{{ theme_portal_name|default:'Freight Booking' }}" height="48" class="mb-3">
+                            {% else %}
+                            <div class="login-brand-icon">
+                                <i class="fas fa-ship"></i>
+                            </div>
+                            {% endif %}
+                            <h2>{{ theme_portal_name|default:"Freight Booking" }}</h2>
+                            <p>Sign in to your account</p>
+                        </div>
+
+                        <hr class="my-4">
 
                         {% if messages %}
                         {% for message in messages %}
@@ -31,38 +209,48 @@
 
                         {% if form.errors %}
                         <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle me-1"></i>
                             Invalid username or password.
                         </div>
                         {% endif %}
 
                         <form method="post">
                             {% csrf_token %}
+                            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                             <div class="mb-3">
                                 <label for="username" class="form-label">Username</label>
-                                <input type="text" name="username" id="username" class="form-control" required autofocus>
+                                <input type="text" name="username" id="username" class="form-control" placeholder="Enter your username" required autofocus>
                             </div>
-                            <div class="mb-3">
+                            <div class="mb-4">
                                 <label for="password" class="form-label">Password</label>
-                                <input type="password" name="password" id="password" class="form-control" required>
+                                <input type="password" name="password" id="password" class="form-control" placeholder="Enter your password" required>
                             </div>
-                            <button type="submit" class="btn btn-themed-primary w-100">Login</button>
+                            <button type="submit" class="btn btn-themed-primary w-100">
+                                <i class="fas fa-sign-in-alt me-1"></i>Sign In
+                            </button>
                         </form>
 
                         <div class="text-center mt-3">
-                            <a href="{% url 'password_reset' %}" class="text-decoration-none small">
-                                Forgot Password?
+                            <a href="{% url 'password_reset' %}" class="text-decoration-none small text-muted">
+                                Forgot password?
                             </a>
                         </div>
                         <div class="text-center mt-2">
                             <span class="small text-muted">Don't have an account?</span>
                             <a href="{% url 'register' %}" class="text-decoration-none small fw-semibold">
-                                Register here
+                                Register
                             </a>
                         </div>
                     </div>
                 </div>
+
+                <div class="login-footer">
+                    &copy; 2026 {{ theme_portal_name|default:"Freight Booking" }}
+                </div>
             </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
