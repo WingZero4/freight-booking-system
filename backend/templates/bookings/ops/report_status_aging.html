@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <a href="{% url 'ops_reports_hub' %}" class="text-decoration-none text-muted small">
+        <i class="fas fa-arrow-left me-1"></i>All Reports
+    </a>
+    <a href="?format=csv" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i>Export CSV
+    </a>
+</div>
+<h3 class="mb-4"><i class="fas fa-hourglass-half me-2"></i>{{ report_title }}</h3>
+<p class="text-muted mb-4">Live snapshot showing how long bookings have been sitting in each active status. Top 20 oldest per status.</p>
+
+{% for group in aging_data %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">
+            <span class="badge
+                {% if group.status == 'SUBMITTED' %}bg-warning text-dark
+                {% elif group.status == 'CONFIRMED' %}bg-success
+                {% elif group.status == 'IN_TRANSIT' %}bg-info
+                {% elif group.status == 'ARRIVED' %}bg-primary
+                {% endif %} me-2">{{ group.status_display }}</span>
+            {{ group.count }} booking{{ group.count|pluralize }}
+            {% if group.avg_age_days %}<small class="text-muted ms-2">Avg: {{ group.avg_age_days }} days</small>{% endif %}
+        </h6>
+    </div>
+    {% if group.entries %}
+    <div class="card-body px-2 py-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Booking</th>
+                        <th>Customer</th>
+                        <th>Route</th>
+                        <th class="text-end">Age (Days)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in group.entries %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'booking_detail' entry.booking.id %}" class="fw-bold text-decoration-none">
+                                {{ entry.booking.booking_number }}
+                            </a>
+                        </td>
+                        <td>{{ entry.booking.customer.code }}</td>
+                        <td>{{ entry.booking.origin_port.code }} &rarr; {{ entry.booking.destination_port.code }}</td>
+                        <td class="text-end">
+                            {% if entry.age_days != None %}
+                            <span class="{% if entry.age_days > 7 %}text-danger fw-bold{% elif entry.age_days > 3 %}text-warning{% endif %}">
+                                {{ entry.age_days }}
+                            </span>
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body text-center text-muted py-3">
+        <i class="fas fa-check-circle me-1"></i>No bookings in this status
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

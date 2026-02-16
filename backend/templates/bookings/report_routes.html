@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <a href="{% url 'customer_reports_hub' %}" class="text-decoration-none text-muted small">
+        <i class="fas fa-arrow-left me-1"></i>All Reports
+    </a>
+    <a href="?format=csv&date_from={{ start_date|date:'Y-m-d' }}&date_to={{ end_date|date:'Y-m-d' }}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i>Export CSV
+    </a>
+</div>
+<h3 class="mb-4"><i class="fas fa-route me-2"></i>{{ report_title }}</h3>
+
+{% include "bookings/includes/_date_range_filter.html" %}
+
+<div class="card shadow-sm">
+    <div class="card-body px-2 py-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Origin</th>
+                        <th>Destination</th>
+                        <th class="text-end">Bookings</th>
+                        <th class="text-end">Weight (kg)</th>
+                        <th class="text-end">Volume (CBM)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data %}
+                    <tr>
+                        <td><code>{{ row.origin_port__code }}</code> {{ row.origin_port__name }}</td>
+                        <td><code>{{ row.destination_port__code }}</code> {{ row.destination_port__name }}</td>
+                        <td class="text-end">{{ row.booking_count }}</td>
+                        <td class="text-end">{{ row.total_weight|floatformat:0|default:"0" }}</td>
+                        <td class="text-end">{{ row.total_volume|floatformat:2|default:"0" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-muted text-center py-3">No route data for this period</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

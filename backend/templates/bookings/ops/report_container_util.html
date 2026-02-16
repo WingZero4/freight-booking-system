@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <a href="{% url 'ops_reports_hub' %}" class="text-decoration-none text-muted small">
+        <i class="fas fa-arrow-left me-1"></i>All Reports
+    </a>
+    <a href="?format=csv&date_from={{ start_date|date:'Y-m-d' }}&date_to={{ end_date|date:'Y-m-d' }}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i>Export CSV
+    </a>
+</div>
+<h3 class="mb-4"><i class="fas fa-box me-2"></i>{{ report_title }}</h3>
+
+{% include "bookings/includes/_date_range_filter.html" %}
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ totals.total_bookings|default:"0" }}</h3>
+                <small class="text-muted">FCL Bookings</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ totals.grand_containers|default:"0" }}</h3>
+                <small class="text-muted">Total Containers</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body px-2 py-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Container Type</th>
+                        <th>Name</th>
+                        <th class="text-end">Size (ft)</th>
+                        <th class="text-end">Bookings</th>
+                        <th class="text-end">Total Containers</th>
+                        <th class="text-end">Avg per Booking</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data %}
+                    <tr>
+                        <td><code>{{ row.container_type__code }}</code></td>
+                        <td>{{ row.container_type__name }}</td>
+                        <td class="text-end">{{ row.container_type__size_ft }}</td>
+                        <td class="text-end">{{ row.booking_count }}</td>
+                        <td class="text-end">{{ row.total_containers }}</td>
+                        <td class="text-end">{{ row.avg_per_booking|floatformat:1 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-muted text-center py-3">No FCL bookings in this period</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

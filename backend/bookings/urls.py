@@ -52,7 +52,20 @@ urlpatterns = [
     path('profile/', views.profile_edit, name='profile_edit'),
 
     # Reports (staff)
-    path('ops/reports/', report_views.ops_reports, name='ops_reports'),
+    path('ops/reports/', report_views.ops_reports_hub, name='ops_reports_hub'),
+    path('ops/reports/overview/', report_views.ops_reports, name='ops_reports'),
+    path('ops/reports/volume-by-customer/', report_views.ops_report_volume_by_customer, name='ops_report_volume_customer'),
+    path('ops/reports/route-analysis/', report_views.ops_report_route_analysis, name='ops_report_route'),
+    path('ops/reports/transit-performance/', report_views.ops_report_transit_performance, name='ops_report_transit'),
+    path('ops/reports/container-utilization/', report_views.ops_report_container_utilization, name='ops_report_container'),
+    path('ops/reports/carrier-performance/', report_views.ops_report_carrier_performance, name='ops_report_carrier'),
+    path('ops/reports/status-aging/', report_views.ops_report_status_aging, name='ops_report_aging'),
+
+    # Reports (customer)
+    path('reports/', report_views.customer_reports_hub, name='customer_reports_hub'),
+    path('reports/summary/', report_views.customer_report_summary, name='customer_report_summary'),
+    path('reports/routes/', report_views.customer_report_routes, name='customer_report_routes'),
+    path('reports/performance/', report_views.customer_report_performance, name='customer_report_performance'),
 
     # Bulk Operations (staff)
     path('bookings/bulk-action/', views.ops_bulk_action, name='ops_bulk_action'),

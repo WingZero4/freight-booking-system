@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Freight Booking{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Reports</h3>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-tachometer-alt me-2 text-primary"></i>Booking Summary</h5>
+                <p class="card-text text-muted small">Status distribution, monthly trends, transport mode breakdown, and totals.</p>
+                <a href="{% url 'customer_report_summary' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-route me-2 text-info"></i>Route History</h5>
+                <p class="card-text text-muted small">Your most-used origin-destination routes with weight and volume.</p>
+                <a href="{% url 'customer_report_routes' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-stopwatch me-2 text-success"></i>Shipment Performance</h5>
+                <p class="card-text text-muted small">Transit times and on-time delivery rates for your completed bookings.</p>
+                <a href="{% url 'customer_report_performance' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

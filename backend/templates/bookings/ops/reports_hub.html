@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Freight Booking{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Reports</h3>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-tachometer-alt me-2 text-primary"></i>Overview</h5>
+                <p class="card-text text-muted small">Summary stats, status distribution, transport modes, top customers, source channels.</p>
+                <a href="{% url 'ops_reports' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-users me-2 text-success"></i>Volume by Customer</h5>
+                <p class="card-text text-muted small">Bookings per customer with weight, volume, and container totals.</p>
+                <a href="{% url 'ops_report_volume_customer' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-route me-2 text-info"></i>Route Analysis</h5>
+                <p class="card-text text-muted small">Top origin-destination pairs by booking volume, weight, and volume.</p>
+                <a href="{% url 'ops_report_route' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-stopwatch me-2 text-warning"></i>Transit Performance</h5>
+                <p class="card-text text-muted small">Average transit times, on-time delivery rates for completed bookings.</p>
+                <a href="{% url 'ops_report_transit' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-box me-2 text-secondary"></i>Container Utilization</h5>
+                <p class="card-text text-muted small">FCL bookings breakdown by container type, counts, and averages.</p>
+                <a href="{% url 'ops_report_container' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-ship me-2 text-primary"></i>Carrier Performance</h5>
+                <p class="card-text text-muted small">Bookings by carrier, average transit times, completion rates.</p>
+                <a href="{% url 'ops_report_carrier' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-hourglass-half me-2 text-danger"></i>Status Aging</h5>
+                <p class="card-text text-muted small">Live snapshot of how long bookings sit in each active status.</p>
+                <a href="{% url 'ops_report_aging' %}" class="btn btn-themed-primary btn-sm">View Report</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

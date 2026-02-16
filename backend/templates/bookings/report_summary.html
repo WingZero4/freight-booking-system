@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report_title }} - Reports{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <a href="{% url 'customer_reports_hub' %}" class="text-decoration-none text-muted small">
+        <i class="fas fa-arrow-left me-1"></i>All Reports
+    </a>
+    <a href="?format=csv&date_from={{ start_date|date:'Y-m-d' }}&date_to={{ end_date|date:'Y-m-d' }}" class="btn btn-outline-success btn-sm">
+        <i class="fas fa-file-csv me-1"></i>Export CSV
+    </a>
+</div>
+<h3 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>{{ report_title }}</h3>
+
+{% include "bookings/includes/_date_range_filter.html" %}
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ total }}</h3>
+                <small class="text-muted">Total Bookings</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0 text-success">{{ status_counts.COMPLETED|default:"0" }}</h3>
+                <small class="text-muted">Completed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ weight_volume.total_weight|floatformat:0|default:"0" }}</h3>
+                <small class="text-muted">Total Weight (kg)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ weight_volume.total_volume|floatformat:1|default:"0" }}</h3>
+                <small class="text-muted">Total Volume (CBM)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Status Breakdown -->
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>By Status</strong></div>
+            <div class="card-body px-2 py-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Status</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="badge bg-secondary">Draft</span></td><td class="text-end">{{ status_counts.DRAFT|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-warning text-dark">Submitted</span></td><td class="text-end">{{ status_counts.SUBMITTED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-success">Confirmed</span></td><td class="text-end">{{ status_counts.CONFIRMED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-dark">Rejected</span></td><td class="text-end">{{ status_counts.REJECTED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-info">In Transit</span></td><td class="text-end">{{ status_counts.IN_TRANSIT|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-primary">Arrived</span></td><td class="text-end">{{ status_counts.ARRIVED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-info">Completed</span></td><td class="text-end">{{ status_counts.COMPLETED|default:"0" }}</td></tr>
+                        <tr><td><span class="badge bg-danger">Cancelled</span></td><td class="text-end">{{ status_counts.CANCELLED|default:"0" }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transport Mode -->
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>By Transport Mode</strong></div>
+            <div class="card-body px-2 py-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Mode</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for item in by_transport %}
+                        <tr><td>{{ item.display }}</td><td class="text-end">{{ item.count }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="2" class="text-muted text-center">No data</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Trend -->
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header"><strong>Monthly Trend</strong></div>
+            <div class="card-body px-2 py-0">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr><th>Month</th><th class="text-end">Created</th><th class="text-end">Completed</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for m in monthly_trend %}
+                        <tr>
+                            <td>{{ m.month|date:"M Y" }}</td>
+                            <td class="text-end">{{ m.created }}</td>
+                            <td class="text-end">{{ m.completed }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-muted text-center">No data</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

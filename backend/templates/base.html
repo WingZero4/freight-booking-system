@@ -51,7 +51,7 @@
                     </li>
                     {% if not user.profile.customer %}
                     <li class="nav-item">
-                        <a class="nav-link {% if nav_active == 'reports' %}active{% endif %}" href="{% url 'ops_reports' %}">
+                        <a class="nav-link {% if nav_active == 'reports' %}active{% endif %}" href="{% url 'ops_reports_hub' %}">
                             <i class="fas fa-chart-bar me-1"></i>Reports
                         </a>
                     </li>
@@ -70,6 +70,11 @@
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'import' %}active{% endif %}" href="{% url 'booking_import' %}">
                             <i class="fas fa-file-import me-1"></i>Import
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if nav_active == 'reports' %}active{% endif %}" href="{% url 'customer_reports_hub' %}">
+                            <i class="fas fa-chart-bar me-1"></i>Reports
                         </a>
                     </li>
                     {% endif %}

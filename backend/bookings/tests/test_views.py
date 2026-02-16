@@ -826,3 +826,175 @@ class TestDocumentDownloadAuth(ViewTestBase):
         )
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
+
+
+# ── Staff Report Views ─────────────────────────────────────────────────────
+
+class TestStaffReports(ViewTestBase):
+    """Tests for staff report views."""
+
+    def setUp(self):
+        self.booking = create_booking(self.customer, self.user)
+
+    def test_reports_hub_staff_access(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_reports_hub'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Reports')
+
+    def test_reports_hub_customer_denied(self):
+        self._login_customer()
+        resp = self.client.get(reverse('ops_reports_hub'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_overview_report(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_reports'))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_volume_by_customer(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_volume_customer'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Volume by Customer')
+
+    def test_volume_by_customer_csv(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_volume_customer'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_route_analysis(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_route'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Route Analysis')
+
+    def test_route_analysis_csv(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_route'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_transit_performance(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_transit'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Transit Performance')
+
+    def test_transit_performance_csv(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_transit'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_container_utilization(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_container'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Container Utilization')
+
+    def test_carrier_performance(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_carrier'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Carrier Performance')
+
+    def test_status_aging(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_aging'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Status Aging')
+
+    def test_status_aging_csv(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_aging'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_date_range_preset(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_volume_customer'), {'preset': '7d'})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_date_range_custom(self):
+        self._login_staff()
+        resp = self.client.get(reverse('ops_report_volume_customer'), {
+            'date_from': '2026-01-01', 'date_to': '2026-12-31'
+        })
+        self.assertEqual(resp.status_code, 200)
+
+
+# ── Customer Report Views ──────────────────────────────────────────────────
+
+class TestCustomerReports(ViewTestBase):
+    """Tests for customer report views."""
+
+    def setUp(self):
+        self.booking = create_booking(self.customer, self.user)
+        self.booking2 = create_booking(self.customer2, self.user2)
+
+    def test_customer_reports_hub(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_reports_hub'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Reports')
+
+    def test_customer_reports_hub_staff_redirect(self):
+        self._login_staff()
+        resp = self.client.get(reverse('customer_reports_hub'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_customer_summary(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_summary'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'My Booking Summary')
+
+    def test_customer_summary_csv(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_summary'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_customer_routes(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_routes'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'My Route History')
+
+    def test_customer_routes_csv(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_routes'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_customer_performance(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_performance'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'My Shipment Performance')
+
+    def test_customer_performance_csv(self):
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_performance'), {'format': 'csv'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'text/csv')
+
+    def test_customer_only_sees_own_data(self):
+        """Customer summary should only count their own bookings."""
+        self._login_customer()
+        resp = self.client.get(reverse('customer_report_summary'))
+        self.assertEqual(resp.status_code, 200)
+        # Total should be 1 (only customer's booking, not customer2's)
+        self.assertEqual(resp.context['total'], 1)
+
+    def test_staff_redirected_from_customer_reports(self):
+        """Staff accessing customer report views should redirect to staff hub."""
+        self._login_staff()
+        resp = self.client.get(reverse('customer_report_summary'))
+        self.assertEqual(resp.status_code, 302)
+        resp = self.client.get(reverse('customer_report_routes'))
+        self.assertEqual(resp.status_code, 302)
+        resp = self.client.get(reverse('customer_report_performance'))
+        self.assertEqual(resp.status_code, 302)

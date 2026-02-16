@@ -18,6 +18,8 @@ def nav_active(request):
         context['nav_active'] = 'new_booking'
     elif path.startswith('/bookings/import'):
         context['nav_active'] = 'import'
+    elif path.startswith('/reports/'):
+        context['nav_active'] = 'reports'
     elif path.startswith('/bookings/'):
         context['nav_active'] = 'bookings'
     elif path.startswith('/parties/'):
