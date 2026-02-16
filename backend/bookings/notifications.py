@@ -150,6 +150,21 @@ def notify_booking_in_transit(booking):
     )
 
 
+def notify_booking_arrived(booking):
+    """Notify customer that their cargo has arrived at destination."""
+    emails = _get_customer_emails(booking)
+    _send_notification(
+        subject=f'Booking {booking.booking_number} Arrived at Destination',
+        template_name='bookings/emails/booking_arrived.html',
+        context={'booking': booking},
+        recipient_list=emails,
+    )
+    _create_customer_notifications(
+        booking, 'BOOKING_ARRIVED',
+        f'Booking {booking.booking_number} has arrived at destination.',
+    )
+
+
 def notify_booking_completed(booking):
     """Notify customer that their booking has been completed."""
     emails = _get_customer_emails(booking)

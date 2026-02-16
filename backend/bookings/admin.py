@@ -4,6 +4,7 @@ from .models import (
     Customer, UserProfile, Port, ContainerType, Carrier,
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog, Notification, BookingTemplate,
+    ShipmentMilestone,
 )
 from .services import BookingService
 
@@ -102,6 +103,15 @@ class BookingPartyInline(admin.TabularInline):
     fields = ['role', 'party', 'company_name', 'contact_name', 'address_text', 'email', 'phone', 'tax_id']
 
 
+class ShipmentMilestoneInline(admin.TabularInline):
+    model = ShipmentMilestone
+    extra = 0
+    readonly_fields = ['milestone_type', 'occurred_at', 'location', 'notes', 'recorded_by', 'created_at']
+    fields = ['milestone_type', 'occurred_at', 'location', 'notes', 'recorded_by', 'created_at']
+    ordering = ['occurred_at']
+    max_num = 0  # Read-only — managed via ops views
+
+
 class AuditLogInline(admin.TabularInline):
     model = AuditLog
     extra = 0
@@ -130,7 +140,7 @@ class BookingAdmin(admin.ModelAdmin):
         'booking_number', 'created_by', 'source_channel',
         'total_weight_kg', 'total_volume_cbm',
         'created_at', 'updated_at', 'submitted_at', 'confirmed_at',
-        'in_transit_at', 'confirmed_by',
+        'in_transit_at', 'arrived_at', 'confirmed_by',
         'rejected_at', 'rejected_by', 'rejection_reason',
         'completed_at', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
         'actual_departure_date', 'actual_arrival_date',
@@ -140,7 +150,7 @@ class BookingAdmin(admin.ModelAdmin):
         'carrier_request_status', 'carrier_request_error',
         'carrier_confirmation_ref', 'container_numbers',
     ]
-    inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, AuditLogInline]
+    inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, ShipmentMilestoneInline, AuditLogInline]
 
     fieldsets = (
         ('Booking Info', {
@@ -191,7 +201,7 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at', 'submitted_at', 'confirmed_at',
-                       'in_transit_at',
+                       'in_transit_at', 'arrived_at',
                        'rejected_at', 'rejected_by', 'rejection_reason',
                        'completed_at', 'cancelled_at', 'cancelled_by'),
             'classes': ('collapse',)
@@ -322,3 +332,12 @@ class BookingTemplateAdmin(admin.ModelAdmin):
     search_fields = ['name', 'customer__name', 'customer__code']
     list_select_related = ['customer', 'created_by']
     readonly_fields = ['template_data', 'created_by', 'created_at', 'updated_at']
+
+
+@admin.register(ShipmentMilestone)
+class ShipmentMilestoneAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'milestone_type', 'occurred_at', 'location', 'recorded_by']
+    list_filter = ['milestone_type']
+    search_fields = ['booking__booking_number', 'location', 'notes']
+    list_select_related = ['booking', 'recorded_by']
+    raw_id_fields = ['booking']

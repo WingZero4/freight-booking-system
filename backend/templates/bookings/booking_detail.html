@@ -25,6 +25,7 @@
                         {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                         {% elif booking.status == 'CONFIRMED' %}bg-success
                         {% elif booking.status == 'IN_TRANSIT' %}bg-info
+                        {% elif booking.status == 'ARRIVED' %}bg-primary
                         {% elif booking.status == 'COMPLETED' %}bg-info
                         {% elif booking.status == 'REJECTED' %}bg-dark
                         {% else %}bg-danger{% endif %}">
@@ -91,6 +92,16 @@
                         <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-themed-outline btn-sm">
                             <i class="fas fa-ship me-1"></i>Carrier Details
                         </a>
+                        <a href="{% url 'ops_mark_arrived' booking.id %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-anchor me-1"></i>Mark Arrived
+                        </a>
+                        <a href="{% url 'ops_complete_booking' booking.id %}" class="btn btn-info btn-sm">
+                            <i class="fas fa-flag-checkered me-1"></i>Complete
+                        </a>
+                        {% elif booking.status == 'ARRIVED' %}
+                        <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-themed-outline btn-sm">
+                            <i class="fas fa-ship me-1"></i>Carrier Details
+                        </a>
                         <a href="{% url 'ops_complete_booking' booking.id %}" class="btn btn-info btn-sm">
                             <i class="fas fa-flag-checkered me-1"></i>Complete
                         </a>
@@ -101,7 +112,7 @@
                         <i class="fas fa-file-pdf me-1"></i>Booking PDF
                     </a>
                     {% endif %}
-                    {% if not user.profile.customer %}{% if booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'COMPLETED' %}
+                    {% if not user.profile.customer %}{% if booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' or booking.status == 'COMPLETED' %}
                     <a href="{% url 'shipping_advice_pdf' booking.id %}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-file-pdf me-1"></i>Shipping Advice
                     </a>
@@ -485,6 +496,9 @@
                             {% if booking.in_transit_at %}
                             <span>In Transit: {{ booking.in_transit_at|date:"M d, Y H:i" }}</span>
                             {% endif %}
+                            {% if booking.arrived_at %}
+                            <span>Arrived: {{ booking.arrived_at|date:"M d, Y H:i" }}</span>
+                            {% endif %}
                             {% if booking.completed_at %}
                             <span>Completed: {{ booking.completed_at|date:"M d, Y H:i" }}</span>
                             {% endif %}
@@ -604,7 +618,7 @@
                                         <span class="fw-bold">
                                             <i class="fas fa-user-tag me-1"></i>{{ bp.get_role_display }}
                                         </span>
-                                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' %}
+                                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
                                         <form method="post" action="{% url 'booking_party_remove' booking.id bp.id %}"
                                               onsubmit="return confirm('Remove this party?');">
                                             {% csrf_token %}
@@ -639,7 +653,7 @@
                 <div class="card">
                     <div class="card-body">
                         <!-- Document Upload Form -->
-                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' %}
+                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
                         <form method="post" action="{% url 'booking_document_upload' booking.id %}" enctype="multipart/form-data" class="mb-4">
                             {% csrf_token %}
                             <div class="row g-2 align-items-end">
@@ -788,6 +802,53 @@
                             {% endif %}
                         </div>
                         {% endif %}
+
+                        <!-- Shipment Milestones -->
+                        {% if shipment_milestones or milestone_form %}
+                        <h5 class="mt-4 mb-3"><i class="fas fa-tasks me-2 text-themed-primary"></i>Operational Milestones</h5>
+                        {% if shipment_milestones %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Milestone</th>
+                                        <th>Date & Time</th>
+                                        <th>Location</th>
+                                        <th>Notes</th>
+                                        {% if not user.profile.customer %}<th></th>{% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for sm in shipment_milestones %}
+                                    <tr>
+                                        <td><span class="badge bg-light text-dark">{{ sm.get_milestone_type_display }}</span></td>
+                                        <td>{{ sm.occurred_at|date:"M d, Y H:i" }}</td>
+                                        <td>{{ sm.location|default:"-" }}</td>
+                                        <td>{{ sm.notes|default:"-"|truncatechars:60 }}</td>
+                                        {% if not user.profile.customer %}
+                                        <td>
+                                            <form method="post" action="{% url 'ops_delete_milestone' booking.id sm.id %}" class="d-inline" onsubmit="return confirm('Delete this milestone?');">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                        {% endif %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted small">No milestones recorded yet.</p>
+                        {% endif %}
+                        {% if milestone_form %}
+                        <a href="{% url 'ops_record_milestone' booking.id %}" class="btn btn-themed-outline btn-sm">
+                            <i class="fas fa-plus me-1"></i>Add Milestone
+                        </a>
+                        {% endif %}
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -801,7 +862,7 @@
                             {% for log in audit_logs %}
                             {% if user.profile.customer %}
                             {# Customer view: show status transitions, documents, parties only #}
-                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'RESUBMITTED' %}
+                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'ARRIVED' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'RESUBMITTED' %}
                             <div class="list-group-item px-0">
                                 <div class="d-flex justify-content-between">
                                     <div>

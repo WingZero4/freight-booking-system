@@ -11,10 +11,12 @@ from django.utils import timezone
 
 from bookings.models import (
     Customer, Booking, BookingItem, BookingDocument, BookingParty, Party, AuditLog,
+    ShipmentMilestone,
 )
 from bookings.tests.helpers import (
     create_customer, create_user, create_port, create_container_type,
     create_booking, create_booking_item, create_party, create_document,
+    create_milestone,
 )
 
 
@@ -207,6 +209,60 @@ class TestBookingModel(TestCase):
         booking = self._create_booking(status='COMPLETED')
         with self.assertRaises(ValueError):
             booking.cancel()
+
+    # ─── ARRIVED status transitions ──────────────────────────────────
+
+    def test_mark_arrived_from_in_transit(self):
+        booking = self._create_booking(status='IN_TRANSIT')
+        booking.mark_arrived()
+        self.assertEqual(booking.status, 'ARRIVED')
+        self.assertIsNotNone(booking.arrived_at)
+
+    def test_mark_arrived_from_non_in_transit_raises(self):
+        booking = self._create_booking(status='CONFIRMED')
+        with self.assertRaises(ValueError):
+            booking.mark_arrived()
+
+    def test_complete_from_arrived(self):
+        booking = self._create_booking(status='ARRIVED')
+        booking.complete()
+        self.assertEqual(booking.status, 'COMPLETED')
+        self.assertIsNotNone(booking.completed_at)
+
+    def test_complete_from_in_transit_still_works(self):
+        booking = self._create_booking(status='IN_TRANSIT')
+        booking.complete()
+        self.assertEqual(booking.status, 'COMPLETED')
+
+    def test_cancel_from_arrived_raises(self):
+        booking = self._create_booking(status='ARRIVED')
+        with self.assertRaises(ValueError):
+            booking.cancel()
+
+
+class TestShipmentMilestoneModel(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.customer = create_customer()
+        cls.user = create_user(customer=cls.customer)
+
+    def test_milestone_str(self):
+        booking = create_booking(self.customer, self.user)
+        ms = create_milestone(booking, milestone_type='CARGO_RECEIVED')
+        self.assertIn(booking.booking_number, str(ms))
+        self.assertIn('Cargo Received', str(ms))
+
+    def test_milestone_ordering_by_occurred_at(self):
+        booking = create_booking(self.customer, self.user)
+        from django.utils import timezone
+        from datetime import timedelta
+        t1 = timezone.now() - timedelta(hours=2)
+        t2 = timezone.now()
+        ms2 = create_milestone(booking, milestone_type='DEPARTED', occurred_at=t2)
+        ms1 = create_milestone(booking, milestone_type='GATE_IN', occurred_at=t1)
+        milestones = list(booking.milestones.values_list('milestone_type', flat=True))
+        self.assertEqual(milestones, ['GATE_IN', 'DEPARTED'])
 
 
 class TestBookingItemModel(TestCase):

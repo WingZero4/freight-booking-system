@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase, RequestFactory
 from django.utils import timezone
 
-from bookings.models import Booking, BookingItem, BookingDocument, BookingParty, AuditLog
+from bookings.models import Booking, BookingItem, BookingDocument, BookingParty, AuditLog, ShipmentMilestone
 from bookings.services import BookingService
 from bookings.forms import (
     BookingForm, BookingItemFormSet, CarrierDetailsForm,
@@ -293,6 +293,35 @@ class TestMarkInTransit(ServiceTestBase):
             BookingService.mark_in_transit(booking)
 
 
+class TestMarkArrived(ServiceTestBase):
+
+    @patch('bookings.services.notifications.notify_booking_arrived')
+    def test_mark_arrived_success(self, mock_notify):
+        booking = create_booking(self.customer, self.user, status='IN_TRANSIT')
+        BookingService.mark_arrived(booking, user=self.staff)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'ARRIVED')
+        self.assertIsNotNone(booking.arrived_at)
+        mock_notify.assert_called_once_with(booking)
+        # Verify audit log
+        self.assertTrue(
+            AuditLog.objects.filter(booking=booking, action='ARRIVED').exists()
+        )
+
+    @patch('bookings.services.notifications.notify_booking_arrived')
+    def test_mark_arrived_with_arrival_date(self, mock_notify):
+        booking = create_booking(self.customer, self.user, status='IN_TRANSIT')
+        arr_date = date.today()
+        BookingService.mark_arrived(booking, actual_arrival_date=arr_date)
+        booking.refresh_from_db()
+        self.assertEqual(booking.actual_arrival_date, arr_date)
+
+    def test_mark_arrived_non_in_transit_raises(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        with self.assertRaises(ValueError):
+            BookingService.mark_arrived(booking)
+
+
 class TestCompleteBooking(ServiceTestBase):
 
     @patch('bookings.services.notifications.notify_booking_completed')
@@ -303,6 +332,14 @@ class TestCompleteBooking(ServiceTestBase):
         self.assertEqual(booking.status, 'COMPLETED')
         self.assertIsNotNone(booking.completed_at)
         mock_notify.assert_called_once_with(booking)
+
+    @patch('bookings.services.notifications.notify_booking_completed')
+    def test_complete_from_arrived(self, mock_notify):
+        booking = create_booking(self.customer, self.user, status='ARRIVED')
+        BookingService.complete_booking(booking, user=self.staff)
+        booking.refresh_from_db()
+        self.assertEqual(booking.status, 'COMPLETED')
+        self.assertIsNotNone(booking.completed_at)
 
     @patch('bookings.services.notifications.notify_booking_completed')
     def test_complete_with_arrival_date(self, mock_notify):
@@ -351,6 +388,32 @@ class TestCancelBooking(ServiceTestBase):
         log = AuditLog.objects.filter(booking=booking, action='CANCELLED').first()
         self.assertIsNotNone(log)
         self.assertIn('Test', log.notes)
+
+
+class TestRecordMilestone(ServiceTestBase):
+
+    def test_record_milestone_success(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        now = timezone.now()
+        ms = BookingService.record_milestone(
+            booking, milestone_type='CARGO_RECEIVED',
+            occurred_at=now, location='New York Port',
+            notes='Cargo picked up', user=self.staff,
+        )
+        self.assertEqual(ms.milestone_type, 'CARGO_RECEIVED')
+        self.assertEqual(ms.location, 'New York Port')
+        self.assertEqual(ms.recorded_by, self.staff)
+        # Verify audit log
+        log = AuditLog.objects.filter(booking=booking, action='UPDATED').last()
+        self.assertIn('Cargo Received', log.notes)
+
+    def test_record_milestone_creates_in_db(self):
+        booking = create_booking(self.customer, self.user, status='IN_TRANSIT')
+        now = timezone.now()
+        BookingService.record_milestone(
+            booking, milestone_type='DEPARTED', occurred_at=now,
+        )
+        self.assertEqual(ShipmentMilestone.objects.filter(booking=booking).count(), 1)
 
 
 class TestResubmitBooking(ServiceTestBase):

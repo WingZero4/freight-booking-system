@@ -15,8 +15,14 @@ urlpatterns = [
          views.ops_carrier_details, name='ops_carrier_details'),
     path('bookings/<int:booking_id>/in-transit/',
          views.ops_mark_in_transit, name='ops_mark_in_transit'),
+    path('bookings/<int:booking_id>/arrived/',
+         views.ops_mark_arrived, name='ops_mark_arrived'),
     path('bookings/<int:booking_id>/complete/',
          views.ops_complete_booking, name='ops_complete_booking'),
+    path('bookings/<int:booking_id>/milestones/add/',
+         views.ops_record_milestone, name='ops_record_milestone'),
+    path('bookings/<int:booking_id>/milestones/<int:milestone_id>/delete/',
+         views.ops_delete_milestone, name='ops_delete_milestone'),
 
     # Registration approval (staff)
     path('ops/registrations/', views.ops_pending_registrations, name='ops_pending_registrations'),

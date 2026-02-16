@@ -14,6 +14,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from bookings.models import (
     Customer, UserProfile, Port, ContainerType,
     Booking, BookingItem, BookingDocument, Party, BookingParty,
+    ShipmentMilestone,
 )
 
 
@@ -120,5 +121,23 @@ def create_document(booking, user, doc_type='OTHER', filename='test_doc.pdf', **
         document_type=doc_type,
         file=uploaded_file,
         uploaded_by=user,
+        **defaults,
+    )
+
+
+def create_milestone(booking, milestone_type='CARGO_RECEIVED', occurred_at=None,
+                     user=None, **kwargs):
+    """Create a ShipmentMilestone with sensible defaults."""
+    from django.utils import timezone
+    defaults = {
+        'location': '',
+        'notes': '',
+    }
+    defaults.update(kwargs)
+    return ShipmentMilestone.objects.create(
+        booking=booking,
+        milestone_type=milestone_type,
+        occurred_at=occurred_at or timezone.now(),
+        recorded_by=user,
         **defaults,
     )

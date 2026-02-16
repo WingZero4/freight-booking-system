@@ -43,7 +43,7 @@ def shipping_advice_pdf(request, booking_id):
             'customer', 'origin_port', 'destination_port', 'container_type',
         ).prefetch_related('items', 'booking_parties'),
         pk=booking_id,
-        status__in=['CONFIRMED', 'IN_TRANSIT', 'COMPLETED'],
+        status__in=['CONFIRMED', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED'],
     )
 
     buffer = build_booking_pdf(booking, include_internal=True)

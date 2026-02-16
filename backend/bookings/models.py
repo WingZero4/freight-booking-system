@@ -217,6 +217,7 @@ class Booking(models.Model):
         ('CONFIRMED', 'Confirmed'),
         ('REJECTED', 'Rejected'),
         ('IN_TRANSIT', 'In Transit'),
+        ('ARRIVED', 'Arrived'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'),
     ]
@@ -451,6 +452,7 @@ class Booking(models.Model):
     )
     rejection_reason = models.TextField(blank=True)
     in_transit_at = models.DateTimeField(null=True, blank=True)
+    arrived_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancelled_by = models.ForeignKey(
@@ -548,17 +550,25 @@ class Booking(models.Model):
         self.in_transit_at = timezone.now()
         self.save()
 
+    def mark_arrived(self):
+        """Mark in-transit booking as arrived at destination."""
+        if self.status != 'IN_TRANSIT':
+            raise ValueError('Only in-transit bookings can be marked as arrived.')
+        self.status = 'ARRIVED'
+        self.arrived_at = timezone.now()
+        self.save()
+
     def complete(self):
         """Mark booking as completed."""
-        if self.status != 'IN_TRANSIT':
-            raise ValueError('Only in-transit bookings can be completed.')
+        if self.status not in ('IN_TRANSIT', 'ARRIVED'):
+            raise ValueError('Only in-transit or arrived bookings can be completed.')
         self.status = 'COMPLETED'
         self.completed_at = timezone.now()
         self.save()
 
     def cancel(self, user=None, reason=''):
         """Cancel booking."""
-        if self.status not in ['DRAFT', 'SUBMITTED', 'CONFIRMED']:
+        if self.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
             raise ValueError('This booking cannot be cancelled.')
         self.status = 'CANCELLED'
         self.cancelled_at = timezone.now()
@@ -776,6 +786,7 @@ class AuditLog(models.Model):
         ('REJECTED', 'Rejected'),
         ('CANCELLED', 'Cancelled'),
         ('IN_TRANSIT', 'Marked In Transit'),
+        ('ARRIVED', 'Arrived at Destination'),
         ('COMPLETED', 'Completed'),
         ('DOCUMENT_UPLOADED', 'Document Uploaded'),
         ('DOCUMENT_DELETED', 'Document Deleted'),
@@ -813,6 +824,7 @@ class Notification(models.Model):
         ('BOOKING_CONFIRMED', 'Booking Confirmed'),
         ('BOOKING_REJECTED', 'Booking Rejected'),
         ('BOOKING_IN_TRANSIT', 'Booking In Transit'),
+        ('BOOKING_ARRIVED', 'Booking Arrived'),
         ('BOOKING_COMPLETED', 'Booking Completed'),
         ('BOOKING_CANCELLED', 'Booking Cancelled'),
         ('BOOKING_RESUBMITTED', 'Booking Resubmitted'),
@@ -855,3 +867,39 @@ class BookingTemplate(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['customer', 'name'], name='unique_template_per_customer'),
         ]
+
+
+class ShipmentMilestone(models.Model):
+    """Event-based operational tracking for shipment lifecycle."""
+    MILESTONE_CHOICES = [
+        ('CARGO_RECEIVED', 'Cargo Received at Origin'),
+        ('GATE_IN', 'Gate In at Terminal'),
+        ('CUSTOMS_EXPORT', 'Export Customs Cleared'),
+        ('LOADED', 'Loaded on Vessel/Flight'),
+        ('DEPARTED', 'Departed Origin'),
+        ('TRANSSHIPMENT', 'Transshipment'),
+        ('ARRIVED_PORT', 'Arrived at Destination Port'),
+        ('DISCHARGED', 'Discharged from Vessel'),
+        ('CUSTOMS_IMPORT', 'Import Customs Cleared'),
+        ('GATE_OUT', 'Gate Out from Terminal'),
+        ('OUT_FOR_DELIVERY', 'Out for Delivery'),
+        ('DELIVERED', 'Delivered to Consignee'),
+        ('OTHER', 'Other'),
+    ]
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='milestones')
+    milestone_type = models.CharField(max_length=30, choices=MILESTONE_CHOICES)
+    occurred_at = models.DateTimeField(help_text='When this milestone actually occurred')
+    location = models.CharField(max_length=200, blank=True, help_text='Location/port where this occurred')
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.booking.booking_number} - {self.get_milestone_type_display()}"
+
+    class Meta:
+        ordering = ['occurred_at']
+        verbose_name = 'shipment milestone'

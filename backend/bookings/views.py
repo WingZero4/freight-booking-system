@@ -15,14 +15,15 @@ from django.db import transaction
 
 from .models import (
     Booking, BookingItem, BookingDocument, Party, BookingParty,
-    AuditLog, UserProfile, Notification, BookingTemplate,
+    AuditLog, UserProfile, Notification, BookingTemplate, ShipmentMilestone,
 )
 from .notifications import _send_notification
 from .forms import (
     BookingForm, BookingItemFormSet, BookingDocumentForm,
     PartyForm, BookingPartySelectForm,
     CarrierDetailsForm, RejectBookingForm,
-    MarkInTransitForm, CompleteBookingForm, CancelConfirmedForm,
+    MarkInTransitForm, MarkArrivedForm, CompleteBookingForm,
+    CancelConfirmedForm, RecordMilestoneForm,
 )
 from .services import BookingService
 
@@ -84,6 +85,7 @@ def dashboard(request):
         'submitted': bookings.filter(status='SUBMITTED').count(),
         'confirmed': bookings.filter(status='CONFIRMED').count(),
         'in_transit': bookings.filter(status='IN_TRANSIT').count(),
+        'arrived': bookings.filter(status='ARRIVED').count(),
         'completed': bookings.filter(status='COMPLETED').count(),
         'cancelled': bookings.filter(status='CANCELLED').count(),
     }
@@ -301,7 +303,7 @@ def booking_detail(request, booking_id):
 
     parties = booking.booking_parties.select_related('party').all()
     party_select_form = None
-    active_statuses = ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT')
+    active_statuses = ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED')
     if customer and booking.status in active_statuses:
         party_select_form = BookingPartySelectForm(customer)
     elif not customer and booking.status in active_statuses:
@@ -313,6 +315,10 @@ def booking_detail(request, booking_id):
     # Build tracking milestones
     milestones = _build_tracking_milestones(booking)
 
+    # Shipment milestones (operational events)
+    shipment_milestones = booking.milestones.select_related('recorded_by').all()
+    milestone_form = RecordMilestoneForm() if not customer else None
+
     return render(request, 'bookings/booking_detail.html', {
         'booking': booking,
         'documents': documents,
@@ -321,6 +327,8 @@ def booking_detail(request, booking_id):
         'party_select_form': party_select_form,
         'audit_logs': audit_logs,
         'milestones': milestones,
+        'shipment_milestones': shipment_milestones,
+        'milestone_form': milestone_form,
         'active_tab': request.GET.get('tab', 'overview'),
     })
 
@@ -393,6 +401,22 @@ def _build_tracking_milestones(booking):
         milestones.append({
             'label': 'In Transit',
             'icon': 'fas fa-shipping-fast',
+            'timestamp': None,
+            'status': 'pending',
+        })
+
+    # 5.5. Arrived
+    if booking.arrived_at:
+        milestones.append({
+            'label': 'Arrived',
+            'icon': 'fas fa-anchor',
+            'timestamp': booking.arrived_at,
+            'status': 'active' if booking.status == 'ARRIVED' else 'completed',
+        })
+    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
+        milestones.append({
+            'label': 'Arrived',
+            'icon': 'fas fa-anchor',
             'timestamp': None,
             'status': 'pending',
         })
@@ -526,7 +550,7 @@ def booking_document_upload(request, booking_id):
     """Upload a document to a booking (DRAFT or SUBMITTED only)"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
         messages.error(request, 'Documents can only be uploaded to active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -692,7 +716,7 @@ def booking_party_add(request, booking_id):
     # Both customers and staff can manage parties
     party_customer = customer or booking.customer
 
-    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
         messages.error(request, 'Parties can only be added to active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -723,7 +747,7 @@ def booking_party_remove(request, booking_id, booking_party_id):
     """Remove a party assignment from a booking"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
         messages.error(request, 'Parties can only be removed from active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -757,16 +781,16 @@ def ops_bulk_action(request):
         return redirect('booking_list')
 
     action_map = {
-        'confirm': ('SUBMITTED', 'confirm_booking'),
-        'in_transit': ('CONFIRMED', 'mark_in_transit'),
-        'complete': ('IN_TRANSIT', 'complete_booking'),
+        'confirm': (('SUBMITTED',), 'confirm_booking'),
+        'in_transit': (('CONFIRMED',), 'mark_in_transit'),
+        'complete': (('IN_TRANSIT', 'ARRIVED'), 'complete_booking'),
     }
 
     if action not in action_map:
         messages.error(request, f'Invalid bulk action: {action}')
         return redirect('booking_list')
 
-    required_status, service_method = action_map[action]
+    required_statuses, service_method = action_map[action]
     success_count = 0
     skip_count = 0
     error_count = 0
@@ -774,7 +798,7 @@ def ops_bulk_action(request):
     for booking_id in selected_ids:
         try:
             booking = Booking.objects.get(pk=booking_id)
-            if booking.status != required_status:
+            if booking.status not in required_statuses:
                 skip_count += 1
                 continue
             getattr(BookingService, service_method)(
@@ -827,9 +851,16 @@ def ops_dashboard(request):
 
     needs_carrier = (
         all_bookings
-        .filter(status__in=['CONFIRMED', 'IN_TRANSIT'])
+        .filter(status__in=['CONFIRMED', 'IN_TRANSIT', 'ARRIVED'])
         .filter(Q(vessel_name='') | Q(etd__isnull=True) | Q(eta__isnull=True))
         .select_related('customer', 'origin_port', 'destination_port', 'container_type')
+    )
+
+    arrived_pending = (
+        all_bookings
+        .filter(status='ARRIVED')
+        .select_related('customer', 'origin_port', 'destination_port', 'container_type')
+        .order_by('arrived_at')
     )
 
     upcoming_departures = (
@@ -846,6 +877,7 @@ def ops_dashboard(request):
         'submitted': all_bookings.filter(status='SUBMITTED').count(),
         'confirmed': all_bookings.filter(status='CONFIRMED').count(),
         'in_transit': all_bookings.filter(status='IN_TRANSIT').count(),
+        'arrived': all_bookings.filter(status='ARRIVED').count(),
         'completed': all_bookings.filter(status='COMPLETED').count(),
         'rejected': all_bookings.filter(status='REJECTED').count(),
         'cancelled': all_bookings.filter(status='CANCELLED').count(),
@@ -877,6 +909,7 @@ def ops_dashboard(request):
     return render(request, 'bookings/ops/dashboard.html', {
         'pending_confirmation': pending_confirmation,
         'needs_carrier': needs_carrier,
+        'arrived_pending': arrived_pending,
         'upcoming_departures': upcoming_departures,
         'pipeline': pipeline,
         'submitted_today': submitted_today,
@@ -949,8 +982,8 @@ def ops_carrier_details(request, booking_id):
     """Edit carrier details on a CONFIRMED or IN_TRANSIT booking (staff only)."""
     booking = get_object_or_404(Booking, id=booking_id)
 
-    if booking.status not in ('CONFIRMED', 'IN_TRANSIT'):
-        messages.warning(request, 'Carrier details can only be edited on confirmed or in-transit bookings.')
+    if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        messages.warning(request, 'Carrier details can only be edited on confirmed, in-transit, or arrived bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
@@ -1002,12 +1035,42 @@ def ops_mark_in_transit(request, booking_id):
 
 
 @staff_required
-def ops_complete_booking(request, booking_id):
-    """Mark an IN_TRANSIT booking as completed (staff only)."""
+def ops_mark_arrived(request, booking_id):
+    """Mark an IN_TRANSIT booking as arrived at destination (staff only)."""
     booking = get_object_or_404(Booking, id=booking_id)
 
     if booking.status != 'IN_TRANSIT':
-        messages.warning(request, 'Only in-transit bookings can be completed.')
+        messages.warning(request, 'Only in-transit bookings can be marked as arrived.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        form = MarkArrivedForm(request.POST)
+        if form.is_valid():
+            try:
+                BookingService.mark_arrived(
+                    booking, user=request.user, request=request,
+                    actual_arrival_date=form.cleaned_data.get('actual_arrival_date'),
+                )
+                messages.success(request, f'Booking {booking.booking_number} marked as arrived.')
+            except ValueError as e:
+                messages.error(request, str(e))
+            return redirect('booking_detail', booking_id=booking.id)
+    else:
+        form = MarkArrivedForm()
+
+    return render(request, 'bookings/ops/mark_arrived.html', {
+        'booking': booking,
+        'form': form,
+    })
+
+
+@staff_required
+def ops_complete_booking(request, booking_id):
+    """Mark an IN_TRANSIT or ARRIVED booking as completed (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status not in ('IN_TRANSIT', 'ARRIVED'):
+        messages.warning(request, 'Only in-transit or arrived bookings can be completed.')
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
@@ -1029,6 +1092,60 @@ def ops_complete_booking(request, booking_id):
         'booking': booking,
         'form': form,
     })
+
+
+@staff_required
+def ops_record_milestone(request, booking_id):
+    """Record an operational milestone on a booking (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        messages.warning(request, 'Milestones can only be added to confirmed, in-transit, or arrived bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        form = RecordMilestoneForm(request.POST)
+        if form.is_valid():
+            BookingService.record_milestone(
+                booking,
+                milestone_type=form.cleaned_data['milestone_type'],
+                occurred_at=form.cleaned_data['occurred_at'],
+                location=form.cleaned_data.get('location', ''),
+                notes=form.cleaned_data.get('notes', ''),
+                user=request.user,
+                request=request,
+            )
+            messages.success(request, 'Milestone recorded successfully.')
+            return redirect('booking_detail', booking_id=booking.id)
+    else:
+        form = RecordMilestoneForm()
+
+    return render(request, 'bookings/ops/record_milestone.html', {
+        'booking': booking,
+        'form': form,
+    })
+
+
+@staff_required
+def ops_delete_milestone(request, booking_id, milestone_id):
+    """Delete an operational milestone (staff only)."""
+    booking = get_object_or_404(Booking, id=booking_id)
+    milestone = get_object_or_404(ShipmentMilestone, id=milestone_id, booking=booking)
+
+    if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        messages.error(request, 'Milestones can only be deleted on active bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        milestone_name = milestone.get_milestone_type_display()
+        BookingService._log(
+            booking, 'UPDATED', user=request.user, request=request,
+            new_value=f'Deleted milestone: {milestone_name}',
+        )
+        milestone.delete()
+        messages.success(request, f'Milestone "{milestone_name}" deleted.')
+
+    return redirect('booking_detail', booking_id=booking.id)
 
 
 # ─── Clone & Export ──────────────────────────────────────────────────
@@ -1176,7 +1293,7 @@ def booking_export_csv(request):
     headers += [
         'Actual Departure', 'Actual Arrival',
         'Total Weight (kg)', 'Total Volume (CBM)',
-        'Created', 'Submitted', 'Confirmed', 'In Transit', 'Completed',
+        'Created', 'Submitted', 'Confirmed', 'In Transit', 'Arrived', 'Completed',
     ]
     writer.writerow(headers)
 
@@ -1200,6 +1317,7 @@ def booking_export_csv(request):
             b.submitted_at.strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
             b.confirmed_at.strftime('%Y-%m-%d %H:%M') if b.confirmed_at else '',
             b.in_transit_at.strftime('%Y-%m-%d %H:%M') if b.in_transit_at else '',
+            b.arrived_at.strftime('%Y-%m-%d %H:%M') if b.arrived_at else '',
             b.completed_at.strftime('%Y-%m-%d %H:%M') if b.completed_at else '',
         ]
         writer.writerow(row)

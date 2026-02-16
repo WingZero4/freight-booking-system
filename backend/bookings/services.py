@@ -16,6 +16,7 @@ from django.utils import timezone
 
 from .models import (
     Booking, BookingItem, BookingDocument, BookingParty, Party, AuditLog,
+    ShipmentMilestone,
 )
 from . import notifications, validators
 
@@ -446,11 +447,30 @@ class BookingService:
         _safe_fms_dispatch('dispatch_milestone_update', booking, 'IN_TRANSIT')
 
     @classmethod
+    def mark_arrived(cls, booking, user=None, request=None,
+                     actual_arrival_date=None):
+        """Mark an IN_TRANSIT booking as arrived at destination."""
+        if booking.status != 'IN_TRANSIT':
+            raise ValueError('Only in-transit bookings can be marked as arrived.')
+
+        with transaction.atomic():
+            booking.status = 'ARRIVED'
+            booking.arrived_at = timezone.now()
+            if actual_arrival_date:
+                booking.actual_arrival_date = actual_arrival_date
+            booking.save()
+
+            cls._log(booking, 'ARRIVED', user=user, request=request)
+
+        notifications.notify_booking_arrived(booking)
+        _safe_fms_dispatch('dispatch_milestone_update', booking, 'ARRIVED')
+
+    @classmethod
     def complete_booking(cls, booking, user=None, request=None,
                          actual_arrival_date=None):
-        """Mark an IN_TRANSIT booking as completed."""
-        if booking.status != 'IN_TRANSIT':
-            raise ValueError('Only in-transit bookings can be completed.')
+        """Mark an IN_TRANSIT or ARRIVED booking as completed."""
+        if booking.status not in ('IN_TRANSIT', 'ARRIVED'):
+            raise ValueError('Only in-transit or arrived bookings can be completed.')
 
         with transaction.atomic():
             booking.status = 'COMPLETED'
@@ -501,10 +521,29 @@ class BookingService:
         return booking
 
     @classmethod
+    def record_milestone(cls, booking, milestone_type, occurred_at, location='',
+                         notes='', user=None, request=None):
+        """Record an operational milestone on a booking."""
+        with transaction.atomic():
+            milestone = ShipmentMilestone.objects.create(
+                booking=booking,
+                milestone_type=milestone_type,
+                occurred_at=occurred_at,
+                location=location,
+                notes=notes,
+                recorded_by=user,
+            )
+            cls._log(
+                booking, 'UPDATED', user=user, request=request,
+                notes=f'Milestone recorded: {milestone.get_milestone_type_display()}',
+            )
+        return milestone
+
+    @classmethod
     def update_carrier_details(cls, booking, form, user=None, request=None):
-        """Update carrier details on a CONFIRMED or IN_TRANSIT booking."""
-        if booking.status not in ('CONFIRMED', 'IN_TRANSIT'):
-            raise ValueError('Carrier details can only be updated on confirmed or in-transit bookings.')
+        """Update carrier details on a CONFIRMED, IN_TRANSIT, or ARRIVED booking."""
+        if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+            raise ValueError('Carrier details can only be updated on confirmed, in-transit, or arrived bookings.')
 
         if not form.is_valid():
             raise ValueError('Invalid carrier details.')
@@ -550,7 +589,7 @@ class BookingService:
     @classmethod
     def assign_carrier_config(cls, booking, carrier_config, user=None, request=None):
         """Assign a carrier config to a booking (operations action)."""
-        if booking.status not in ('SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        if booking.status not in ('SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Carrier can only be assigned to active bookings.')
 
         old_config_id = booking.carrier_config_id
@@ -583,7 +622,7 @@ class BookingService:
         """
         if not booking.carrier_config_id:
             raise ValueError('No carrier config assigned to this booking.')
-        if booking.status not in ('CONFIRMED', 'IN_TRANSIT'):
+        if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Booking must be confirmed before submitting to carrier.')
         if booking.carrier_request_status in ('SUBMITTED', 'CONFIRMED'):
             raise ValueError('Booking has already been submitted to the carrier.')
@@ -656,7 +695,7 @@ class BookingService:
 
         Returns the new BookingDocument instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Documents can only be uploaded to active bookings.')
 
         if not form.is_valid():
@@ -714,7 +753,7 @@ class BookingService:
 
         Returns the new BookingParty instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Parties can only be added to active bookings.')
 
         with transaction.atomic():
@@ -733,7 +772,7 @@ class BookingService:
     @classmethod
     def remove_party_from_booking(cls, booking, booking_party, user=None, request=None):
         """Remove a party assignment from a booking."""
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Parties can only be removed from active bookings.')
 
         old = {

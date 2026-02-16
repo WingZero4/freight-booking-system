@@ -468,6 +468,18 @@ class MarkInTransitForm(forms.Form):
     )
 
 
+class MarkArrivedForm(forms.Form):
+    """Form for staff to record actual arrival date when marking arrived."""
+    actual_arrival_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={
+            'class': 'form-control', 'type': 'date',
+        }),
+        label='Actual Arrival Date',
+        help_text='When did the cargo actually arrive at destination port?',
+    )
+
+
 class CompleteBookingForm(forms.Form):
     """Form for staff to record actual arrival date when completing a booking."""
     actual_arrival_date = forms.DateField(
@@ -478,6 +490,41 @@ class CompleteBookingForm(forms.Form):
         label='Actual Arrival Date',
         help_text='When did the cargo actually arrive at destination?',
     )
+
+
+class RecordMilestoneForm(forms.Form):
+    """Form for staff to record operational milestones."""
+    milestone_type = forms.ChoiceField(
+        choices=[],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Milestone Type',
+    )
+    occurred_at = forms.DateTimeField(
+        widget=forms.DateTimeInput(attrs={
+            'class': 'form-control', 'type': 'datetime-local',
+        }),
+        label='Date & Time',
+    )
+    location = forms.CharField(
+        max_length=200, required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'placeholder': 'Port/location',
+        }),
+        label='Location',
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control', 'rows': 2,
+            'placeholder': 'Additional notes (optional)',
+        }),
+        label='Notes',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import ShipmentMilestone
+        self.fields['milestone_type'].choices = ShipmentMilestone.MILESTONE_CHOICES
 
 
 class CancelConfirmedForm(forms.Form):

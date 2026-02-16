@@ -126,7 +126,7 @@
                     <a href="{% url 'booking_detail' booking.id %}" class="list-group-item list-group-item-action py-2">
                         <div class="d-flex justify-content-between">
                             <strong>{{ booking.booking_number }}</strong>
-                            <span class="badge {% if booking.status == 'CONFIRMED' %}bg-success{% else %}bg-info{% endif %}">
+                            <span class="badge {% if booking.status == 'CONFIRMED' %}bg-success{% elif booking.status == 'ARRIVED' %}bg-primary{% else %}bg-info{% endif %}">
                                 {{ booking.get_status_display }}
                             </span>
                         </div>
@@ -154,6 +154,43 @@
         </div>
     </div>
 </div>
+
+<!-- ARRIVED — PENDING DELIVERY -->
+{% if arrived_pending %}
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card border-primary h-100">
+            <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-anchor me-1 text-primary"></i>Arrived &mdash; Pending Delivery</h6>
+                <span class="badge bg-primary fs-6">{{ arrived_pending|length }}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for booking in arrived_pending|slice:":5" %}
+                    <a href="{% url 'ops_complete_booking' booking.id %}" class="list-group-item list-group-item-action py-2">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ booking.booking_number }}</strong>
+                            <small class="text-muted">{{ booking.customer.code }}</small>
+                        </div>
+                        <small class="text-muted">
+                            {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                            {% if booking.arrived_at %}&middot; Arrived {{ booking.arrived_at|timesince }} ago{% endif %}
+                        </small>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% if arrived_pending|length > 5 %}
+                <div class="card-footer text-center">
+                    <a href="{% url 'booking_list' %}?status=ARRIVED" class="text-decoration-none small">
+                        View all {{ arrived_pending|length }} &rarr;
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- STATUS PIPELINE -->
 <div class="card mb-4">
@@ -190,6 +227,17 @@
                         <div class="card-body py-2">
                             <div class="fs-3 fw-bold text-info">{{ pipeline.in_transit }}</div>
                             <small class="text-muted">In Transit</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
+            <div class="col">
+                <a href="{% url 'booking_list' %}?status=ARRIVED" class="text-decoration-none">
+                    <div class="card pipeline-card border-primary">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-primary">{{ pipeline.arrived }}</div>
+                            <small class="text-muted">Arrived</small>
                         </div>
                     </div>
                 </a>
@@ -238,7 +286,7 @@
                 <div>
                     <small class="text-muted">Total Active</small>
                     <div class="fs-4 fw-bold">
-                        {{ pipeline.submitted|add:pipeline.confirmed|add:pipeline.in_transit }}
+                        {{ pipeline.submitted|add:pipeline.confirmed|add:pipeline.in_transit|add:pipeline.arrived }}
                     </div>
                 </div>
             </div>
