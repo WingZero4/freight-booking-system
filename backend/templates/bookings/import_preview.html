@@ -12,6 +12,10 @@
                     <i class="fas fa-search me-2"></i>Import Preview
                 </h4>
                 <span class="text-muted small">
+                    {% if import_customer %}
+                    <i class="fas fa-building me-1"></i>{{ import_customer.code }} - {{ import_customer.name }}
+                    <span class="mx-1">|</span>
+                    {% endif %}
                     <i class="fas fa-file me-1"></i>{{ import_data.filename }}
                 </span>
             </div>

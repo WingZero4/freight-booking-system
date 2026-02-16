@@ -56,22 +56,24 @@
                         </a>
                     </li>
                     {% endif %}
-                    {% if user.profile.customer %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'new_booking' %}active{% endif %}" href="{% url 'booking_create' %}">
                             <i class="fas fa-plus me-1"></i>New Booking
                         </a>
                     </li>
+                    {% if user.profile.customer %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'templates' %}active{% endif %}" href="{% url 'template_list' %}">
                             <i class="fas fa-copy me-1"></i>Templates
                         </a>
                     </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'import' %}active{% endif %}" href="{% url 'booking_import' %}">
                             <i class="fas fa-file-import me-1"></i>Import
                         </a>
                     </li>
+                    {% if user.profile.customer %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'reports' %}active{% endif %}" href="{% url 'customer_reports_hub' %}">
                             <i class="fas fa-chart-bar me-1"></i>Reports

@@ -20,6 +20,24 @@
                 <form method="post" enctype="multipart/form-data" id="importForm" novalidate>
                     {% csrf_token %}
 
+                    {% if is_staff_import %}
+                    <!-- Customer Selection (staff only) -->
+                    <div class="mb-4">
+                        <label for="id_customer" class="form-label fw-bold">
+                            <i class="fas fa-building me-1"></i>Customer *
+                        </label>
+                        <select name="customer" class="form-select" required id="id_customer">
+                            <option value="">-- Select Customer --</option>
+                            {% for c in customers %}
+                            <option value="{{ c.id }}" {% if selected_customer|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }} - {{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">
+                            Select the customer this import is for.
+                        </div>
+                    </div>
+                    {% endif %}
+
                     <!-- File Upload -->
                     <div class="mb-4">
                         <label for="import_file" class="form-label fw-bold">
