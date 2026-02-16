@@ -203,12 +203,12 @@ class TestBookingCreate(ViewTestBase):
         self.assertEqual(resp.status_code, 200)  # re-renders form
         self.assertTrue(resp.context['form'].errors)
 
-    def test_staff_cannot_create(self):
+    def test_staff_can_create_with_customer_selector(self):
         self._login_staff()
         resp = self.client.get(reverse('booking_create'))
-        # Staff user has no customer → redirects to dashboard → which redirects to ops
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn('/', resp.url)
+        # Staff sees the booking form with customer selector
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context['is_staff_create'])
 
 
 class TestBookingEdit(ViewTestBase):

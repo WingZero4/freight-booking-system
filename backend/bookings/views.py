@@ -16,6 +16,7 @@ from django.db import transaction
 from .models import (
     Booking, BookingItem, BookingDocument, Party, BookingParty,
     AuditLog, UserProfile, Notification, BookingTemplate, ShipmentMilestone,
+    Customer,
 )
 from .notifications import _send_notification
 from .forms import (
@@ -234,15 +235,32 @@ def booking_list(request):
 
 @login_required
 def booking_create(request):
-    """Create a new booking with cargo items"""
+    """Create a new booking with cargo items (customers and staff)"""
     customer = get_user_customer(request.user)
-    if not customer:
-        messages.error(request, 'You must be associated with a customer to create bookings.')
-        return redirect('dashboard')
+    is_staff = customer is None
+
+    # Staff must select a customer; customers use their own
+    customers_list = Customer.objects.filter(is_active=True).order_by('name') if is_staff else None
 
     if request.method == 'POST':
         form = BookingForm(request.POST)
         formset = BookingItemFormSet(request.POST, prefix='items')
+
+        # Resolve customer for staff
+        if is_staff:
+            customer_id = request.POST.get('customer')
+            try:
+                customer = Customer.objects.get(pk=customer_id, is_active=True)
+            except (Customer.DoesNotExist, ValueError, TypeError):
+                messages.error(request, 'Please select a valid customer.')
+                return render(request, 'bookings/booking_form.html', {
+                    'form': form,
+                    'formset': formset,
+                    'is_edit': False,
+                    'is_staff_create': is_staff,
+                    'customers': customers_list,
+                    'selected_customer': customer_id,
+                })
 
         if form.is_valid() and formset.is_valid():
             booking = BookingService.create_booking(
@@ -258,6 +276,8 @@ def booking_create(request):
         'form': form,
         'formset': formset,
         'is_edit': False,
+        'is_staff_create': is_staff,
+        'customers': customers_list,
     })
 
 

@@ -2,6 +2,13 @@
 
 {% block title %}Dashboard - Freight Booking{% endblock %}
 
+{% block extra_css %}
+<style>
+    .stat-card { transition: transform 0.15s, box-shadow 0.15s; }
+    a:hover .stat-card { transform: translateY(-2px); box-shadow: 0 .25rem .5rem rgba(0,0,0,.1); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -16,60 +23,74 @@
 <!-- Stats Cards -->
 <div class="row mb-4">
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card draft">
-            <div class="card-body text-center">
-                <div class="stat-number text-secondary">{{ stats.draft }}</div>
-                <div class="text-muted small">Draft</div>
+        <a href="{% url 'booking_list' %}?status=DRAFT" class="text-decoration-none">
+            <div class="card stat-card draft">
+                <div class="card-body text-center">
+                    <div class="stat-number text-secondary">{{ stats.draft }}</div>
+                    <div class="text-muted small">Draft</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card submitted">
-            <div class="card-body text-center">
-                <div class="stat-number text-warning">{{ stats.submitted }}</div>
-                <div class="text-muted small">Submitted</div>
+        <a href="{% url 'booking_list' %}?status=SUBMITTED" class="text-decoration-none">
+            <div class="card stat-card submitted">
+                <div class="card-body text-center">
+                    <div class="stat-number text-warning">{{ stats.submitted }}</div>
+                    <div class="text-muted small">Submitted</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card confirmed">
-            <div class="card-body text-center">
-                <div class="stat-number text-success">{{ stats.confirmed }}</div>
-                <div class="text-muted small">Confirmed</div>
+        <a href="{% url 'booking_list' %}?status=CONFIRMED" class="text-decoration-none">
+            <div class="card stat-card confirmed">
+                <div class="card-body text-center">
+                    <div class="stat-number text-success">{{ stats.confirmed }}</div>
+                    <div class="text-muted small">Confirmed</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card in-transit">
-            <div class="card-body text-center">
-                <div class="stat-number text-info">{{ stats.in_transit }}</div>
-                <div class="text-muted small">In Transit</div>
+        <a href="{% url 'booking_list' %}?status=IN_TRANSIT" class="text-decoration-none">
+            <div class="card stat-card in-transit">
+                <div class="card-body text-center">
+                    <div class="stat-number text-info">{{ stats.in_transit }}</div>
+                    <div class="text-muted small">In Transit</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card" style="border-left-color: #0d6efd;">
-            <div class="card-body text-center">
-                <div class="stat-number text-primary">{{ stats.arrived }}</div>
-                <div class="text-muted small">Arrived</div>
+        <a href="{% url 'booking_list' %}?status=ARRIVED" class="text-decoration-none">
+            <div class="card stat-card" style="border-left-color: #0d6efd;">
+                <div class="card-body text-center">
+                    <div class="stat-number text-primary">{{ stats.arrived }}</div>
+                    <div class="text-muted small">Arrived</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card" style="border-left-color: #0dcaf0;">
-            <div class="card-body text-center">
-                <div class="stat-number text-info">{{ stats.completed }}</div>
-                <div class="text-muted small">Completed</div>
+        <a href="{% url 'booking_list' %}?status=COMPLETED" class="text-decoration-none">
+            <div class="card stat-card" style="border-left-color: #0dcaf0;">
+                <div class="card-body text-center">
+                    <div class="stat-number text-info">{{ stats.completed }}</div>
+                    <div class="text-muted small">Completed</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-lg col-6 mb-3">
-        <div class="card stat-card cancelled">
-            <div class="card-body text-center">
-                <div class="stat-number text-danger">{{ stats.cancelled }}</div>
-                <div class="text-muted small">Cancelled</div>
+        <a href="{% url 'booking_list' %}?status=CANCELLED" class="text-decoration-none">
+            <div class="card stat-card cancelled">
+                <div class="card-body text-center">
+                    <div class="stat-number text-danger">{{ stats.cancelled }}</div>
+                    <div class="text-muted small">Cancelled</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
