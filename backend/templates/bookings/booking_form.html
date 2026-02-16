@@ -33,7 +33,7 @@
                     <h5 class="mb-3"><i class="fas fa-building me-2 text-themed-primary"></i>Customer</h5>
                     <div class="row mb-2">
                         <div class="col-md-6 mb-3">
-                            <label for="id_customer" class="form-label">Customer *</label>
+                            <label for="id_customer" class="form-label">Customer * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Select the customer this booking is being created for."></i></label>
                             <select name="customer" class="form-select" required id="id_customer">
                                 <option value="">-- Select Customer --</option>
                                 {% for c in customers %}
@@ -48,7 +48,7 @@
                     <h5 class="mb-3"><i class="fas fa-route me-2 text-themed-primary"></i>Route &amp; Trade Terms</h5>
                     <div class="row mb-2">
                         <div class="col-md-2 mb-3">
-                            <label for="{{ form.transport_mode.id_for_label }}" class="form-label">Mode *</label>
+                            <label for="{{ form.transport_mode.id_for_label }}" class="form-label">Mode * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="How cargo will be transported: Sea FCL (full container), Sea LCL (shared container), Air, Rail, Truck, or Multimodal."></i></label>
                             {{ form.transport_mode }}
                             {% if form.transport_mode.errors %}
                             <div class="invalid-feedback d-block">
@@ -57,7 +57,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.origin_port.id_for_label }}" class="form-label">Origin *</label>
+                            <label for="{{ form.origin_port.id_for_label }}" class="form-label">Origin * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Port or airport where cargo will be loaded for departure."></i></label>
                             {{ form.origin_port }}
                             {% if form.origin_port.errors %}
                             <div class="invalid-feedback d-block">
@@ -66,7 +66,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.destination_port.id_for_label }}" class="form-label">Destination *</label>
+                            <label for="{{ form.destination_port.id_for_label }}" class="form-label">Destination * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Port or airport where cargo will arrive and be delivered."></i></label>
                             {{ form.destination_port }}
                             {% if form.destination_port.errors %}
                             <div class="invalid-feedback d-block">
@@ -75,7 +75,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-2 mb-3">
-                            <label for="{{ form.incoterms.id_for_label }}" class="form-label">INCOTERMS *</label>
+                            <label for="{{ form.incoterms.id_for_label }}" class="form-label">INCOTERMS * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="International trade terms defining buyer/seller responsibilities for costs, risks, and insurance (e.g. FOB, CIF, EXW)."></i></label>
                             {{ form.incoterms }}
                             {% if form.incoterms.errors %}
                             <div class="invalid-feedback d-block">
@@ -84,7 +84,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-2 mb-3">
-                            <label for="{{ form.incoterms_location.id_for_label }}" class="form-label">Named Place</label>
+                            <label for="{{ form.incoterms_location.id_for_label }}" class="form-label">Named Place <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Specific location referenced by the selected Incoterm (e.g. warehouse address for EXW, destination city for DAP)."></i></label>
                             {{ form.incoterms_location }}
                         </div>
                     </div>
@@ -93,7 +93,7 @@
                     <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-themed-primary"></i>Schedule &amp; Equipment</h5>
                     <div class="row mb-2">
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.cargo_ready_date.id_for_label }}" class="form-label">Cargo Ready Date *</label>
+                            <label for="{{ form.cargo_ready_date.id_for_label }}" class="form-label">Cargo Ready Date * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Earliest date cargo will be ready for pickup or delivery to the port/airport."></i></label>
                             {{ form.cargo_ready_date }}
                             {% if form.cargo_ready_date.errors %}
                             <div class="invalid-feedback d-block">
@@ -102,14 +102,14 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.external_reference.id_for_label }}" class="form-label">Your Reference</label>
+                            <label for="{{ form.external_reference.id_for_label }}" class="form-label">Your Reference <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Your internal reference number (e.g. PO number, order ID) for cross-referencing."></i></label>
                             {{ form.external_reference }}
                         </div>
                         <div id="container-section" class="col-md-6">
                             <div class="row">
                                 <div class="col-8 mb-3">
                                     <label for="{{ form.container_type.id_for_label }}" class="form-label">
-                                        Container Type <span class="container-required">*</span>
+                                        Container Type <span class="container-required">*</span> <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Size and type of container: 20GP (standard 20ft), 40GP (standard 40ft), 40HC (40ft high-cube), etc."></i>
                                     </label>
                                     {{ form.container_type }}
                                     {% if form.container_type.errors %}
@@ -120,7 +120,7 @@
                                 </div>
                                 <div class="col-4 mb-3">
                                     <label for="{{ form.container_count.id_for_label }}" class="form-label">
-                                        Qty <span class="container-required">*</span>
+                                        Qty <span class="container-required">*</span> <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Number of containers needed for this shipment."></i>
                                     </label>
                                     {{ form.container_count }}
                                     {% if form.container_count.errors %}
@@ -142,14 +142,14 @@
                     <div id="air-guidance" class="alert alert-info small mb-3" style="display:none;">
                         <i class="fas fa-info-circle me-1"></i>
                         <strong>Air freight:</strong> Chargeable weight is the higher of actual weight or volumetric weight
-                        (L&times;W&times;H&divide;6000). Enter dimensions per cargo item below for auto-calculation.
+                        (L×W×H÷6000). Enter dimensions per cargo item below for auto-calculation.
                     </div>
 
                     <!-- Air Freight Details (shown only for Air mode) -->
                     <div id="air-section" style="display:none;">
                         <div class="row mb-2">
                             <div class="col-md-3 mb-3">
-                                <label for="{{ form.chargeable_weight_kg.id_for_label }}" class="form-label">Chargeable Weight (kg)</label>
+                                <label for="{{ form.chargeable_weight_kg.id_for_label }}" class="form-label">Chargeable Weight (kg) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="The higher of actual weight or volumetric weight (L×W×H÷6000 per piece). Used for air freight pricing."></i></label>
                                 {{ form.chargeable_weight_kg }}
                                 {% if form.chargeable_weight_kg.errors %}
                                 <div class="invalid-feedback d-block">
@@ -158,7 +158,7 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-3 mb-3">
-                                <label for="{{ form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
+                                <label for="{{ form.flight_number.id_for_label }}" class="form-label">Flight Number <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Airline flight number if already assigned (e.g. SQ321). Can be added later."></i></label>
                                 {{ form.flight_number }}
                                 {% if form.flight_number.errors %}
                                 <div class="invalid-feedback d-block">
@@ -173,14 +173,14 @@
                     <h5 class="mb-3"><i class="fas fa-clipboard-list me-2 text-themed-primary"></i>Cargo Description</h5>
                     <div class="row mb-2">
                         <div class="col-md-8 mb-3">
-                            <label for="{{ form.commodity_description.id_for_label }}" class="form-label">Commodity Description</label>
+                            <label for="{{ form.commodity_description.id_for_label }}" class="form-label">Commodity Description <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="General description of the goods being shipped (e.g. Electronics, Textiles, Automotive Parts)."></i></label>
                             {{ form.commodity_description }}
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 {{ form.is_hazardous }}
                                 <label class="form-check-label" for="{{ form.is_hazardous.id_for_label }}">
-                                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>Hazardous Materials
+                                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>Hazardous Materials <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Check if cargo contains dangerous goods requiring special handling, documentation, and carrier approval."></i>
                                 </label>
                             </div>
                         </div>
@@ -214,25 +214,25 @@
                                 <!-- Row 1: Core fields -->
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-4">
-                                        <label class="form-label small">Description *</label>
+                                        <label class="form-label small">Description * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Specific description of this cargo item (e.g. Laptop computers, Cotton fabric rolls)."></i></label>
                                         {{ item_form.description }}
                                         {% if item_form.description.errors %}
                                         <div class="invalid-feedback d-block">{% for e in item_form.description.errors %}{{ e }}{% endfor %}</div>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Package Type *</label>
+                                        <label class="form-label small">Package Type * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="How the cargo is packaged: Cartons, Pallets, Crates, Drums, Bags, etc."></i></label>
                                         {{ item_form.package_type }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Quantity *</label>
+                                        <label class="form-label small">Quantity * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Number of packages or pieces of this item."></i></label>
                                         {{ item_form.quantity }}
                                         {% if item_form.quantity.errors %}
                                         <div class="invalid-feedback d-block">{% for e in item_form.quantity.errors %}{{ e }}{% endfor %}</div>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Weight (kg) *</label>
+                                        <label class="form-label small">Weight (kg) * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Total gross weight of this line item in kilograms."></i></label>
                                         {{ item_form.weight_kg }}
                                         {% if item_form.weight_kg.errors %}
                                         <div class="invalid-feedback d-block">{% for e in item_form.weight_kg.errors %}{{ e }}{% endfor %}</div>
@@ -249,27 +249,27 @@
                                 <!-- Row 2: Dimensions & Volume -->
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-2">
-                                        <label class="form-label small">HS Code</label>
+                                        <label class="form-label small">HS Code <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Harmonized System code for customs classification (6-10 digits, e.g. 8471.30 for laptops)."></i></label>
                                         {{ item_form.hs_code }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Volume (CBM)</label>
+                                        <label class="form-label small">Volume (CBM) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Total volume in cubic meters. Auto-calculated from dimensions if provided."></i></label>
                                         {{ item_form.volume_cbm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">L (cm)</label>
+                                        <label class="form-label small">L (cm) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Length of one package in centimeters."></i></label>
                                         {{ item_form.length_cm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">W (cm)</label>
+                                        <label class="form-label small">W (cm) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Width of one package in centimeters."></i></label>
                                         {{ item_form.width_cm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">H (cm)</label>
+                                        <label class="form-label small">H (cm) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Height of one package in centimeters."></i></label>
                                         {{ item_form.height_cm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Origin</label>
+                                        <label class="form-label small">Origin <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Country where the goods were manufactured or produced."></i></label>
                                         {{ item_form.country_of_origin }}
                                     </div>
                                 </div>
@@ -279,20 +279,20 @@
                                         <div class="form-check">
                                             {{ item_form.is_hazardous }}
                                             <label class="form-check-label small" for="{{ item_form.is_hazardous.id_for_label }}">
-                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>DG
+                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>DG <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Mark if this specific item is a dangerous good requiring UN number and IMO class."></i>
                                             </label>
                                         </div>
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">UN#</label>
+                                        <label class="form-label small">UN# <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="UN number identifying the hazardous substance (e.g. UN1203 for gasoline)."></i></label>
                                         {{ item_form.un_number }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">IMO Class</label>
+                                        <label class="form-label small">IMO Class <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="International Maritime Dangerous Goods class (1-9) for this hazardous item."></i></label>
                                         {{ item_form.imo_class }}
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label small">Marks &amp; Numbers</label>
+                                        <label class="form-label small">Marks &amp; Numbers <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Shipping marks, container numbers, or identification labels on the packages."></i></label>
                                         {{ item_form.marks_and_numbers }}
                                     </div>
                                 </div>
@@ -309,7 +309,7 @@
 
                     <!-- Special Instructions -->
                     <div class="mb-3">
-                        <label for="{{ form.special_instructions.id_for_label }}" class="form-label"><i class="fas fa-sticky-note me-1 text-themed-primary"></i>Special Instructions</label>
+                        <label for="{{ form.special_instructions.id_for_label }}" class="form-label"><i class="fas fa-sticky-note me-1 text-themed-primary"></i>Special Instructions <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Any additional handling instructions, delivery requirements, or notes for the carrier."></i></label>
                         {{ form.special_instructions }}
                         {% if form.special_instructions.errors %}
                         <div class="invalid-feedback d-block">
@@ -394,6 +394,26 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleSections(true);
     });
     toggleSections(false); // Run on page load — don't clear values
+
+    // Initialize Bootstrap tooltips
+    var tooltipEls = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipEls.forEach(function(el) {
+        new bootstrap.Tooltip(el);
+        el.classList.add('tooltip-initialized');
+    });
+
+    // Re-initialize tooltips when new cargo items are added
+    var addBtn = document.getElementById('add-item-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            // formset.js runs synchronously, so DOM is ready immediately
+            var newTooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]:not(.tooltip-initialized)'));
+            newTooltips.forEach(function(el) {
+                new bootstrap.Tooltip(el);
+                el.classList.add('tooltip-initialized');
+            });
+        });
+    }
 
     // Initialize Tom Select on port dropdowns
     var tsConfig = {plugins: ['dropdown_input'], create: false};

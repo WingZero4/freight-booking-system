@@ -322,3 +322,18 @@ body {
         text-align: left;
     }
 }
+
+/* ─── Tooltip info icons ─────────────────────────────────────────── */
+
+.form-label .fa-info-circle[data-bs-toggle="tooltip"],
+.form-check-label .fa-info-circle[data-bs-toggle="tooltip"] {
+    font-size: 0.75rem;
+    cursor: help;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
+.form-label .fa-info-circle[data-bs-toggle="tooltip"]:hover,
+.form-check-label .fa-info-circle[data-bs-toggle="tooltip"]:hover {
+    opacity: 1;
+}

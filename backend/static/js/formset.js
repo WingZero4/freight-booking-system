@@ -89,6 +89,14 @@ document.addEventListener('DOMContentLoaded', function () {
             div.remove();
         });
 
+        // Reset tooltip state so new row tooltips get re-initialized
+        var tooltipIcons = newRow.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipIcons.forEach(function (icon) {
+            icon.classList.remove('tooltip-initialized');
+            var existing = bootstrap.Tooltip.getInstance(icon);
+            if (existing) { existing.dispose(); }
+        });
+
         container.appendChild(newRow);
         setTotalForms(newIndex + 1);
 
