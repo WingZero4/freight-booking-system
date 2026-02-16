@@ -133,6 +133,18 @@
                         </div>
                     </div>
 
+                    <!-- Mode guidance banners -->
+                    <div id="lcl-guidance" class="alert alert-info small mb-3" style="display:none;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        <strong>LCL shipment:</strong> Pricing is based on volume (CBM) and weight.
+                        Enter dimensions or CBM for each cargo item below.
+                    </div>
+                    <div id="air-guidance" class="alert alert-info small mb-3" style="display:none;">
+                        <i class="fas fa-info-circle me-1"></i>
+                        <strong>Air freight:</strong> Chargeable weight is the higher of actual weight or volumetric weight
+                        (L&times;W&times;H&divide;6000). Enter dimensions per cargo item below for auto-calculation.
+                    </div>
+
                     <!-- Air Freight Details (shown only for Air mode) -->
                     <div id="air-section" style="display:none;">
                         <div class="row mb-2">
@@ -334,24 +346,33 @@ document.addEventListener('DOMContentLoaded', function() {
     var modeSelect = document.getElementById('id_transport_mode');
     var containerSection = document.getElementById('container-section');
     var airSection = document.getElementById('air-section');
+    var lclGuidance = document.getElementById('lcl-guidance');
+    var airGuidance = document.getElementById('air-guidance');
     var stars = document.querySelectorAll('.container-required');
 
     function toggleSections(shouldClear) {
         var mode = modeSelect.value;
+        // Reset all
+        containerSection.style.display = 'none';
+        airSection.style.display = 'none';
+        lclGuidance.style.display = 'none';
+        airGuidance.style.display = 'none';
+        stars.forEach(function(s) { s.style.display = 'none'; });
+
         if (mode === 'SEA_FCL') {
             containerSection.style.display = '';
-            airSection.style.display = 'none';
             stars.forEach(function(s) { s.style.display = ''; });
             if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number']);
+        } else if (mode === 'SEA_LCL') {
+            lclGuidance.style.display = '';
+            if (shouldClear) clearFields(['id_container_type', 'id_container_count', 'id_chargeable_weight_kg', 'id_flight_number']);
         } else if (mode === 'AIR') {
-            containerSection.style.display = 'none';
             airSection.style.display = '';
+            airGuidance.style.display = '';
             if (shouldClear) clearFields(['id_container_type', 'id_container_count']);
         } else {
-            // SEA_LCL, RAIL, TRUCK, MULTIMODAL: container optional
+            // RAIL, TRUCK, MULTIMODAL: container optional
             containerSection.style.display = '';
-            airSection.style.display = 'none';
-            stars.forEach(function(s) { s.style.display = 'none'; });
             if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number']);
         }
     }

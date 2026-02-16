@@ -116,12 +116,18 @@ class BookingForm(forms.ModelForm):
             # Clear air fields for non-AIR modes
             cleaned['chargeable_weight_kg'] = None
             cleaned['flight_number'] = ''
+        elif mode == 'SEA_LCL':
+            # LCL: no containers (shared space), clear both container and air fields
+            cleaned['container_type'] = None
+            cleaned['container_count'] = None
+            cleaned['chargeable_weight_kg'] = None
+            cleaned['flight_number'] = ''
         elif mode == 'AIR':
-            # Clear container fields for Air mode
+            # Air: no containers, keep air-specific fields
             cleaned['container_type'] = None
             cleaned['container_count'] = None
         else:
-            # SEA_LCL, RAIL, TRUCK, MULTIMODAL: container optional, clear air fields
+            # RAIL, TRUCK, MULTIMODAL: container optional, clear air fields
             if not cleaned.get('container_type'):
                 cleaned['container_type'] = None
             if not cleaned.get('container_count'):
