@@ -40,7 +40,7 @@
                 <h6 class="mb-0"><i class="fas fa-clock me-1 text-warning"></i>Pending Confirmation</h6>
                 <span class="badge bg-warning text-dark fs-6">{{ pending_confirmation|length }}</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 {% if pending_confirmation %}
                 <div class="list-group list-group-flush">
                     {% for booking in pending_confirmation|slice:":5" %}
@@ -79,7 +79,7 @@
                 <h6 class="mb-0"><i class="fas fa-ship me-1 text-info"></i>Needs Carrier Details</h6>
                 <span class="badge bg-info fs-6">{{ needs_carrier|length }}</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 {% if needs_carrier %}
                 <div class="list-group list-group-flush">
                     {% for booking in needs_carrier|slice:":5" %}
@@ -119,7 +119,7 @@
                 <h6 class="mb-0"><i class="fas fa-calendar-alt me-1 text-themed-primary"></i>Departures (7 days)</h6>
                 <span class="badge bg-themed-primary fs-6">{{ upcoming_departures|length }}</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 {% if upcoming_departures %}
                 <div class="list-group list-group-flush">
                     {% for booking in upcoming_departures|slice:":5" %}
@@ -164,7 +164,7 @@
                 <h6 class="mb-0"><i class="fas fa-anchor me-1 text-primary"></i>Arrived &mdash; Pending Delivery</h6>
                 <span class="badge bg-primary fs-6">{{ arrived_pending|length }}</span>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 <div class="list-group list-group-flush">
                     {% for booking in arrived_pending|slice:":5" %}
                     <a href="{% url 'ops_complete_booking' booking.id %}" class="list-group-item list-group-item-action py-2">
@@ -298,7 +298,7 @@
             <div class="card-header">
                 <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Activity</h5>
             </div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 {% if recent_activity %}
                 <div class="list-group list-group-flush">
                     {% for log in recent_activity %}

@@ -99,7 +99,7 @@
     <div class="col-md-7">
         <div class="card shadow-sm h-100">
             <div class="card-header"><h6 class="mb-0"><i class="fas fa-chart-line me-2"></i>Monthly Trend (Last 6 Months)</h6></div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 {% if monthly_trend %}
                 <div class="table-responsive">
                     <table class="table table-sm mb-0">
@@ -126,7 +126,7 @@
     <div class="col-md-5">
         <div class="card shadow-sm h-100">
             <div class="card-header"><h6 class="mb-0"><i class="fas fa-shipping-fast me-2"></i>Transport Modes</h6></div>
-            <div class="card-body p-0">
+            <div class="card-body px-2 py-0">
                 {% if transport_breakdown %}
                 <div class="table-responsive">
                     <table class="table table-sm mb-0">
@@ -154,7 +154,7 @@
         <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Recent Bookings</h5>
         <a href="{% url 'booking_list' %}" class="btn btn-themed-outline btn-sm">View All</a>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body px-2 py-0">
         {% if recent_bookings %}
         <div class="table-responsive">
             <table class="table table-hover mb-0">
