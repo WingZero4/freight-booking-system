@@ -220,6 +220,19 @@
                     </div>
                 </a>
             </div>
+            {% if pipeline.customer_rejected %}
+            <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
+            <div class="col">
+                <a href="{% url 'booking_list' %}?status=CUSTOMER_REJECTED" class="text-decoration-none">
+                    <div class="card pipeline-card border-danger">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-danger">{{ pipeline.customer_rejected }}</div>
+                            <small class="text-muted">Rejected</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endif %}
             <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
             <div class="col">
                 <a href="{% url 'booking_list' %}?status=PACKING" class="text-decoration-none">
@@ -256,9 +269,9 @@
             <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
             <div class="col">
                 <a href="{% url 'booking_list' %}?status=COMPLETED" class="text-decoration-none">
-                    <div class="card pipeline-card border-info">
+                    <div class="card pipeline-card border-secondary">
                         <div class="card-body py-2">
-                            <div class="fs-3 fw-bold text-info">{{ pipeline.completed }}</div>
+                            <div class="fs-3 fw-bold text-secondary">{{ pipeline.completed }}</div>
                             <small class="text-muted">Completed</small>
                         </div>
                     </div>
