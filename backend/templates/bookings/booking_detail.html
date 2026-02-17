@@ -38,10 +38,12 @@
                 <div class="d-flex flex-wrap gap-2 pt-2 border-top">
                     {% if user.profile.customer %}
                         {# Customer action buttons #}
-                        {% if booking.status == 'DRAFT' %}
+                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' %}
                         <a href="{% url 'booking_edit' booking.id %}" class="btn btn-themed-outline btn-sm">
                             <i class="fas fa-edit me-1"></i>Edit
                         </a>
+                        {% endif %}
+                        {% if booking.status == 'DRAFT' %}
                         <a href="{% url 'booking_submit' booking.id %}" class="btn btn-success btn-sm">
                             <i class="fas fa-paper-plane me-1"></i>Submit
                         </a>

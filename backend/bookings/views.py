@@ -285,11 +285,11 @@ def booking_create(request):
 
 @login_required
 def booking_edit(request, booking_id):
-    """Edit a draft booking"""
+    """Edit a draft or submitted booking"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status != 'DRAFT':
-        messages.error(request, 'Only draft bookings can be edited.')
+    if booking.status not in ('DRAFT', 'SUBMITTED'):
+        messages.error(request, 'Only draft or submitted bookings can be edited.')
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':

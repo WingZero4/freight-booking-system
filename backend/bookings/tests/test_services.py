@@ -162,8 +162,8 @@ class TestUpdateBooking(ServiceTestBase):
         updated = BookingService.update_booking(booking, form, formset, self.user)
         self.assertEqual(updated.container_count, 5)
 
-    def test_update_non_draft_raises(self):
-        booking = create_booking(self.customer, self.user, status='SUBMITTED')
+    def test_update_confirmed_raises(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
         create_booking_item(booking)
         data = {**self._valid_booking_data(), **self._valid_item_data()}
         form = BookingForm(data, instance=booking)
@@ -914,9 +914,9 @@ class TestUpdateBookingFromData(ServiceTestBase):
         self.assertEqual(updated.items.count(), 2)
         self.assertEqual(updated.total_weight_kg, Decimal('400.00'))
 
-    def test_update_from_data_non_draft_fails(self):
+    def test_update_from_data_confirmed_fails(self):
         booking = self._create_draft()
-        booking.status = 'SUBMITTED'
+        booking.status = 'CONFIRMED'
         booking.save()
         with self.assertRaises(ValueError):
             BookingService.update_booking_from_data(

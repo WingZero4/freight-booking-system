@@ -182,13 +182,13 @@ class BookingService:
     @classmethod
     def update_booking(cls, booking, form, formset, user, request=None):
         """
-        Update an existing DRAFT booking from validated form + formset.
+        Update an existing DRAFT or SUBMITTED booking from validated form + formset.
 
         Returns the updated Booking instance.
-        Raises ValueError if booking is not DRAFT or forms are invalid.
+        Raises ValueError if booking is not DRAFT/SUBMITTED or forms are invalid.
         """
-        if booking.status != 'DRAFT':
-            raise ValueError('Only draft bookings can be edited.')
+        if booking.status not in ('DRAFT', 'SUBMITTED'):
+            raise ValueError('Only draft or submitted bookings can be edited.')
 
         if not form.is_valid() or not formset.is_valid():
             raise ValueError('Invalid form data.')
@@ -298,20 +298,20 @@ class BookingService:
     def update_booking_from_data(cls, booking, data, user, request=None,
                                   items_data=None):
         """
-        Update a DRAFT booking from validated data dicts.
+        Update a DRAFT or SUBMITTED booking from validated data dicts.
 
         Args:
-            booking: Existing Booking instance (must be DRAFT).
+            booking: Existing Booking instance (must be DRAFT or SUBMITTED).
             data: dict of fields to update. Only provided keys are changed.
             user: User performing the action.
             request: Optional HttpRequest for audit logging.
             items_data: If provided, replaces all existing items.
 
         Returns the updated Booking instance.
-        Raises ValueError if booking is not DRAFT.
+        Raises ValueError if booking is not DRAFT or SUBMITTED.
         """
-        if booking.status != 'DRAFT':
-            raise ValueError('Only draft bookings can be edited.')
+        if booking.status not in ('DRAFT', 'SUBMITTED'):
+            raise ValueError('Only draft or submitted bookings can be edited.')
 
         old = cls._booking_snapshot(booking)
 

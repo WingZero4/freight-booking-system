@@ -156,7 +156,7 @@
                     <td>{{ booking.created_at|date:"M d" }}</td>
                     <td>
                         <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">View</a>
-                        {% if booking.status == 'DRAFT' %}
+                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' %}
                         <a href="{% url 'booking_edit' booking.id %}" class="btn btn-themed-outline btn-sm">Edit</a>
                         {% endif %}
                     </td>
@@ -207,7 +207,7 @@
             </div>
             <div class="card-footer bg-transparent">
                 <a href="{% url 'booking_detail' booking.id %}" class="btn btn-themed-outline btn-sm">View Details</a>
-                {% if booking.status == 'DRAFT' %}
+                {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' %}
                 <a href="{% url 'booking_edit' booking.id %}" class="btn btn-themed-outline btn-sm">Edit</a>
                 {% endif %}
             </div>
