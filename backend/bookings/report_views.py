@@ -2,7 +2,8 @@ import csv
 from datetime import timedelta, date as date_type
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Avg, Sum, F, Q
+from django.db.models import Count, Avg, Sum, F, Q, Value, DecimalField
+from django.db.models.functions import Coalesce
 from django.db.models.functions import TruncMonth
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
@@ -191,6 +192,11 @@ def ops_report_route_analysis(request):
         )
         .annotate(
             booking_count=Count('id'),
+            total_containers=Coalesce(Sum('container_count'), Value(0)),
+            total_teu=Coalesce(
+                Sum(F('container_count') * F('container_type__size_ft') / 20),
+                Value(0),
+            ),
             total_weight=Sum('total_weight_kg'),
             total_volume=Sum('total_volume_cbm'),
         )
@@ -200,12 +206,14 @@ def ops_report_route_analysis(request):
     if request.GET.get('format') == 'csv':
         response = _csv_response('route_analysis.csv')
         writer = csv.writer(response)
-        writer.writerow(['Origin Code', 'Origin Name', 'Dest Code', 'Dest Name', 'Bookings', 'Weight (kg)', 'Volume (CBM)'])
+        writer.writerow(['Origin Code', 'Origin Name', 'Dest Code', 'Dest Name',
+                         'Bookings', 'Containers', 'TEU', 'Weight (kg)', 'Volume (CBM)'])
         for row in data:
             writer.writerow([
                 row['origin_port__code'], row['origin_port__name'],
                 row['destination_port__code'], row['destination_port__name'],
-                row['booking_count'],
+                row['booking_count'], row['total_containers'],
+                row['total_teu'],
                 row['total_weight'] or 0, row['total_volume'] or 0,
             ])
         return response
@@ -313,6 +321,7 @@ def ops_report_container_utilization(request):
         .annotate(
             booking_count=Count('id'),
             total_containers=Sum('container_count'),
+            total_teu=Sum(F('container_count') * F('container_type__size_ft') / 20),
             avg_per_booking=Avg('container_count'),
         )
         .order_by('-total_containers')
@@ -321,17 +330,19 @@ def ops_report_container_utilization(request):
     totals = fcl_bookings.aggregate(
         total_bookings=Count('id'),
         grand_containers=Sum('container_count'),
+        grand_teu=Sum(F('container_count') * F('container_type__size_ft') / 20),
     )
 
     if request.GET.get('format') == 'csv':
         response = _csv_response('container_utilization.csv')
         writer = csv.writer(response)
-        writer.writerow(['Container Type', 'Name', 'Size (ft)', 'Bookings', 'Total Containers', 'Avg per Booking'])
+        writer.writerow(['Container Type', 'Name', 'Size (ft)', 'Bookings',
+                         'Total Containers', 'TEU', 'Avg per Booking'])
         for row in data:
             writer.writerow([
                 row['container_type__code'], row['container_type__name'],
                 row['container_type__size_ft'], row['booking_count'],
-                row['total_containers'] or 0,
+                row['total_containers'] or 0, row['total_teu'] or 0,
                 round(row['avg_per_booking'], 1) if row['avg_per_booking'] is not None else 0,
             ])
         return response

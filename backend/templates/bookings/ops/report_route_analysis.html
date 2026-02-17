@@ -24,6 +24,8 @@
                         <th>Origin</th>
                         <th>Destination</th>
                         <th class="text-end">Bookings</th>
+                        <th class="text-end">Containers</th>
+                        <th class="text-end">TEU</th>
                         <th class="text-end">Weight (kg)</th>
                         <th class="text-end">Volume (CBM)</th>
                     </tr>
@@ -34,11 +36,13 @@
                         <td><code>{{ row.origin_port__code }}</code> {{ row.origin_port__name }}</td>
                         <td><code>{{ row.destination_port__code }}</code> {{ row.destination_port__name }}</td>
                         <td class="text-end">{{ row.booking_count }}</td>
+                        <td class="text-end">{{ row.total_containers|default:"0" }}</td>
+                        <td class="text-end">{{ row.total_teu|default:"0" }}</td>
                         <td class="text-end">{{ row.total_weight|floatformat:0|default:"0" }}</td>
                         <td class="text-end">{{ row.total_volume|floatformat:2|default:"0" }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="text-muted text-center py-3">No data for this period</td></tr>
+                    <tr><td colspan="7" class="text-muted text-center py-3">No data for this period</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

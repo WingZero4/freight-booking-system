@@ -32,6 +32,14 @@
             </div>
         </div>
     </div>
+    <div class="col-md-4">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h3 class="mb-0">{{ totals.grand_teu|default:"0" }}</h3>
+                <small class="text-muted">Total TEU</small>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card shadow-sm">
@@ -45,6 +53,7 @@
                         <th class="text-end">Size (ft)</th>
                         <th class="text-end">Bookings</th>
                         <th class="text-end">Total Containers</th>
+                        <th class="text-end">TEU</th>
                         <th class="text-end">Avg per Booking</th>
                     </tr>
                 </thead>
@@ -56,10 +65,11 @@
                         <td class="text-end">{{ row.container_type__size_ft }}</td>
                         <td class="text-end">{{ row.booking_count }}</td>
                         <td class="text-end">{{ row.total_containers }}</td>
+                        <td class="text-end">{{ row.total_teu|default:"0" }}</td>
                         <td class="text-end">{{ row.avg_per_booking|floatformat:1 }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="6" class="text-muted text-center py-3">No FCL bookings in this period</td></tr>
+                    <tr><td colspan="7" class="text-muted text-center py-3">No FCL bookings in this period</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
