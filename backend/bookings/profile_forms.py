@@ -1,5 +1,11 @@
+import zoneinfo
+
 from django import forms
 from django.contrib.auth.models import User
+
+TIMEZONE_CHOICES = [('', 'UTC (default)')] + [
+    (tz, tz) for tz in sorted(zoneinfo.available_timezones())
+]
 
 
 class ProfileEditForm(forms.Form):
@@ -19,6 +25,11 @@ class ProfileEditForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
     )
+    timezone = forms.ChoiceField(
+        choices=TIMEZONE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control', 'id': 'id_timezone'}),
+    )
 
     def __init__(self, *args, user_instance=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -29,6 +40,9 @@ class ProfileEditForm(forms.Form):
             self.fields['email'].initial = user_instance.email
             self.fields['phone'].initial = getattr(
                 getattr(user_instance, 'profile', None), 'phone', ''
+            )
+            self.fields['timezone'].initial = getattr(
+                getattr(user_instance, 'profile', None), 'timezone', ''
             )
 
     def clean_email(self):

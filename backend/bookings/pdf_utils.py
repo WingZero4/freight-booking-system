@@ -1,15 +1,48 @@
 """Shared PDF generation utility using ReportLab."""
 import io
-from datetime import date
+from pathlib import Path
 from xml.sax.saxutils import escape
+
+from django.utils import timezone as tz
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable,
 )
+
+# ─── Unicode font registration ──────────────────────────────────────
+_FONTS_DIR = Path(__file__).resolve().parent.parent / 'static' / 'fonts'
+
+
+def _register_fonts():
+    """Register DejaVu Sans with ReportLab for Unicode support."""
+    try:
+        regular = _FONTS_DIR / 'DejaVuSans.ttf'
+        bold = _FONTS_DIR / 'DejaVuSans-Bold.ttf'
+        if regular.exists():
+            pdfmetrics.registerFont(TTFont('DejaVuSans', str(regular)))
+        if bold.exists():
+            pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', str(bold)))
+    except Exception:
+        pass  # Fall back to Helvetica if font registration fails
+
+
+_register_fonts()
+
+
+def _font(bold=False):
+    """Return the best available font — DejaVu if registered, else Helvetica."""
+    name = 'DejaVuSans-Bold' if bold else 'DejaVuSans'
+    try:
+        pdfmetrics.getFont(name)
+        return name
+    except KeyError:
+        return 'Helvetica-Bold' if bold else 'Helvetica'
 
 
 def build_booking_pdf(booking, include_internal=False):
@@ -33,14 +66,20 @@ def build_booking_pdf(booking, include_internal=False):
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(
         'DocTitle', parent=styles['Title'], fontSize=16, spaceAfter=4 * mm,
+        fontName=_font(bold=True),
     ))
     styles.add(ParagraphStyle(
         'SectionHead', parent=styles['Heading2'], fontSize=12,
         spaceBefore=6 * mm, spaceAfter=2 * mm,
         textColor=colors.HexColor('#1E2A4A'),
+        fontName=_font(bold=True),
     ))
     styles.add(ParagraphStyle(
         'SmallText', parent=styles['Normal'], fontSize=8, textColor=colors.grey,
+        fontName=_font(),
+    ))
+    styles.add(ParagraphStyle(
+        'Body', parent=styles['Normal'], fontName=_font(),
     ))
 
     elements = []
@@ -102,8 +141,9 @@ def build_booking_pdf(booking, include_internal=False):
     info_table = Table(info_data, colWidths=[85, 150, 85, 150])
     info_table.setStyle(TableStyle([
         ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 0), (-1, -1), _font()),
+        ('FONTNAME', (0, 0), (0, -1), _font(bold=True)),
+        ('FONTNAME', (2, 0), (2, -1), _font(bold=True)),
         ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#555555')),
         ('TEXTCOLOR', (2, 0), (2, -1), colors.HexColor('#555555')),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
@@ -142,7 +182,8 @@ def build_booking_pdf(booking, include_internal=False):
         cargo_table = Table(cargo_data, colWidths=[20, 130, 55, 30, 60, 45, 55, 25])
         cargo_table.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, -1), _font()),
+            ('FONTNAME', (0, 0), (-1, 0), _font(bold=True)),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E2A4A')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (3, 0), (-1, -1), 'RIGHT'),
@@ -150,7 +191,7 @@ def build_booking_pdf(booking, include_internal=False):
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
             # Totals row styling
-            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (0, -1), (-1, -1), _font(bold=True)),
             ('LINEABOVE', (0, -1), (-1, -1), 1, colors.HexColor('#1E2A4A')),
         ]))
         elements.append(cargo_table)
@@ -173,13 +214,13 @@ def build_booking_pdf(booking, include_internal=False):
                 contact_parts.append(escape(bp.phone))
             if contact_parts:
                 party_info += f"<br/>{' | '.join(contact_parts)}"
-            elements.append(Paragraph(party_info, styles['Normal']))
+            elements.append(Paragraph(party_info, styles['Body']))
             elements.append(Spacer(1, 2 * mm))
 
     # --- Special Instructions ---
     if booking.special_instructions:
         elements.append(Paragraph('Special Instructions', styles['SectionHead']))
-        elements.append(Paragraph(escape(booking.special_instructions), styles['Normal']))
+        elements.append(Paragraph(escape(booking.special_instructions), styles['Body']))
 
     # --- Commodity Description ---
     if booking.commodity_description:
@@ -187,13 +228,13 @@ def build_booking_pdf(booking, include_internal=False):
         desc = escape(booking.commodity_description)
         if booking.is_hazardous:
             desc += ' <font color="red"><b>[HAZARDOUS CARGO]</b></font>'
-        elements.append(Paragraph(desc, styles['Normal']))
+        elements.append(Paragraph(desc, styles['Body']))
 
     # --- Footer ---
     elements.append(Spacer(1, 10 * mm))
     elements.append(HRFlowable(width='100%', thickness=0.5, color=colors.grey))
     elements.append(Paragraph(
-        f'Generated on {date.today().strftime("%B %d, %Y")} | '
+        f'Generated on {tz.localdate().strftime("%B %d, %Y")} | '
         f'Booking {booking.booking_number}',
         styles['SmallText'],
     ))

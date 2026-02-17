@@ -22,6 +22,9 @@ django-axes>=7.0
 # PDF Generation
 reportlab>=4.0
 
+# Timezone data (ensures zoneinfo works on all platforms)
+tzdata>=2024.1
+
 # Database
 psycopg2-binary>=2.9
 mysqlclient>=2.2

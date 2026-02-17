@@ -531,7 +531,7 @@ class TestCSVExport(ViewTestBase):
         create_booking(self.customer, self.user)
         resp = self.client.get(reverse('booking_export_csv'))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
         content = resp.content.decode()
         self.assertIn('Booking Number', content)
 
@@ -862,7 +862,7 @@ class TestStaffReports(ViewTestBase):
         self._login_staff()
         resp = self.client.get(reverse('ops_report_volume_customer'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_route_analysis(self):
         self._login_staff()
@@ -874,7 +874,7 @@ class TestStaffReports(ViewTestBase):
         self._login_staff()
         resp = self.client.get(reverse('ops_report_route'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_transit_performance(self):
         self._login_staff()
@@ -886,7 +886,7 @@ class TestStaffReports(ViewTestBase):
         self._login_staff()
         resp = self.client.get(reverse('ops_report_transit'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_container_utilization(self):
         self._login_staff()
@@ -910,7 +910,7 @@ class TestStaffReports(ViewTestBase):
         self._login_staff()
         resp = self.client.get(reverse('ops_report_aging'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_date_range_preset(self):
         self._login_staff()
@@ -955,7 +955,7 @@ class TestCustomerReports(ViewTestBase):
         self._login_customer()
         resp = self.client.get(reverse('customer_report_summary'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_customer_routes(self):
         self._login_customer()
@@ -967,7 +967,7 @@ class TestCustomerReports(ViewTestBase):
         self._login_customer()
         resp = self.client.get(reverse('customer_report_routes'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_customer_performance(self):
         self._login_customer()
@@ -979,7 +979,7 @@ class TestCustomerReports(ViewTestBase):
         self._login_customer()
         resp = self.client.get(reverse('customer_report_performance'), {'format': 'csv'})
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp['Content-Type'], 'text/csv')
+        self.assertEqual(resp['Content-Type'], 'text/csv; charset=utf-8')
 
     def test_customer_only_sees_own_data(self):
         """Customer summary should only count their own bookings."""

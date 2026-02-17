@@ -61,6 +61,19 @@
                         </div>
                     </div>
 
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="id_timezone" class="form-label">
+                                <i class="fas fa-globe me-1"></i>Timezone
+                            </label>
+                            {{ form.timezone }}
+                            {% if form.timezone.errors %}
+                            <div class="invalid-feedback d-block">{{ form.timezone.errors.0 }}</div>
+                            {% endif %}
+                            <div class="form-text">All times will be displayed in this timezone.</div>
+                        </div>
+                    </div>
+
                     {% if user.profile.customer %}
                     <div class="mb-3">
                         <label class="form-label text-muted">Company</label>
@@ -78,4 +91,15 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var tzSelect = document.getElementById('id_timezone');
+    if (tzSelect && typeof TomSelect !== 'undefined') {
+        new TomSelect(tzSelect, {plugins: ['dropdown_input'], create: false});
+    }
+});
+</script>
 {% endblock %}

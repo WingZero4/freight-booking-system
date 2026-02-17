@@ -60,8 +60,9 @@ def _base_bookings(request, start_date, end_date):
 
 def _csv_response(filename):
     """Create an HttpResponse with CSV content type and attachment header."""
-    response = HttpResponse(content_type='text/csv')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write('\ufeff')  # UTF-8 BOM for Excel compatibility
     return response
 
 

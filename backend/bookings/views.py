@@ -146,7 +146,8 @@ def profile_edit(request):
             request.user.save(update_fields=['first_name', 'last_name', 'email'])
             profile = request.user.profile
             profile.phone = form.cleaned_data.get('phone', '')
-            profile.save(update_fields=['phone'])
+            profile.timezone = form.cleaned_data.get('timezone', '')
+            profile.save(update_fields=['phone', 'timezone'])
             messages.success(request, 'Profile updated successfully.')
             return redirect('dashboard')
     else:
@@ -1294,8 +1295,9 @@ def booking_export_csv(request):
 
     bookings = bookings.order_by('-created_at')
 
-    response = HttpResponse(content_type='text/csv')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="bookings_export.csv"'
+    response.write('\ufeff')  # UTF-8 BOM for Excel compatibility
 
     is_staff = not customer
 
@@ -1333,12 +1335,12 @@ def booking_export_csv(request):
         row += [
             b.actual_departure_date or '', b.actual_arrival_date or '',
             b.total_weight_kg or '', b.total_volume_cbm or '',
-            b.created_at.strftime('%Y-%m-%d %H:%M'),
-            b.submitted_at.strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
-            b.confirmed_at.strftime('%Y-%m-%d %H:%M') if b.confirmed_at else '',
-            b.in_transit_at.strftime('%Y-%m-%d %H:%M') if b.in_transit_at else '',
-            b.arrived_at.strftime('%Y-%m-%d %H:%M') if b.arrived_at else '',
-            b.completed_at.strftime('%Y-%m-%d %H:%M') if b.completed_at else '',
+            timezone.localtime(b.created_at).strftime('%Y-%m-%d %H:%M'),
+            timezone.localtime(b.submitted_at).strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
+            timezone.localtime(b.confirmed_at).strftime('%Y-%m-%d %H:%M') if b.confirmed_at else '',
+            timezone.localtime(b.in_transit_at).strftime('%Y-%m-%d %H:%M') if b.in_transit_at else '',
+            timezone.localtime(b.arrived_at).strftime('%Y-%m-%d %H:%M') if b.arrived_at else '',
+            timezone.localtime(b.completed_at).strftime('%Y-%m-%d %H:%M') if b.completed_at else '',
         ]
         writer.writerow(row)
 

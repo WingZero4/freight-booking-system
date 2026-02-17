@@ -28,7 +28,7 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'get_email', 'customer', 'role', 'phone', 'approval_status']
+    list_display = ['user', 'get_email', 'customer', 'role', 'phone', 'timezone', 'approval_status']
     list_filter = ['role', 'customer', 'approval_status']
     search_fields = ['user__username', 'user__email', 'customer__name', 'customer__code']
     list_select_related = ['user', 'customer']

@@ -71,6 +71,10 @@ class UserProfile(models.Model):
     )
     approved_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
+    timezone = models.CharField(
+        max_length=50, blank=True, default='',
+        help_text='IANA timezone name, e.g. Asia/Singapore. Blank = UTC.',
+    )
 
     def __str__(self):
         if self.customer:
