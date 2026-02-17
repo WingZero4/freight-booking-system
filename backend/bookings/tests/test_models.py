@@ -160,13 +160,18 @@ class TestBookingModel(TestCase):
         with self.assertRaises(ValueError):
             booking.reject()
 
-    def test_mark_in_transit_from_confirmed(self):
-        booking = self._create_booking(status='CONFIRMED')
+    def test_mark_in_transit_from_packing(self):
+        booking = self._create_booking(status='PACKING')
         booking.mark_in_transit()
         self.assertEqual(booking.status, 'IN_TRANSIT')
         self.assertIsNotNone(booking.in_transit_at)
 
-    def test_mark_in_transit_from_non_confirmed_raises(self):
+    def test_mark_in_transit_from_confirmed_raises(self):
+        booking = self._create_booking(status='CONFIRMED')
+        with self.assertRaises(ValueError):
+            booking.mark_in_transit()
+
+    def test_mark_in_transit_from_submitted_raises(self):
         booking = self._create_booking(status='SUBMITTED')
         with self.assertRaises(ValueError):
             booking.mark_in_transit()

@@ -11,6 +11,8 @@ urlpatterns = [
          views.ops_booking_confirm, name='ops_booking_confirm'),
     path('bookings/<int:booking_id>/reject/',
          views.ops_booking_reject, name='ops_booking_reject'),
+    path('bookings/<int:booking_id>/reconfirm/',
+         views.ops_reconfirm_booking, name='ops_reconfirm_booking'),
     path('bookings/<int:booking_id>/carrier/',
          views.ops_carrier_details, name='ops_carrier_details'),
     path('bookings/<int:booking_id>/in-transit/',
@@ -82,6 +84,8 @@ urlpatterns = [
     path('bookings/<int:booking_id>/submit/', views.booking_submit, name='booking_submit'),
     path('bookings/<int:booking_id>/cancel/', views.booking_cancel, name='booking_cancel'),
     path('bookings/<int:booking_id>/resubmit/', views.booking_resubmit, name='booking_resubmit'),
+    path('bookings/<int:booking_id>/approve/', views.booking_customer_approve, name='booking_customer_approve'),
+    path('bookings/<int:booking_id>/customer-reject/', views.booking_customer_reject, name='booking_customer_reject'),
     path('bookings/<int:booking_id>/clone/', views.booking_clone, name='booking_clone'),
 
     # PDF downloads

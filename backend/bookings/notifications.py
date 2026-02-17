@@ -195,6 +195,23 @@ def notify_booking_cancelled(booking):
     )
 
 
+def notify_booking_customer_approved(booking):
+    """Notify staff that the customer has approved the confirmed booking."""
+    _create_staff_notifications(
+        booking, 'BOOKING_CUSTOMER_APPROVED',
+        f'Customer approved booking {booking.booking_number} — ready for packing.',
+    )
+
+
+def notify_booking_customer_rejected(booking):
+    """Notify staff that the customer has rejected the confirmed booking."""
+    _create_staff_notifications(
+        booking, 'BOOKING_CUSTOMER_REJECTED',
+        f'Customer rejected booking {booking.booking_number}. Reason: '
+        f'{booking.customer_rejection_reason[:100]}',
+    )
+
+
 def notify_booking_resubmitted(booking):
     """Notify customer that their rejected booking is back in draft for revision."""
     emails = _get_customer_emails(booking)

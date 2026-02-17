@@ -557,3 +557,16 @@ class RejectBookingForm(forms.Form):
         max_length=1000,
         label='Rejection Reason',
     )
+
+
+class CustomerRejectForm(forms.Form):
+    """Form for customer to reject a confirmed booking with a reason."""
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 3,
+            'placeholder': 'Explain why you are rejecting this booking...',
+        }),
+        max_length=1000,
+        label='Rejection Reason',
+    )

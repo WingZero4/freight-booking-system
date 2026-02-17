@@ -307,6 +307,7 @@ class TestTrackingMilestones(Tier2TestBase):
         milestones = _build_tracking_milestones(self.booking)
         statuses = {m['label']: m['status'] for m in milestones}
         self.assertEqual(statuses['Confirmed'], 'completed')
+        self.assertEqual(statuses['Packing'], 'pending')
         self.assertEqual(statuses['In Transit'], 'pending')
         self.assertEqual(statuses['Delivered'], 'pending')
 
@@ -610,11 +611,11 @@ class TestBulkOperations(Tier2TestBase):
     def test_bulk_in_transit(self, mock_notify, mock_log):
         self._login_staff()
         bookings = self._create_submitted_bookings(3)
-        # First confirm them
+        # First set to PACKING (customer approved)
         for b in bookings:
-            b.status = 'CONFIRMED'
-            b.confirmed_at = timezone.now()
-            b.save(update_fields=['status', 'confirmed_at'])
+            b.status = 'PACKING'
+            b.packing_at = timezone.now()
+            b.save(update_fields=['status', 'packing_at'])
         resp = self.client.post(reverse('ops_bulk_action'), {
             'bulk_action': 'in_transit',
             'selected_bookings': [b.pk for b in bookings],

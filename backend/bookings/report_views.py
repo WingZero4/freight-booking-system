@@ -406,10 +406,11 @@ def ops_report_carrier_performance(request):
 def ops_report_status_aging(request):
     """How long bookings currently sit in each active status."""
     now = timezone.now()
-    active_statuses = ['SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED']
+    active_statuses = ['SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED']
     ts_field_map = {
         'SUBMITTED': 'submitted_at',
         'CONFIRMED': 'confirmed_at',
+        'PACKING': 'packing_at',
         'IN_TRANSIT': 'in_transit_at',
         'ARRIVED': 'arrived_at',
     }

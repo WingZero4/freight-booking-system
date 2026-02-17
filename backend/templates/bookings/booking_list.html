@@ -143,10 +143,12 @@
                             {% if booking.status == 'DRAFT' %}bg-secondary
                             {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                             {% elif booking.status == 'CONFIRMED' %}bg-success
+                            {% elif booking.status == 'PACKING' %}bg-info
                             {% elif booking.status == 'IN_TRANSIT' %}bg-info
                             {% elif booking.status == 'ARRIVED' %}bg-primary
                             {% elif booking.status == 'COMPLETED' %}bg-info
                             {% elif booking.status == 'REJECTED' %}bg-dark
+                            {% elif booking.status == 'CUSTOMER_REJECTED' %}bg-danger
                             {% else %}bg-danger{% endif %}">
                             {{ booking.get_status_display }}
                         </span>
@@ -180,10 +182,12 @@
                         {% if booking.status == 'DRAFT' %}bg-secondary
                         {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                         {% elif booking.status == 'CONFIRMED' %}bg-success
+                        {% elif booking.status == 'PACKING' %}bg-info
                         {% elif booking.status == 'IN_TRANSIT' %}bg-info
                         {% elif booking.status == 'ARRIVED' %}bg-primary
                         {% elif booking.status == 'COMPLETED' %}bg-info
                         {% elif booking.status == 'REJECTED' %}bg-dark
+                        {% elif booking.status == 'CUSTOMER_REJECTED' %}bg-danger
                         {% else %}bg-danger{% endif %}">
                         {{ booking.get_status_display }}
                     </span>

@@ -140,6 +140,8 @@ class BookingAdmin(admin.ModelAdmin):
         'booking_number', 'created_by', 'source_channel',
         'total_weight_kg', 'total_volume_cbm',
         'created_at', 'updated_at', 'submitted_at', 'confirmed_at',
+        'packing_at', 'customer_approved_by',
+        'customer_rejected_at', 'customer_rejected_by', 'customer_rejection_reason',
         'in_transit_at', 'arrived_at', 'confirmed_by',
         'rejected_at', 'rejected_by', 'rejection_reason',
         'completed_at', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
@@ -197,6 +199,12 @@ class BookingAdmin(admin.ModelAdmin):
         ('Status Details', {
             'fields': ('confirmed_by', 'cancellation_reason',
                        'actual_departure_date', 'actual_arrival_date'),
+            'classes': ('collapse',)
+        }),
+        ('Customer Approval', {
+            'fields': ('packing_at', 'customer_approved_by',
+                       'customer_rejected_at', 'customer_rejected_by',
+                       'customer_rejection_reason'),
             'classes': ('collapse',)
         }),
         ('Timestamps', {

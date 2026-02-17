@@ -24,10 +24,12 @@
                         {% if booking.status == 'DRAFT' %}bg-secondary
                         {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                         {% elif booking.status == 'CONFIRMED' %}bg-success
+                        {% elif booking.status == 'PACKING' %}bg-info
                         {% elif booking.status == 'IN_TRANSIT' %}bg-info
                         {% elif booking.status == 'ARRIVED' %}bg-primary
                         {% elif booking.status == 'COMPLETED' %}bg-info
                         {% elif booking.status == 'REJECTED' %}bg-dark
+                        {% elif booking.status == 'CUSTOMER_REJECTED' %}bg-danger
                         {% else %}bg-danger{% endif %}">
                         {{ booking.get_status_display }}
                     </span>
@@ -49,6 +51,13 @@
                         {% elif booking.status == 'SUBMITTED' %}
                         <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
                             <i class="fas fa-ban me-1"></i>Cancel
+                        </a>
+                        {% elif booking.status == 'CONFIRMED' %}
+                        <a href="{% url 'booking_customer_approve' booking.id %}" class="btn btn-success btn-sm">
+                            <i class="fas fa-thumbs-up me-1"></i>Approve
+                        </a>
+                        <a href="{% url 'booking_customer_reject' booking.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-thumbs-down me-1"></i>Reject
                         </a>
                         {% elif booking.status == 'REJECTED' %}
                         <form method="post" action="{% url 'booking_resubmit' booking.id %}" class="d-inline">
@@ -82,8 +91,28 @@
                         <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-themed-outline btn-sm">
                             <i class="fas fa-ship me-1"></i>Carrier Details
                         </a>
+                        <a href="{% url 'ops_booking_reject' booking.id %}" class="btn btn-dark btn-sm">
+                            <i class="fas fa-times me-1"></i>Reject
+                        </a>
+                        <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-ban me-1"></i>Cancel
+                        </a>
+                        {% elif booking.status == 'CUSTOMER_REJECTED' %}
+                        <a href="{% url 'ops_reconfirm_booking' booking.id %}" class="btn btn-success btn-sm">
+                            <i class="fas fa-redo me-1"></i>Re-confirm
+                        </a>
+                        <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
+                            <i class="fas fa-ban me-1"></i>Cancel
+                        </a>
+                        {% elif booking.status == 'PACKING' %}
+                        <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-themed-outline btn-sm">
+                            <i class="fas fa-ship me-1"></i>Carrier Details
+                        </a>
                         <a href="{% url 'ops_mark_in_transit' booking.id %}" class="btn btn-themed-primary btn-sm">
                             <i class="fas fa-shipping-fast me-1"></i>In Transit
+                        </a>
+                        <a href="{% url 'ops_booking_reject' booking.id %}" class="btn btn-dark btn-sm">
+                            <i class="fas fa-times me-1"></i>Reject
                         </a>
                         <a href="{% url 'booking_cancel' booking.id %}" class="btn btn-outline-danger btn-sm">
                             <i class="fas fa-ban me-1"></i>Cancel
@@ -98,12 +127,18 @@
                         <a href="{% url 'ops_complete_booking' booking.id %}" class="btn btn-info btn-sm">
                             <i class="fas fa-flag-checkered me-1"></i>Complete
                         </a>
+                        <a href="{% url 'ops_booking_reject' booking.id %}" class="btn btn-dark btn-sm">
+                            <i class="fas fa-times me-1"></i>Reject
+                        </a>
                         {% elif booking.status == 'ARRIVED' %}
                         <a href="{% url 'ops_carrier_details' booking.id %}" class="btn btn-themed-outline btn-sm">
                             <i class="fas fa-ship me-1"></i>Carrier Details
                         </a>
                         <a href="{% url 'ops_complete_booking' booking.id %}" class="btn btn-info btn-sm">
                             <i class="fas fa-flag-checkered me-1"></i>Complete
+                        </a>
+                        <a href="{% url 'ops_booking_reject' booking.id %}" class="btn btn-dark btn-sm">
+                            <i class="fas fa-times me-1"></i>Reject
                         </a>
                         {% endif %}
                     {% endif %}
@@ -112,7 +147,7 @@
                         <i class="fas fa-file-pdf me-1"></i>Booking PDF
                     </a>
                     {% endif %}
-                    {% if not user.profile.customer %}{% if booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' or booking.status == 'COMPLETED' %}
+                    {% if not user.profile.customer %}{% if booking.status == 'CONFIRMED' or booking.status == 'PACKING' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' or booking.status == 'COMPLETED' %}
                     <a href="{% url 'shipping_advice_pdf' booking.id %}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-file-pdf me-1"></i>Shipping Advice
                     </a>
@@ -466,6 +501,14 @@
                         </div>
                         {% endif %}
 
+                        <!-- Customer rejection reason -->
+                        {% if booking.status == 'CUSTOMER_REJECTED' and booking.customer_rejection_reason %}
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-user-times me-1"></i>Customer Rejection Reason</h6>
+                            {{ booking.customer_rejection_reason }}
+                        </div>
+                        {% endif %}
+
                         <!-- Cancellation reason -->
                         {% if booking.status == 'CANCELLED' and booking.cancellation_reason %}
                         <div class="alert alert-warning">
@@ -618,7 +661,7 @@
                                         <span class="fw-bold">
                                             <i class="fas fa-user-tag me-1"></i>{{ bp.get_role_display }}
                                         </span>
-                                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
+                                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'PACKING' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
                                         <form method="post" action="{% url 'booking_party_remove' booking.id bp.id %}"
                                               onsubmit="return confirm('Remove this party?');">
                                             {% csrf_token %}
@@ -653,7 +696,7 @@
                 <div class="card">
                     <div class="card-body">
                         <!-- Document Upload Form -->
-                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
+                        {% if booking.status == 'DRAFT' or booking.status == 'SUBMITTED' or booking.status == 'CONFIRMED' or booking.status == 'PACKING' or booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
                         <form method="post" action="{% url 'booking_document_upload' booking.id %}" enctype="multipart/form-data" class="mb-4">
                             {% csrf_token %}
                             <div class="row g-2 align-items-end">
@@ -752,6 +795,12 @@
                         <div class="alert alert-danger">
                             <h6><i class="fas fa-times-circle me-1"></i>Rejection Reason</h6>
                             {{ booking.rejection_reason }}
+                        </div>
+                        {% endif %}
+                        {% if booking.status == 'CUSTOMER_REJECTED' and booking.customer_rejection_reason %}
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-user-times me-1"></i>Customer Rejection Reason</h6>
+                            {{ booking.customer_rejection_reason }}
                         </div>
                         {% endif %}
                         {% if booking.status == 'CANCELLED' and booking.cancellation_reason %}
@@ -862,7 +911,7 @@
                             {% for log in audit_logs %}
                             {% if user.profile.customer %}
                             {# Customer view: show status transitions, documents, parties only #}
-                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'ARRIVED' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'RESUBMITTED' %}
+                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'ARRIVED' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'RESUBMITTED' or log.action == 'CUSTOMER_APPROVED' or log.action == 'CUSTOMER_REJECTED' or log.action == 'RECONFIRMED' %}
                             <div class="list-group-item px-0">
                                 <div class="d-flex justify-content-between">
                                     <div>

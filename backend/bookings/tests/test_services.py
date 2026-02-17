@@ -272,7 +272,7 @@ class TestMarkInTransit(ServiceTestBase):
 
     @patch('bookings.services.notifications.notify_booking_in_transit')
     def test_in_transit_success(self, mock_notify):
-        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        booking = create_booking(self.customer, self.user, status='PACKING')
         BookingService.mark_in_transit(booking, user=self.staff)
         booking.refresh_from_db()
         self.assertEqual(booking.status, 'IN_TRANSIT')
@@ -281,16 +281,20 @@ class TestMarkInTransit(ServiceTestBase):
 
     @patch('bookings.services.notifications.notify_booking_in_transit')
     def test_in_transit_with_departure_date(self, mock_notify):
-        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        booking = create_booking(self.customer, self.user, status='PACKING')
         dep_date = date.today()
         BookingService.mark_in_transit(booking, actual_departure_date=dep_date)
         booking.refresh_from_db()
         self.assertEqual(booking.actual_departure_date, dep_date)
 
-    def test_in_transit_non_confirmed_raises(self):
+    def test_in_transit_non_packing_raises(self):
         booking = create_booking(self.customer, self.user, status='SUBMITTED')
         with self.assertRaises(ValueError):
             BookingService.mark_in_transit(booking)
+
+        booking2 = create_booking(self.customer, self.user, status='CONFIRMED')
+        with self.assertRaises(ValueError):
+            BookingService.mark_in_transit(booking2)
 
 
 class TestMarkArrived(ServiceTestBase):

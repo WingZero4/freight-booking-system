@@ -219,7 +219,9 @@ class Booking(models.Model):
         ('DRAFT', 'Draft'),
         ('SUBMITTED', 'Submitted'),
         ('CONFIRMED', 'Confirmed'),
+        ('CUSTOMER_REJECTED', 'Customer Rejected'),
         ('REJECTED', 'Rejected'),
+        ('PACKING', 'Packing'),
         ('IN_TRANSIT', 'In Transit'),
         ('ARRIVED', 'Arrived'),
         ('COMPLETED', 'Completed'),
@@ -455,6 +457,17 @@ class Booking(models.Model):
         related_name='rejected_bookings'
     )
     rejection_reason = models.TextField(blank=True)
+    packing_at = models.DateTimeField(null=True, blank=True)
+    customer_approved_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='customer_approved_bookings'
+    )
+    customer_rejected_at = models.DateTimeField(null=True, blank=True)
+    customer_rejected_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='customer_rejected_bookings'
+    )
+    customer_rejection_reason = models.TextField(blank=True)
     in_transit_at = models.DateTimeField(null=True, blank=True)
     arrived_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -547,9 +560,9 @@ class Booking(models.Model):
         self.save()
 
     def mark_in_transit(self):
-        """Mark confirmed booking as in transit."""
-        if self.status != 'CONFIRMED':
-            raise ValueError('Only confirmed bookings can be marked in transit.')
+        """Mark packing booking as in transit."""
+        if self.status != 'PACKING':
+            raise ValueError('Only packing bookings can be marked in transit.')
         self.status = 'IN_TRANSIT'
         self.in_transit_at = timezone.now()
         self.save()
@@ -572,7 +585,7 @@ class Booking(models.Model):
 
     def cancel(self, user=None, reason=''):
         """Cancel booking."""
-        if self.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
+        if self.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
             raise ValueError('This booking cannot be cancelled.')
         self.status = 'CANCELLED'
         self.cancelled_at = timezone.now()
@@ -800,6 +813,9 @@ class AuditLog(models.Model):
         ('ITEM_UPDATED', 'Cargo Item Updated'),
         ('ITEM_REMOVED', 'Cargo Item Removed'),
         ('RESUBMITTED', 'Resubmitted from Rejection'),
+        ('CUSTOMER_APPROVED', 'Customer Approved'),
+        ('CUSTOMER_REJECTED', 'Customer Rejected'),
+        ('RECONFIRMED', 'Re-confirmed after Customer Rejection'),
     ]
 
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='audit_logs')
@@ -832,6 +848,8 @@ class Notification(models.Model):
         ('BOOKING_COMPLETED', 'Booking Completed'),
         ('BOOKING_CANCELLED', 'Booking Cancelled'),
         ('BOOKING_RESUBMITTED', 'Booking Resubmitted'),
+        ('BOOKING_CUSTOMER_APPROVED', 'Booking Customer Approved'),
+        ('BOOKING_CUSTOMER_REJECTED', 'Booking Customer Rejected'),
         ('GENERAL', 'General'),
     ]
 

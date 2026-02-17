@@ -222,6 +222,17 @@
             </div>
             <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
             <div class="col">
+                <a href="{% url 'booking_list' %}?status=PACKING" class="text-decoration-none">
+                    <div class="card pipeline-card border-info">
+                        <div class="card-body py-2">
+                            <div class="fs-3 fw-bold text-info">{{ pipeline.packing }}</div>
+                            <small class="text-muted">Packing</small>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-auto pipeline-arrow"><i class="fas fa-arrow-right text-muted"></i></div>
+            <div class="col">
                 <a href="{% url 'booking_list' %}?status=IN_TRANSIT" class="text-decoration-none">
                     <div class="card pipeline-card border-info">
                         <div class="card-body py-2">
@@ -286,7 +297,7 @@
                 <div>
                     <small class="text-muted">Total Active</small>
                     <div class="fs-4 fw-bold">
-                        {{ pipeline.submitted|add:pipeline.confirmed|add:pipeline.in_transit|add:pipeline.arrived }}
+                        {{ pipeline.submitted|add:pipeline.confirmed|add:pipeline.packing|add:pipeline.in_transit|add:pipeline.arrived }}
                     </div>
                 </div>
             </div>

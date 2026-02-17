@@ -681,7 +681,7 @@ class TestOpsMarkInTransit(ViewTestBase):
 
     def test_mark_in_transit_post(self):
         self._login_staff()
-        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        booking = create_booking(self.customer, self.user, status='PACKING')
         resp = self.client.post(reverse('ops_mark_in_transit', args=[booking.id]), {
             'actual_departure_date': date.today().isoformat(),
         })
@@ -689,7 +689,7 @@ class TestOpsMarkInTransit(ViewTestBase):
         self.assertEqual(booking.status, 'IN_TRANSIT')
         self.assertEqual(booking.actual_departure_date, date.today())
 
-    def test_mark_in_transit_non_confirmed_redirects(self):
+    def test_mark_in_transit_non_packing_redirects(self):
         self._login_staff()
         booking = create_booking(self.customer, self.user, status='SUBMITTED')
         resp = self.client.get(reverse('ops_mark_in_transit', args=[booking.id]))

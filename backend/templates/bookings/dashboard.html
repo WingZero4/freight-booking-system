@@ -53,6 +53,16 @@
         </a>
     </div>
     <div class="col-lg col-6 mb-3">
+        <a href="{% url 'booking_list' %}?status=PACKING" class="text-decoration-none">
+            <div class="card stat-card" style="border-left-color: #0dcaf0;">
+                <div class="card-body text-center">
+                    <div class="stat-number text-info">{{ stats.packing }}</div>
+                    <div class="text-muted small">Packing</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-lg col-6 mb-3">
         <a href="{% url 'booking_list' %}?status=IN_TRANSIT" class="text-decoration-none">
             <div class="card stat-card in-transit">
                 <div class="card-body text-center">
@@ -181,9 +191,11 @@
                                 {% elif booking.status == 'SUBMITTED' %}bg-warning text-dark
                                 {% elif booking.status == 'CONFIRMED' %}bg-success
                                 {% elif booking.status == 'IN_TRANSIT' %}bg-info
+                                {% elif booking.status == 'PACKING' %}bg-info
                                 {% elif booking.status == 'ARRIVED' %}bg-primary
                                 {% elif booking.status == 'COMPLETED' %}bg-info
                                 {% elif booking.status == 'REJECTED' %}bg-dark
+                                {% elif booking.status == 'CUSTOMER_REJECTED' %}bg-danger
                                 {% else %}bg-danger{% endif %}">
                                 {{ booking.get_status_display }}
                             </span>

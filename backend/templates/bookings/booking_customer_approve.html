@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}Approve Booking {{ booking.booking_number }} - Freight Booking{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="fas fa-thumbs-up me-2"></i>Approve Booking</h4>
+            </div>
+            <div class="card-body">
+                <p class="lead">Review the confirmed booking details and approve to proceed to packing.</p>
+
+                <div class="alert alert-light border">
+                    <h5 class="mb-3">{{ booking.booking_number }}</h5>
+                    <div class="row">
+                        <div class="col-6">
+                            <p class="text-muted mb-1">Route</p>
+                            <p class="fw-bold">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</p>
+                        </div>
+                        <div class="col-6">
+                            <p class="text-muted mb-1">{% if booking.container_type %}Container{% else %}Mode{% endif %}</p>
+                            <p class="fw-bold">{% if booking.container_type %}{{ booking.container_count }} x {{ booking.container_type.code }}{% else %}{{ booking.get_transport_mode_display }}{% endif %}</p>
+                        </div>
+                    </div>
+                    {% if booking.carrier_name or booking.vessel_name %}
+                    <div class="row">
+                        <div class="col-6">
+                            <p class="text-muted mb-1">Carrier</p>
+                            <p class="fw-bold">{{ booking.carrier_name|default:"-" }}</p>
+                        </div>
+                        <div class="col-6">
+                            <p class="text-muted mb-1">Vessel/Flight</p>
+                            <p class="fw-bold">{{ booking.vessel_name|default:booking.flight_number|default:"-" }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if booking.etd or booking.eta %}
+                    <div class="row">
+                        <div class="col-6">
+                            <p class="text-muted mb-1">ETD</p>
+                            <p class="fw-bold">{{ booking.etd|date:"M d, Y"|default:"-" }}</p>
+                        </div>
+                        <div class="col-6">
+                            <p class="text-muted mb-1">ETA</p>
+                            <p class="fw-bold">{{ booking.eta|date:"M d, Y"|default:"-" }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <p class="text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    By approving, you confirm acceptance of the carrier and schedule details above. The booking will move to Packing status.
+                </p>
+
+                <div class="d-flex gap-2">
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-thumbs-up me-1"></i>Approve
+                        </button>
+                    </form>
+                    <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

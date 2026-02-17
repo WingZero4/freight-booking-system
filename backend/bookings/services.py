@@ -408,10 +408,67 @@ class BookingService:
             _safe_fms_dispatch('dispatch_booking_confirmed', booking)
 
     @classmethod
+    def customer_approve_booking(cls, booking, user=None, request=None):
+        """Customer approves a CONFIRMED booking, moving it to PACKING."""
+        if booking.status != 'CONFIRMED':
+            raise ValueError('Only confirmed bookings can be approved by the customer.')
+
+        with transaction.atomic():
+            booking.status = 'PACKING'
+            booking.packing_at = timezone.now()
+            booking.customer_approved_by = user
+            booking.save()
+
+            cls._log(booking, 'CUSTOMER_APPROVED', user=user, request=request)
+
+        notifications.notify_booking_customer_approved(booking)
+
+    @classmethod
+    def customer_reject_booking(cls, booking, user=None, reason='', request=None):
+        """Customer rejects a CONFIRMED booking."""
+        if booking.status != 'CONFIRMED':
+            raise ValueError('Only confirmed bookings can be rejected by the customer.')
+
+        with transaction.atomic():
+            booking.status = 'CUSTOMER_REJECTED'
+            booking.customer_rejected_at = timezone.now()
+            booking.customer_rejected_by = user
+            booking.customer_rejection_reason = reason
+            booking.save()
+
+            cls._log(
+                booking, 'CUSTOMER_REJECTED', user=user, request=request,
+                notes=reason,
+            )
+
+        notifications.notify_booking_customer_rejected(booking)
+
+    @classmethod
+    def reconfirm_booking(cls, booking, user=None, request=None):
+        """Return a CUSTOMER_REJECTED booking to CONFIRMED (ops re-proposes)."""
+        if booking.status != 'CUSTOMER_REJECTED':
+            raise ValueError('Only customer-rejected bookings can be re-confirmed.')
+
+        with transaction.atomic():
+            booking.status = 'CONFIRMED'
+            booking.customer_rejected_at = None
+            booking.customer_rejected_by = None
+            booking.customer_rejection_reason = ''
+            booking.confirmed_at = timezone.now()
+            booking.confirmed_by = user
+            booking.save()
+
+            cls._log(booking, 'RECONFIRMED', user=user, request=request,
+                     notes='Booking re-confirmed after customer rejection')
+
+        notifications.notify_booking_confirmed(booking)
+
+    @classmethod
     def reject_booking(cls, booking, user=None, reason='', request=None):
-        """Reject a SUBMITTED booking."""
-        if booking.status != 'SUBMITTED':
-            raise ValueError('Only submitted bookings can be rejected.')
+        """Reject a booking (ops action). Allowed from most active statuses."""
+        allowed = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
+        if booking.status not in allowed:
+            raise ValueError('This booking cannot be rejected.')
 
         with transaction.atomic():
             booking.status = 'REJECTED'
@@ -430,9 +487,9 @@ class BookingService:
     @classmethod
     def mark_in_transit(cls, booking, user=None, request=None,
                         actual_departure_date=None):
-        """Mark a CONFIRMED booking as in transit."""
-        if booking.status != 'CONFIRMED':
-            raise ValueError('Only confirmed bookings can be marked in transit.')
+        """Mark a PACKING booking as in transit."""
+        if booking.status != 'PACKING':
+            raise ValueError('Only bookings in packing status can be marked in transit.')
 
         with transaction.atomic():
             booking.status = 'IN_TRANSIT'
@@ -541,9 +598,9 @@ class BookingService:
 
     @classmethod
     def update_carrier_details(cls, booking, form, user=None, request=None):
-        """Update carrier details on a CONFIRMED, IN_TRANSIT, or ARRIVED booking."""
-        if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
-            raise ValueError('Carrier details can only be updated on confirmed, in-transit, or arrived bookings.')
+        """Update carrier details on a CONFIRMED, PACKING, IN_TRANSIT, or ARRIVED booking."""
+        if booking.status not in ('CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+            raise ValueError('Carrier details can only be updated on confirmed, packing, in-transit, or arrived bookings.')
 
         if not form.is_valid():
             raise ValueError('Invalid carrier details.')
@@ -589,7 +646,7 @@ class BookingService:
     @classmethod
     def assign_carrier_config(cls, booking, carrier_config, user=None, request=None):
         """Assign a carrier config to a booking (operations action)."""
-        if booking.status not in ('SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Carrier can only be assigned to active bookings.')
 
         old_config_id = booking.carrier_config_id
@@ -622,7 +679,7 @@ class BookingService:
         """
         if not booking.carrier_config_id:
             raise ValueError('No carrier config assigned to this booking.')
-        if booking.status not in ('CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Booking must be confirmed before submitting to carrier.')
         if booking.carrier_request_status in ('SUBMITTED', 'CONFIRMED'):
             raise ValueError('Booking has already been submitted to the carrier.')
@@ -636,18 +693,18 @@ class BookingService:
 
     @classmethod
     def cancel_booking(cls, booking, user=None, reason='', request=None):
-        """Cancel a DRAFT, SUBMITTED, or CONFIRMED booking.
+        """Cancel a DRAFT, SUBMITTED, CONFIRMED, or PACKING booking.
 
-        Cancelling a CONFIRMED booking requires a reason and is staff-only.
+        Cancelling a CONFIRMED or PACKING booking requires a reason and is staff-only.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
             raise ValueError('This booking cannot be cancelled.')
 
-        if booking.status == 'CONFIRMED':
+        if booking.status in ('CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
             if not user or not user.is_staff:
-                raise ValueError('Only staff can cancel confirmed bookings.')
+                raise ValueError('Only staff can cancel confirmed, packing, or customer-rejected bookings.')
             if not reason or not reason.strip():
-                raise ValueError('A cancellation reason is required for confirmed bookings.')
+                raise ValueError('A cancellation reason is required.')
 
         with transaction.atomic():
             booking.status = 'CANCELLED'
@@ -695,7 +752,7 @@ class BookingService:
 
         Returns the new BookingDocument instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Documents can only be uploaded to active bookings.')
 
         if not form.is_valid():
@@ -753,7 +810,7 @@ class BookingService:
 
         Returns the new BookingParty instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Parties can only be added to active bookings.')
 
         with transaction.atomic():
@@ -772,7 +829,7 @@ class BookingService:
     @classmethod
     def remove_party_from_booking(cls, booking, booking_party, user=None, request=None):
         """Remove a party assignment from a booking."""
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Parties can only be removed from active bookings.')
 
         old = {
