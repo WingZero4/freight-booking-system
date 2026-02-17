@@ -599,7 +599,7 @@ def booking_customer_approve(request, booking_id):
 
     # Only customers can approve — staff must not use this endpoint
     customer = get_user_customer(request.user)
-    if not customer:
+    if not customer or request.user.is_staff:
         messages.error(request, 'Only customers can approve bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -632,7 +632,7 @@ def booking_customer_reject(request, booking_id):
 
     # Only customers can reject — staff must not use this endpoint
     customer = get_user_customer(request.user)
-    if not customer:
+    if not customer or request.user.is_staff:
         messages.error(request, 'Only customers can reject bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -1141,13 +1141,14 @@ def ops_reconfirm_booking(request, booking_id):
     if request.method == 'POST':
         carrier_form = CarrierDetailsForm(request.POST, instance=booking)
         try:
-            # Save updated carrier details first
-            if carrier_form.is_valid():
-                carrier_form.save()
-                booking.refresh_from_db()
-            BookingService.reconfirm_booking(
-                booking, user=request.user, request=request,
-            )
+            with transaction.atomic():
+                # Save updated carrier details and reconfirm atomically
+                if carrier_form.is_valid():
+                    carrier_form.save()
+                    booking.refresh_from_db()
+                BookingService.reconfirm_booking(
+                    booking, user=request.user, request=request,
+                )
             messages.success(
                 request,
                 f'Booking {booking.booking_number} re-confirmed. Awaiting customer approval.',
