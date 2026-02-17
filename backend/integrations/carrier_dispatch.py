@@ -17,6 +17,7 @@ from .models import CarrierConfig, IntegrationLog
 from .adapters.carrier_webhook import CarrierWebhookAdapter
 from .adapters.dcsa_booking import DCSABookingAdapter
 from .adapters.iata_one_record import IATAOneRecordAdapter
+from .adapters.maersk import MaerskAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ CARRIER_ADAPTER_REGISTRY = {
     'carrier_webhook': CarrierWebhookAdapter,
     'dcsa': DCSABookingAdapter,
     'one_record': IATAOneRecordAdapter,
+    'maersk': MaerskAdapter,
 }
 
 

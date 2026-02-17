@@ -77,6 +77,7 @@ class CarrierConfig(models.Model):
         ('carrier_webhook', 'Generic Webhook (JSON POST)'),
         ('dcsa', 'DCSA Booking API v2'),
         ('one_record', 'IATA ONE Record'),
+        ('maersk', 'Maersk API'),
     ]
 
     AUTH_TYPE_CHOICES = [
