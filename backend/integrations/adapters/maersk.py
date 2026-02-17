@@ -21,6 +21,7 @@ Configuration (via CarrierConfig in Django admin):
 import logging
 import threading
 import time
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -37,6 +38,9 @@ DEFAULT_TOKEN_URL = (
 )
 DEFAULT_BOOKING_PATH = '/v1/bookings'
 DEFAULT_TRACKING_PATH = '/v1/trackings'
+
+# Allowed Maersk API hosts (prevents SSRF via admin-configurable URLs)
+ALLOWED_MAERSK_HOSTS = {'api.maersk.com', 'api-gw.maersk.com'}
 
 
 class MaerskAdapter(BaseCarrierAdapter):
@@ -65,6 +69,21 @@ class MaerskAdapter(BaseCarrierAdapter):
             'tracking_path', DEFAULT_TRACKING_PATH
         )
         self._brand_scac = self.extra_config.get('brand_scac', 'MAEU')
+
+        # Validate URLs against allowlist to prevent SSRF
+        self._validate_url(self._token_url, 'token_url')
+        self._validate_url(self.endpoint, 'api_endpoint')
+
+    @staticmethod
+    def _validate_url(url, label):
+        """Validate URL uses HTTPS and belongs to allowed Maersk domains."""
+        parsed = urlparse(url)
+        if parsed.scheme != 'https':
+            raise ValueError(f'Maersk {label} must use HTTPS: {url}')
+        if parsed.hostname not in ALLOWED_MAERSK_HOSTS:
+            raise ValueError(
+                f'Maersk {label} host not in allowlist: {parsed.hostname}'
+            )
 
     # ── OAuth 2.0 Token Management ──────────────────────────────────
 
@@ -269,9 +288,10 @@ class MaerskAdapter(BaseCarrierAdapter):
         try:
             headers = self._get_headers()
         except requests.RequestException as e:
+            logger.error('Maersk OAuth failed for %s: %s', booking_number, e)
             return AdapterResult(
                 success=False,
-                error_message=f'OAuth token acquisition failed: {e}',
+                error_message='Carrier authentication failed. Check API credentials.',
             )
 
         try:
@@ -364,17 +384,20 @@ class MaerskAdapter(BaseCarrierAdapter):
             logger.warning('Maersk API timeout for booking %s', booking_number)
             return AdapterResult(
                 success=False,
-                error_message=f'Timeout after {TIMEOUT_SECONDS}s',
+                error_message=f'Carrier API timeout after {TIMEOUT_SECONDS}s.',
             )
         except requests.ConnectionError as e:
             logger.warning('Maersk API connection error: %s', e)
             return AdapterResult(
                 success=False,
-                error_message=f'Connection error: {e}',
+                error_message='Connection to carrier API failed. Check network configuration.',
             )
         except requests.RequestException as e:
             logger.exception('Maersk API request failed for %s', booking_number)
-            return AdapterResult(success=False, error_message=str(e))
+            return AdapterResult(
+                success=False,
+                error_message='Carrier API request failed unexpectedly.',
+            )
 
     def cancel_booking(self, booking_data, carrier_ref):
         """Cancel a previously submitted booking with Maersk."""
@@ -384,15 +407,16 @@ class MaerskAdapter(BaseCarrierAdapter):
                 error_message='No carrier booking reference to cancel.',
             )
 
-        url = f'{self.endpoint}{self._booking_path}/{carrier_ref}'
+        url = f'{self.endpoint}{self._booking_path}/{quote(carrier_ref, safe="")}'
         logger.info('Cancelling Maersk booking %s', carrier_ref)
 
         try:
             headers = self._get_headers()
         except requests.RequestException as e:
+            logger.error('Maersk OAuth failed for cancel %s: %s', carrier_ref, e)
             return AdapterResult(
                 success=False,
-                error_message=f'OAuth token acquisition failed: {e}',
+                error_message='Carrier authentication failed. Check API credentials.',
             )
 
         try:
@@ -422,7 +446,10 @@ class MaerskAdapter(BaseCarrierAdapter):
 
         except requests.RequestException as e:
             logger.exception('Maersk cancel failed for %s', carrier_ref)
-            return AdapterResult(success=False, error_message=str(e))
+            return AdapterResult(
+                success=False,
+                error_message='Carrier cancellation request failed unexpectedly.',
+            )
 
     def amend_booking(self, booking_data, carrier_ref):
         """Amend a previously submitted booking with Maersk."""
@@ -432,7 +459,7 @@ class MaerskAdapter(BaseCarrierAdapter):
                 error_message='No carrier booking reference to amend.',
             )
 
-        url = f'{self.endpoint}{self._booking_path}/{carrier_ref}'
+        url = f'{self.endpoint}{self._booking_path}/{quote(carrier_ref, safe="")}'
         try:
             payload = self._build_booking_payload(booking_data)
         except Exception as e:
@@ -446,9 +473,10 @@ class MaerskAdapter(BaseCarrierAdapter):
         try:
             headers = self._get_headers()
         except requests.RequestException as e:
+            logger.error('Maersk OAuth failed for amend %s: %s', carrier_ref, e)
             return AdapterResult(
                 success=False,
-                error_message=f'OAuth token acquisition failed: {e}',
+                error_message='Carrier authentication failed. Check API credentials.',
             )
 
         try:
@@ -475,7 +503,10 @@ class MaerskAdapter(BaseCarrierAdapter):
 
         except requests.RequestException as e:
             logger.exception('Maersk amend failed for %s', carrier_ref)
-            return AdapterResult(success=False, error_message=str(e))
+            return AdapterResult(
+                success=False,
+                error_message='Carrier amendment request failed unexpectedly.',
+            )
 
     # ── Tracking (bonus utility) ────────────────────────────────────
 
@@ -489,15 +520,16 @@ class MaerskAdapter(BaseCarrierAdapter):
         Returns:
             AdapterResult with tracking events in response_data.
         """
-        url = f'{self.endpoint}{self._tracking_path}/{tracking_number}'
+        url = f'{self.endpoint}{self._tracking_path}/{quote(tracking_number, safe="")}'
         logger.info('Tracking Maersk shipment %s', tracking_number)
 
         try:
             headers = self._get_headers()
         except requests.RequestException as e:
+            logger.error('Maersk OAuth failed for tracking %s: %s', tracking_number, e)
             return AdapterResult(
                 success=False,
-                error_message=f'OAuth token acquisition failed: {e}',
+                error_message='Carrier authentication failed. Check API credentials.',
             )
 
         try:
@@ -523,7 +555,10 @@ class MaerskAdapter(BaseCarrierAdapter):
 
         except requests.RequestException as e:
             logger.exception('Maersk tracking failed for %s', tracking_number)
-            return AdapterResult(success=False, error_message=str(e))
+            return AdapterResult(
+                success=False,
+                error_message='Carrier tracking request failed unexpectedly.',
+            )
 
     # ── Callback Parser ─────────────────────────────────────────────
 
