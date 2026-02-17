@@ -97,7 +97,12 @@ class MaerskAdapter(BaseCarrierAdapter):
                 response.raise_for_status()
                 token_data = response.json()
 
-                token = token_data['access_token']
+                token = token_data.get('access_token')
+                if not token:
+                    raise requests.RequestException(
+                        f'Maersk OAuth response missing access_token: '
+                        f'{list(token_data.keys())}'
+                    )
                 expires_in = int(token_data.get('expires_in', 3600))
                 expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
                 MaerskAdapter._token_cache[cache_key] = (token, expires_at)
