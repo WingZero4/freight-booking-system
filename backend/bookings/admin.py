@@ -238,7 +238,7 @@ class BookingAdmin(admin.ModelAdmin):
     @admin.action(description='Cancel selected bookings')
     def cancel_bookings(self, request, queryset):
         count = 0
-        for booking in queryset.filter(status__in=['DRAFT', 'SUBMITTED']):
+        for booking in queryset.filter(status__in=['DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED']):
             BookingService.cancel_booking(booking, user=request.user, request=request)
             count += 1
         self.message_user(request, f'{count} booking(s) cancelled.')
