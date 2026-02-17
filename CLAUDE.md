@@ -14,16 +14,17 @@ This prevents loss of context, project rules, and review process requirements.
 
 ## Mandatory Pre-Commit Review Process
 
-**Before every commit and deploy, ALL 5 review agents must run in parallel and any issues found must be fixed:**
+**Before every commit and deploy, ALL 6 review agents must run in parallel and any issues found must be fixed:**
 
 1. **Code Architect** — Reviews models, views, forms, services, admin, URLs, settings for bugs, import errors, logic issues, N+1 queries, Django compatibility
 2. **Template Specialist** — Reviews all templates for undefined context variables, broken URL tags, missing form fields, broken Bootstrap grid, missing CSRF tokens, conditional logic errors
 3. **QA Tester** — Traces all critical user flows (customer + staff) for functional bugs, permission issues, status transition errors, data loss
 4. **Security Reviewer** — Checks authorization, input validation, CSRF, data exposure (contract numbers hidden from customers), file upload security, settings hardening
 5. **Migration & Consistency Checker** — Verifies model fields match migrations, admin fieldsets match model, form fields match model, views reference valid fields
+6. **Systems Workflow Specialist** — Traces end-to-end integration dispatch chains (BookingService → carrier_dispatch/dispatch → adapters → callbacks → FMS push), verifies cross-module data contracts (serializer output matches adapter input), status state machine consistency across all modules, error propagation and recovery paths, background thread safety, webhook/callback wiring, and retry/recovery mechanisms
 
 **Workflow:**
-- Launch all 5 agents in parallel after code changes are complete
+- Launch all 6 agents in parallel after code changes are complete
 - Consolidate findings, filter false positives
 - Fix all confirmed bugs
 - Run `python manage.py check` to verify no Django errors
