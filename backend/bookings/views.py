@@ -576,6 +576,10 @@ def booking_cancel(request, booking_id):
 def booking_resubmit(request, booking_id):
     """Return a REJECTED booking to DRAFT for revision (customer action)."""
     booking = get_booking_for_user(booking_id, request.user)
+    customer = get_user_customer(request.user)
+    if not customer or request.user.is_staff:
+        messages.error(request, 'Only customers can resubmit bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
 
     if booking.status != 'REJECTED':
         messages.error(request, 'Only rejected bookings can be resubmitted.')
