@@ -31,9 +31,9 @@ class DCSABookingAdapter(BaseCarrierAdapter):
 
     def _build_dcsa_payload(self, booking_data):
         """Transform canonical booking dict to DCSA Booking request schema."""
-        route = booking_data.get('route', {})
-        container = booking_data.get('container', {})
-        cargo = booking_data.get('cargo', {})
+        route = booking_data.get('route') or {}
+        container = booking_data.get('container') or {}
+        cargo = booking_data.get('cargo') or {}
 
         return {
             'receiptTypeAtOrigin': 'CY',

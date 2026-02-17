@@ -99,7 +99,10 @@ def _update_carrier_status(booking, result, status_on_success='SUBMITTED'):
         if refs.get('carrier_booking_ref'):
             fields_to_update['carrier_booking_ref'] = refs['carrier_booking_ref']
 
-    Booking.objects.filter(pk=booking.pk).update(**fields_to_update)
+    # Avoid overwriting a callback that arrived before this update
+    Booking.objects.filter(pk=booking.pk).exclude(
+        carrier_request_status__in=['CONFIRMED', 'REJECTED', 'CANCELLED'],
+    ).update(**fields_to_update)
 
 
 # ─── Public dispatch functions ──────────────────────────────────────

@@ -88,52 +88,68 @@ class MaerskAdapter(BaseCarrierAdapter):
     # ── OAuth 2.0 Token Management ──────────────────────────────────
 
     def _get_access_token(self):
-        """Obtain or refresh OAuth 2.0 access token (thread-safe, class-level cache)."""
+        """Obtain or refresh OAuth 2.0 access token (thread-safe, class-level cache).
+
+        Uses double-check locking: the lock is only held for cache reads/writes,
+        never during the HTTP token request, so concurrent threads aren't blocked
+        for up to 30 seconds if the token endpoint is slow.
+        """
         cache_key = self.api_key
+
+        # Fast path: check cache under lock
         with MaerskAdapter._cache_lock:
             cached = MaerskAdapter._token_cache.get(cache_key)
             if cached and time.time() < cached[1]:
                 return cached[0]
 
-            headers = {
-                'Consumer-Key': self.api_key,
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Cache-Control': 'no-cache',
-            }
-            data = {
-                'grant_type': 'client_credentials',
-                'client_id': self.api_key,
-                'client_secret': self.api_secret,
-            }
+        # Fetch token OUTSIDE the lock (may take up to TIMEOUT_SECONDS)
+        token, expires_in = self._fetch_oauth_token()
 
-            try:
-                response = requests.post(
-                    self._token_url,
-                    headers=headers,
-                    data=data,
-                    timeout=TIMEOUT_SECONDS,
+        # Store in cache under lock (double-check: another thread may have refreshed)
+        with MaerskAdapter._cache_lock:
+            cached = MaerskAdapter._token_cache.get(cache_key)
+            if cached and time.time() < cached[1]:
+                return cached[0]
+            expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
+            MaerskAdapter._token_cache[cache_key] = (token, expires_at)
+            logger.info('Maersk OAuth token acquired, expires in %ds', expires_in)
+            return token
+
+    def _fetch_oauth_token(self):
+        """Make the HTTP request to obtain an OAuth token. Returns (token, expires_in)."""
+        headers = {
+            'Consumer-Key': self.api_key,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cache-Control': 'no-cache',
+        }
+        data = {
+            'grant_type': 'client_credentials',
+            'client_id': self.api_key,
+            'client_secret': self.api_secret,
+        }
+
+        try:
+            response = requests.post(
+                self._token_url,
+                headers=headers,
+                data=data,
+                timeout=TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            token_data = response.json()
+
+            token = token_data.get('access_token')
+            if not token:
+                raise requests.RequestException(
+                    f'Maersk OAuth response missing access_token: '
+                    f'{list(token_data.keys())}'
                 )
-                response.raise_for_status()
-                token_data = response.json()
+            expires_in = int(token_data.get('expires_in', 3600))
+            return token, expires_in
 
-                token = token_data.get('access_token')
-                if not token:
-                    raise requests.RequestException(
-                        f'Maersk OAuth response missing access_token: '
-                        f'{list(token_data.keys())}'
-                    )
-                expires_in = int(token_data.get('expires_in', 3600))
-                expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
-                MaerskAdapter._token_cache[cache_key] = (token, expires_at)
-
-                logger.info(
-                    'Maersk OAuth token acquired, expires in %ds', expires_in
-                )
-                return token
-
-            except requests.RequestException as e:
-                logger.error('Maersk OAuth token request failed: %s', e)
-                raise
+        except requests.RequestException as e:
+            logger.error('Maersk OAuth token request failed: %s', e)
+            raise
 
     def _get_headers(self):
         """Build authenticated headers for Maersk API calls."""
@@ -148,9 +164,9 @@ class MaerskAdapter(BaseCarrierAdapter):
 
     def _build_booking_payload(self, booking_data):
         """Map canonical booking data to Maersk DCSA-inspired format."""
-        route = booking_data.get('route', {})
-        container = booking_data.get('container', {})
-        cargo = booking_data.get('cargo', {})
+        route = booking_data.get('route') or {}
+        container = booking_data.get('container') or {}
+        cargo = booking_data.get('cargo') or {}
         parties_raw = booking_data.get('parties', {})
         parties = (
             list(parties_raw.values()) if isinstance(parties_raw, dict)

@@ -100,7 +100,8 @@ class Command(BaseCommand):
     def _recover_stuck_fms(self, cutoff):
         """Re-dispatch bookings stuck in fms_push_status=PENDING.
 
-        Uses atomic conditional update to prevent race with daemon threads.
+        Uses atomic conditional update to claim the booking before
+        re-dispatching, preventing race conditions with daemon threads.
         """
         from bookings.models import Booking
         from integrations import dispatch as fms_dispatch
@@ -115,10 +116,13 @@ class Command(BaseCommand):
         count = 0
         for pk in stuck_pks:
             try:
-                booking = Booking.objects.get(pk=pk)
-                # Re-check status — may have been resolved by the original thread
-                if booking.fms_push_status != 'PENDING':
+                # Atomic claim: only proceed if still PENDING
+                claimed = Booking.objects.filter(
+                    pk=pk, fms_push_status='PENDING',
+                ).update(fms_push_error='Worker recovery in progress')
+                if not claimed:
                     continue
+                booking = Booking.objects.get(pk=pk)
                 logger.info(
                     'Recovering stuck FMS dispatch for %s',
                     booking.booking_number,
@@ -137,7 +141,8 @@ class Command(BaseCommand):
     def _recover_stuck_carrier(self, cutoff):
         """Re-dispatch bookings stuck in carrier_request_status=PENDING.
 
-        Uses atomic conditional update to prevent race with daemon threads.
+        Uses atomic conditional update to claim the booking before
+        re-dispatching, preventing race conditions with daemon threads.
         """
         from bookings.models import Booking
         from integrations import carrier_dispatch
@@ -152,10 +157,13 @@ class Command(BaseCommand):
         count = 0
         for pk in stuck_pks:
             try:
-                booking = Booking.objects.get(pk=pk)
-                # Re-check status — may have been resolved by the original thread
-                if booking.carrier_request_status != 'PENDING':
+                # Atomic claim: only proceed if still PENDING
+                claimed = Booking.objects.filter(
+                    pk=pk, carrier_request_status='PENDING',
+                ).update(carrier_request_error='Worker recovery in progress')
+                if not claimed:
                     continue
+                booking = Booking.objects.get(pk=pk)
                 logger.info(
                     'Recovering stuck carrier dispatch for %s',
                     booking.booking_number,
