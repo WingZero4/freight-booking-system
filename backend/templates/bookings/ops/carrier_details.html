@@ -64,7 +64,7 @@
                             {{ form.eta }}
                         </div>
                     </div>
-                    <div class="row mb-4">
+                    <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Carrier Booking Ref</label>
                             {{ form.carrier_booking_ref }}
@@ -75,6 +75,33 @@
                             <div class="form-text text-muted">Not visible to customers.</div>
                         </div>
                     </div>
+
+                    <!-- Bill of Lading / Airway Bill numbers -->
+                    {% if booking.transport_mode == 'AIR' %}
+                    <h6 class="mb-3"><i class="fas fa-plane me-2 text-themed-primary"></i>Airway Bill Numbers</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">HAWB Number</label>
+                            {{ form.hawb_number }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">MAWB Number</label>
+                            {{ form.mawb_number }}
+                        </div>
+                    </div>
+                    {% else %}
+                    <h6 class="mb-3"><i class="fas fa-file-contract me-2 text-themed-primary"></i>Bill of Lading Numbers</h6>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">HBL Number</label>
+                            {{ form.hbl_number }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">MBL Number</label>
+                            {{ form.mbl_number }}
+                        </div>
+                    </div>
+                    {% endif %}
                     <hr>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-themed-primary">

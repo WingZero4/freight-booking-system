@@ -411,6 +411,7 @@ class CarrierDetailsForm(forms.ModelForm):
             'carrier_name', 'vessel_name', 'voyage_number',
             'cargo_cutoff_date', 'etd', 'eta',
             'carrier_booking_ref', 'contract_number',
+            'hbl_number', 'mbl_number', 'hawb_number', 'mawb_number',
         ]
         widgets = {
             'carrier_config': forms.Select(
@@ -444,6 +445,22 @@ class CarrierDetailsForm(forms.ModelForm):
             'contract_number': forms.TextInput(
                 attrs={'class': 'form-control',
                        'placeholder': 'Internal contract number'}
+            ),
+            'hbl_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'House B/L number'}
+            ),
+            'mbl_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'Master B/L number'}
+            ),
+            'hawb_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'House Airway Bill number'}
+            ),
+            'mawb_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'Master Airway Bill number'}
             ),
         }
 

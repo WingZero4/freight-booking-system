@@ -861,6 +861,45 @@
                         </div>
                         {% endif %}
 
+                        <!-- Bill of Lading / Airway Bill -->
+                        {% if booking.transport_mode == 'AIR' %}
+                            {% if booking.hawb_number or booking.mawb_number %}
+                            <h5 class="mt-4 mb-3"><i class="fas fa-plane me-2 text-themed-primary"></i>Airway Bill Numbers</h5>
+                            <div class="row">
+                                {% if booking.hawb_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">HAWB</p>
+                                    <p class="fw-bold">{{ booking.hawb_number }}</p>
+                                </div>
+                                {% endif %}
+                                {% if booking.mawb_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">MAWB</p>
+                                    <p class="fw-bold">{{ booking.mawb_number }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            {% if booking.hbl_number or booking.mbl_number %}
+                            <h5 class="mt-4 mb-3"><i class="fas fa-file-contract me-2 text-themed-primary"></i>Bill of Lading</h5>
+                            <div class="row">
+                                {% if booking.hbl_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">HBL</p>
+                                    <p class="fw-bold">{{ booking.hbl_number }}</p>
+                                </div>
+                                {% endif %}
+                                {% if booking.mbl_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">MBL</p>
+                                    <p class="fw-bold">{{ booking.mbl_number }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endif %}
+
                         <!-- Shipment Milestones -->
                         {% if shipment_milestones or milestone_form %}
                         <h5 class="mt-4 mb-3"><i class="fas fa-tasks me-2 text-themed-primary"></i>Operational Milestones</h5>
