@@ -294,6 +294,12 @@ class Booking(models.Model):
         help_text='Number of containers (required for FCL shipments)'
     )
 
+    # LCL consolidation (Sea LCL only)
+    lcl_consolidation_number = models.CharField(
+        max_length=50, blank=True,
+        help_text='Consolidation number for LCL shipments (assigned by forwarder)'
+    )
+
     # Trade terms (Phase 1.5)
     incoterms = models.CharField(
         max_length=3, choices=INCOTERMS_CHOICES, default='FOB',
@@ -337,8 +343,8 @@ class Booking(models.Model):
         max_length=10, choices=SOURCE_CHANNEL_CHOICES, default='WEB'
     )
     external_reference = models.CharField(
-        max_length=100, blank=True,
-        help_text='Customer or external system reference number'
+        max_length=100,
+        help_text='Customer or external system reference number (required)'
     )
     carrier_booking_ref = models.CharField(
         max_length=100, blank=True,

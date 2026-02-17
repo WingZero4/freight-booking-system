@@ -1332,8 +1332,10 @@ def booking_clone(request, booking_id):
                 cargo_ready_date=booking.cargo_ready_date,
                 container_type=booking.container_type,
                 container_count=booking.container_count,
+                lcl_consolidation_number=booking.lcl_consolidation_number,
                 chargeable_weight_kg=booking.chargeable_weight_kg,
                 flight_number=booking.flight_number,
+                external_reference=booking.external_reference,
                 incoterms=booking.incoterms,
                 incoterms_location=booking.incoterms_location,
                 commodity_description=booking.commodity_description,
@@ -1444,9 +1446,9 @@ def booking_export_csv(request):
     headers = [
         'Booking Number', 'Status', 'Transport Mode', 'Customer',
         'Origin', 'Destination',
-        'Container Type', 'Container Count',
+        'Container Type', 'Container Count', 'LCL Consolidation',
         'Chargeable Weight (kg)', 'Flight Number',
-        'Cargo Ready Date', 'Cargo Cutoff',
+        'External Reference', 'Cargo Ready Date', 'Cargo Cutoff',
         'INCOTERMS', 'Carrier', 'Vessel', 'Voyage Number', 'ETD', 'ETA',
     ]
     if is_staff:
@@ -1464,8 +1466,9 @@ def booking_export_csv(request):
             b.customer.code,
             b.origin_port.code, b.destination_port.code,
             b.container_type.code if b.container_type else '', b.container_count or '',
+            b.lcl_consolidation_number or '',
             b.chargeable_weight_kg or '', b.flight_number or '',
-            b.cargo_ready_date, b.cargo_cutoff_date or '',
+            b.external_reference, b.cargo_ready_date, b.cargo_cutoff_date or '',
             b.incoterms, b.carrier_name, b.vessel_name, b.voyage_number or '',
             b.etd or '', b.eta or '',
         ]

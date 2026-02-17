@@ -15,6 +15,7 @@ class BookingForm(forms.ModelForm):
             'origin_port', 'destination_port', 'cargo_ready_date',
             'container_type', 'container_count',
             'chargeable_weight_kg', 'flight_number',
+            'lcl_consolidation_number',
             'incoterms', 'incoterms_location',
             'commodity_description', 'is_hazardous',
             'external_reference', 'special_instructions',
@@ -47,9 +48,13 @@ class BookingForm(forms.ModelForm):
                        'placeholder': 'e.g. Electronic components, textiles'}
             ),
             'is_hazardous': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'lcl_consolidation_number': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': 'e.g. CONSOL-2026-001'}
+            ),
             'external_reference': forms.TextInput(
                 attrs={'class': 'form-control',
-                       'placeholder': 'Your reference number (optional)'}
+                       'placeholder': 'Your reference number (e.g. PO-12345)'}
             ),
             'special_instructions': forms.Textarea(
                 attrs={'class': 'form-control', 'rows': 2,
@@ -66,12 +71,12 @@ class BookingForm(forms.ModelForm):
         self.fields['incoterms_location'].required = False
         self.fields['commodity_description'].required = False
         self.fields['is_hazardous'].required = False
-        self.fields['external_reference'].required = False
         # Mode-specific fields — all optional at form level; clean() enforces per mode
         self.fields['container_type'].required = False
         self.fields['container_count'].required = False
         self.fields['chargeable_weight_kg'].required = False
         self.fields['flight_number'].required = False
+        self.fields['lcl_consolidation_number'].required = False
 
     def clean_cargo_ready_date(self):
         cargo_date = self.cleaned_data['cargo_ready_date']
@@ -113,9 +118,10 @@ class BookingForm(forms.ModelForm):
                 self.add_error('container_type', 'Container type is required for FCL shipments.')
             if not cleaned.get('container_count'):
                 self.add_error('container_count', 'Container count is required for FCL shipments.')
-            # Clear air fields for non-AIR modes
+            # Clear air and LCL fields
             cleaned['chargeable_weight_kg'] = None
             cleaned['flight_number'] = ''
+            cleaned['lcl_consolidation_number'] = ''
         elif mode == 'SEA_LCL':
             # LCL: no containers (shared space), clear both container and air fields
             cleaned['container_type'] = None
@@ -123,17 +129,19 @@ class BookingForm(forms.ModelForm):
             cleaned['chargeable_weight_kg'] = None
             cleaned['flight_number'] = ''
         elif mode == 'AIR':
-            # Air: no containers, keep air-specific fields
+            # Air: no containers, keep air-specific fields, clear LCL
             cleaned['container_type'] = None
             cleaned['container_count'] = None
+            cleaned['lcl_consolidation_number'] = ''
         else:
-            # RAIL, TRUCK, MULTIMODAL: container optional, clear air fields
+            # RAIL, TRUCK, MULTIMODAL: container optional, clear air and LCL fields
             if not cleaned.get('container_type'):
                 cleaned['container_type'] = None
             if not cleaned.get('container_count'):
                 cleaned['container_count'] = None
             cleaned['chargeable_weight_kg'] = None
             cleaned['flight_number'] = ''
+            cleaned['lcl_consolidation_number'] = ''
 
         return cleaned
 

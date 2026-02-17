@@ -539,7 +539,7 @@ class TestTemplateViews(Tier2TestBase):
             'incoterms_location': '',
             'commodity_description': 'From template',
             'is_hazardous': '',
-            'external_reference': '',
+            'external_reference': 'TMPL-REF-001',
             'special_instructions': '',
             'items-TOTAL_FORMS': '1',
             'items-INITIAL_FORMS': '0',

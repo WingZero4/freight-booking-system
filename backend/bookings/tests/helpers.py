@@ -59,6 +59,7 @@ def create_booking(customer, user, status='DRAFT', **kwargs):
         'container_count': 1,
         'incoterms': 'FOB',
         'source_channel': 'WEB',
+        'external_reference': 'TEST-REF-001',
     }
     defaults.update(kwargs)
 

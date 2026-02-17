@@ -102,8 +102,13 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.external_reference.id_for_label }}" class="form-label">Your Reference <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Your internal reference number (e.g. PO number, order ID) for cross-referencing."></i></label>
+                            <label for="{{ form.external_reference.id_for_label }}" class="form-label">Your Reference * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Your internal reference number (e.g. PO number, order ID) for cross-referencing. Required."></i></label>
                             {{ form.external_reference }}
+                            {% if form.external_reference.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.external_reference.errors %}{{ error }}{% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                         <div id="container-section" class="col-md-6">
                             <div class="row">
@@ -163,6 +168,21 @@
                                 {% if form.flight_number.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in form.flight_number.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LCL Consolidation (shown only for Sea LCL mode) -->
+                    <div id="lcl-consol-section" style="display:none;">
+                        <div class="row mb-2">
+                            <div class="col-md-4 mb-3">
+                                <label for="{{ form.lcl_consolidation_number.id_for_label }}" class="form-label">Consolidation Number <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Consolidation reference assigned by the forwarder for grouping LCL cargo."></i></label>
+                                {{ form.lcl_consolidation_number }}
+                                {% if form.lcl_consolidation_number.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.lcl_consolidation_number.errors %}{{ error }}{% endfor %}
                                 </div>
                                 {% endif %}
                             </div>
@@ -346,6 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var modeSelect = document.getElementById('id_transport_mode');
     var containerSection = document.getElementById('container-section');
     var airSection = document.getElementById('air-section');
+    var lclConsolSection = document.getElementById('lcl-consol-section');
     var lclGuidance = document.getElementById('lcl-guidance');
     var airGuidance = document.getElementById('air-guidance');
     var stars = document.querySelectorAll('.container-required');
@@ -355,6 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Reset all
         containerSection.style.display = 'none';
         airSection.style.display = 'none';
+        lclConsolSection.style.display = 'none';
         lclGuidance.style.display = 'none';
         airGuidance.style.display = 'none';
         stars.forEach(function(s) { s.style.display = 'none'; });
@@ -362,18 +384,19 @@ document.addEventListener('DOMContentLoaded', function() {
         if (mode === 'SEA_FCL') {
             containerSection.style.display = '';
             stars.forEach(function(s) { s.style.display = ''; });
-            if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number']);
+            if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number', 'id_lcl_consolidation_number']);
         } else if (mode === 'SEA_LCL') {
             lclGuidance.style.display = '';
+            lclConsolSection.style.display = '';
             if (shouldClear) clearFields(['id_container_type', 'id_container_count', 'id_chargeable_weight_kg', 'id_flight_number']);
         } else if (mode === 'AIR') {
             airSection.style.display = '';
             airGuidance.style.display = '';
-            if (shouldClear) clearFields(['id_container_type', 'id_container_count']);
+            if (shouldClear) clearFields(['id_container_type', 'id_container_count', 'id_lcl_consolidation_number']);
         } else {
             // RAIL, TRUCK, MULTIMODAL: container optional
             containerSection.style.display = '';
-            if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number']);
+            if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number', 'id_lcl_consolidation_number']);
         }
     }
 

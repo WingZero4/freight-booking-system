@@ -52,7 +52,7 @@ class ViewTestBase(TestCase):
             'incoterms_location': '',
             'commodity_description': 'Electronics',
             'is_hazardous': '',
-            'external_reference': '',
+            'external_reference': 'TEST-REF-001',
             'special_instructions': '',
             # formset management
             'items-TOTAL_FORMS': '1',

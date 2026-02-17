@@ -54,7 +54,7 @@ class ServiceTestBase(TestCase):
             'incoterms_location': '',
             'commodity_description': 'Electronics',
             'is_hazardous': False,
-            'external_reference': '',
+            'external_reference': 'TEST-REF-001',
             'special_instructions': '',
         }
         data.update(overrides)

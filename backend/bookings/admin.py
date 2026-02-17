@@ -168,8 +168,9 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Container / Equipment', {
             'fields': ('container_type', 'container_count',
+                       'lcl_consolidation_number',
                        'chargeable_weight_kg', 'flight_number'),
-            'description': 'Container fields for FCL; weight/flight for Air',
+            'description': 'Container fields for FCL; consolidation for LCL; weight/flight for Air',
         }),
         ('Cargo Summary', {
             'fields': ('commodity_description', 'is_hazardous',

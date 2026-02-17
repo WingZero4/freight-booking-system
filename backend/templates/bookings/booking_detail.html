@@ -327,6 +327,13 @@
                         </p>
                         {% endif %}
 
+                        {% if booking.lcl_consolidation_number %}
+                        <h5 class="mb-3"><i class="fas fa-boxes-stacked me-2 text-themed-primary"></i>LCL Consolidation</h5>
+                        <p class="mb-4">
+                            <span class="badge bg-themed-primary fs-6">{{ booking.lcl_consolidation_number }}</span>
+                        </p>
+                        {% endif %}
+
                         {% if booking.chargeable_weight_kg or booking.flight_number %}
                         <h5 class="mb-3"><i class="fas fa-plane me-2 text-themed-primary"></i>Air Freight</h5>
                         <div class="row mb-4">
