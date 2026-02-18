@@ -207,6 +207,7 @@ class WebhookSubscription(models.Model):
         ('booking.confirmed', 'Booking Confirmed'),
         ('booking.rejected', 'Booking Rejected'),
         ('booking.in_transit', 'Booking In Transit'),
+        ('booking.arrived', 'Booking Arrived'),
         ('booking.completed', 'Booking Completed'),
         ('booking.cancelled', 'Booking Cancelled'),
     ]

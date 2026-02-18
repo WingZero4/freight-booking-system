@@ -21,6 +21,7 @@ ACTION_TO_EVENT = {
     'CONFIRMED': 'booking.confirmed',
     'REJECTED': 'booking.rejected',
     'IN_TRANSIT': 'booking.in_transit',
+    'ARRIVED': 'booking.arrived',
     'COMPLETED': 'booking.completed',
     'CANCELLED': 'booking.cancelled',
 }

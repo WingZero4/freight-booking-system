@@ -736,6 +736,10 @@ class BookingService:
             booking.rejected_at = None
             booking.rejected_by = None
             booking.rejection_reason = ''
+            # Clear stale lifecycle timestamps so tracking timeline resets
+            booking.submitted_at = None
+            booking.confirmed_at = None
+            booking.confirmed_by = None
             booking.save()
 
             cls._log(booking, 'RESUBMITTED', user=user, request=request,

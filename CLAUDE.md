@@ -21,7 +21,7 @@ This prevents loss of context, project rules, and review process requirements.
 3. **QA Tester** — Traces all critical user flows (customer + staff) for functional bugs, permission issues, status transition errors, data loss
 4. **Security Reviewer** — Checks authorization, input validation, CSRF, data exposure (contract numbers hidden from customers), file upload security, settings hardening
 5. **Migration & Consistency Checker** — Verifies model fields match migrations, admin fieldsets match model, form fields match model, views reference valid fields
-6. **Systems Workflow Specialist** — Traces end-to-end integration dispatch chains (BookingService → carrier_dispatch/dispatch → adapters → callbacks → FMS push), verifies cross-module data contracts (serializer output matches adapter input), status state machine consistency across all modules, error propagation and recovery paths, background thread safety, webhook/callback wiring, and retry/recovery mechanisms
+6. **Systems Workflow Specialist** — Walks through every booking lifecycle pathway (15 paths: happy path, skip-arrived, reject+resubmit, customer-reject+reconfirm, cancel from each status, carrier confirm/reject/amend callbacks, sync vs async confirm, manual carrier submission). At each transition verifies: status guards, audit logs, notifications, integration dispatches, webhook events, permissions, field updates, and atomicity
 
 **Workflow:**
 - Launch all 6 agents in parallel after code changes are complete

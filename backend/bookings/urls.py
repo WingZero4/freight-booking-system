@@ -15,6 +15,8 @@ urlpatterns = [
          views.ops_reconfirm_booking, name='ops_reconfirm_booking'),
     path('bookings/<int:booking_id>/carrier/',
          views.ops_carrier_details, name='ops_carrier_details'),
+    path('bookings/<int:booking_id>/submit-to-carrier/',
+         views.ops_submit_to_carrier, name='ops_submit_to_carrier'),
     path('bookings/<int:booking_id>/in-transit/',
          views.ops_mark_in_transit, name='ops_mark_in_transit'),
     path('bookings/<int:booking_id>/arrived/',

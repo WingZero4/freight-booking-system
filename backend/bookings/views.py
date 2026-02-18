@@ -1144,12 +1144,16 @@ def ops_reconfirm_booking(request, booking_id):
 
     if request.method == 'POST':
         carrier_form = CarrierDetailsForm(request.POST, instance=booking)
+        if not carrier_form.is_valid():
+            messages.error(request, 'Please correct the carrier detail errors below.')
+            return render(request, 'bookings/ops/reconfirm_booking.html', {
+                'booking': booking,
+                'carrier_form': carrier_form,
+            })
         try:
             with transaction.atomic():
-                # Save updated carrier details and reconfirm atomically
-                if carrier_form.is_valid():
-                    carrier_form.save()
-                    booking.refresh_from_db()
+                carrier_form.save()
+                booking.refresh_from_db()
                 BookingService.reconfirm_booking(
                     booking, user=request.user, request=request,
                 )
@@ -1167,6 +1171,25 @@ def ops_reconfirm_booking(request, booking_id):
         'booking': booking,
         'carrier_form': carrier_form,
     })
+
+
+@staff_required
+def ops_submit_to_carrier(request, booking_id):
+    """Manually submit or resubmit a booking to its assigned carrier API."""
+    booking = get_object_or_404(Booking, id=booking_id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.submit_to_carrier(
+                booking, user=request.user, request=request,
+            )
+            messages.success(
+                request,
+                f'Booking {booking.booking_number} submitted to carrier.',
+            )
+        except ValueError as e:
+            messages.error(request, str(e))
+    return redirect('booking_detail', booking_id=booking.id)
 
 
 @staff_required
