@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from django.utils.safestring import mark_safe
 from datetime import date
-from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier
+from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier, Customer
 from . import validators
 
 
@@ -13,7 +13,7 @@ class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
-            'transport_mode', 'service_type',
+            'transport_mode', 'service_type', 'move_type',
             'origin_port', 'destination_port', 'cargo_ready_date',
             'container_type', 'container_count',
             'chargeable_weight_kg', 'flight_number',
@@ -25,6 +25,7 @@ class BookingForm(forms.ModelForm):
         widgets = {
             'transport_mode': forms.Select(attrs={'class': 'form-select'}),
             'service_type': forms.Select(attrs={'class': 'form-select'}),
+            'move_type': forms.Select(attrs={'class': 'form-select'}),
             'origin_port': forms.Select(attrs={'class': 'form-select'}),
             'destination_port': forms.Select(attrs={'class': 'form-select'}),
             'cargo_ready_date': forms.DateInput(
@@ -77,6 +78,7 @@ class BookingForm(forms.ModelForm):
         self.fields['commodity_description'].required = False
         self.fields['is_hazardous'].required = False
         self.fields['service_type'].required = False
+        self.fields['move_type'].required = False
         # Mode-specific fields — all optional at form level; clean() enforces per mode
         self.fields['container_type'].required = False
         self.fields['container_count'].required = False
@@ -138,9 +140,14 @@ class BookingForm(forms.ModelForm):
             if dest and dest.port_type not in allowed_types:
                 self.add_error('destination_port', f'Port type {dest.port_type} is not compatible with {mode} transport mode.')
 
-        # Service type only applies to ocean and hybrid modes
-        if mode not in ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'):
+        # Service type: ocean routing (AWS/IPI/MLB/RIPI) or air level (Express/Standard/Deferred)
+        OCEAN_MODES = ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA')
+        if mode not in OCEAN_MODES and mode != 'AIR':
             cleaned['service_type'] = ''
+
+        # Move type: cargo receipt & delivery terms — sea/hybrid modes only
+        if mode not in OCEAN_MODES:
+            cleaned['move_type'] = ''
 
         if mode == 'SEA_FCL':
             if not cleaned.get('container_type'):
@@ -640,3 +647,47 @@ class CustomerRejectForm(forms.Form):
         max_length=1000,
         label='Rejection Reason',
     )
+
+
+class ConsolidationCreateForm(forms.Form):
+    """Form to create a consolidation group and select bookings."""
+    customer = forms.ModelChoiceField(
+        queryset=Customer.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_customer'}),
+        label='Customer',
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2,
+                                     'placeholder': 'Optional notes about this consolidation'}),
+        label='Notes',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['customer'].queryset = Customer.objects.filter(is_active=True)
+
+
+class ConsolidationAddBookingForm(forms.Form):
+    """Form to add a booking to an existing consolidation."""
+    booking = forms.ModelChoiceField(
+        queryset=Booking.objects.none(),
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Select Booking',
+    )
+
+    def __init__(self, consolidation, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        valid_statuses = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED')
+        self.fields['booking'].queryset = (
+            Booking.objects.filter(
+                customer=consolidation.customer,
+                status__in=valid_statuses,
+                consolidation__isnull=True,
+            )
+            .select_related('origin_port', 'destination_port')
+            .order_by('-created_at')
+        )
+        self.fields['booking'].label_from_instance = (
+            lambda obj: f"{obj.booking_number} — {obj.origin_port.code}→{obj.destination_port.code} ({obj.get_status_display()})"
+        )

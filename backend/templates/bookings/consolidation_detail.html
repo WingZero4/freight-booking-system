@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ consolidation.consolidation_number }} - Consolidation{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-11">
+
+            <!-- Header -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h4 class="mb-1">
+                                <i class="fas fa-layer-group me-2"></i>{{ consolidation.consolidation_number }}
+                            </h4>
+                            <span class="text-muted">
+                                {{ consolidation.customer.code }} - {{ consolidation.customer.name }}
+                                &middot; {{ bookings|length }} booking{{ bookings|length|pluralize }}
+                                &middot; Created by {{ consolidation.created_by.get_full_name|default:consolidation.created_by.username }}
+                                &middot; {{ consolidation.created_at|date:"M d, Y H:i" }}
+                            </span>
+                        </div>
+                        <span class="badge fs-6 {% if consolidation.status == 'OPEN' %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ consolidation.get_status_display }}
+                        </span>
+                    </div>
+                    {% if consolidation.notes %}
+                    <div class="mt-2 text-muted"><strong>Notes:</strong> {{ consolidation.notes }}</div>
+                    {% endif %}
+                    <div class="d-flex flex-wrap gap-2 pt-2 border-top mt-2">
+                        {% if consolidation.status == 'OPEN' %}
+                        <form method="post" action="{% url 'consolidation_close' consolidation.pk %}" class="d-inline"
+                              onsubmit="return confirm('Close this consolidation? No further changes will be allowed.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-warning btn-sm">
+                                <i class="fas fa-lock me-1"></i>Close Consolidation
+                            </button>
+                        </form>
+                        {% endif %}
+                        <a href="{% url 'consolidation_list' %}" class="btn btn-outline-secondary btn-sm ms-auto">
+                            <i class="fas fa-arrow-left me-1"></i>Back to List
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body py-3">
+                            <h5 class="mb-0 text-primary">{{ bookings|length }}</h5>
+                            <small class="text-muted">Booking{{ bookings|length|pluralize }}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body py-3">
+                            <h5 class="mb-0 text-primary">{{ total_weight|floatformat:2 }} kg</h5>
+                            <small class="text-muted">Total Weight</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card text-center">
+                        <div class="card-body py-3">
+                            <h5 class="mb-0 text-primary">{{ total_volume|floatformat:3 }} CBM</h5>
+                            <small class="text-muted">Total Volume</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Booking (if OPEN) -->
+            {% if add_form %}
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-plus me-2"></i>Add Booking to Consolidation</h6>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'consolidation_add_booking' consolidation.pk %}" class="row g-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="col-md-6">
+                            {{ add_form.booking }}
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus me-1"></i>Add
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Booking Cards -->
+            {% for b in bookings %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'booking_detail' b.id %}" class="fw-bold text-decoration-none fs-5">
+                            {{ b.booking_number }}
+                        </a>
+                        <span class="badge ms-2
+                            {% if b.status == 'DRAFT' %}bg-secondary
+                            {% elif b.status == 'SUBMITTED' %}bg-warning text-dark
+                            {% elif b.status == 'CONFIRMED' %}bg-success
+                            {% elif b.status == 'PACKING' %}bg-info
+                            {% elif b.status == 'IN_TRANSIT' %}bg-info
+                            {% elif b.status == 'ARRIVED' %}bg-primary
+                            {% elif b.status == 'COMPLETED' %}bg-info
+                            {% elif b.status == 'REJECTED' %}bg-dark
+                            {% elif b.status == 'CUSTOMER_REJECTED' %}bg-danger
+                            {% else %}bg-danger{% endif %}">
+                            {{ b.get_status_display }}
+                        </span>
+                        <span class="badge bg-secondary ms-1">
+                            <i class="fas fa-{% if b.transport_mode == 'AIR' %}plane{% elif b.transport_mode == 'RAIL' %}train{% elif b.transport_mode == 'TRUCK' %}truck{% elif b.transport_mode == 'SEA_AIR' or b.transport_mode == 'AIR_SEA' %}right-left{% else %}ship{% endif %} me-1"></i>
+                            {{ b.get_transport_mode_display }}
+                        </span>
+                        {% if b.service_type %}
+                        <span class="badge bg-secondary ms-1">{{ b.get_service_type_display }}</span>
+                        {% endif %}
+                        {% if b.move_type %}
+                        <span class="badge bg-info ms-1">{{ b.get_move_type_display }}</span>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if consolidation.status == 'OPEN' %}
+                        <form method="post" action="{% url 'consolidation_remove_booking' consolidation.pk b.id %}" class="d-inline"
+                              onsubmit="return confirm('Remove {{ b.booking_number|escapejs }} from this consolidation?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="fas fa-times me-1"></i>Remove
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Route & Schedule -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Route</small>
+                            <strong>{{ b.origin_port.code }}</strong> &rarr; <strong>{{ b.destination_port.code }}</strong>
+                            <br><small class="text-muted">{{ b.origin_port.name }} &rarr; {{ b.destination_port.name }}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <small class="text-muted d-block">Container</small>
+                            {% if b.container_type %}
+                            {{ b.container_count }}x {{ b.container_type.code }}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-2">
+                            <small class="text-muted d-block">Cargo Ready</small>
+                            {{ b.cargo_ready_date|date:"M d, Y"|default:"-" }}
+                        </div>
+                        <div class="col-md-2">
+                            <small class="text-muted d-block">ETD</small>
+                            {{ b.etd|date:"M d, Y"|default:"-" }}
+                        </div>
+                        <div class="col-md-2">
+                            <small class="text-muted d-block">ETA</small>
+                            {{ b.eta|date:"M d, Y"|default:"-" }}
+                        </div>
+                        <div class="col-md-1">
+                            <small class="text-muted d-block">INCOTERMS</small>
+                            {{ b.get_incoterms_display|default:"-" }}
+                        </div>
+                    </div>
+
+                    <!-- Cargo Items (collapsible) -->
+                    <div class="mb-2">
+                        <a class="text-decoration-none" data-bs-toggle="collapse" href="#cargo-{{ b.id }}">
+                            <i class="fas fa-cubes me-1"></i>Cargo Items ({{ b.items.count }})
+                            <i class="fas fa-chevron-down ms-1 small"></i>
+                        </a>
+                    </div>
+                    <div class="collapse show" id="cargo-{{ b.id }}">
+                        {% if b.items.all %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-2">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Description</th>
+                                        <th>Qty</th>
+                                        <th>Package</th>
+                                        <th>Weight (kg)</th>
+                                        <th>L&times;W&times;H (cm)</th>
+                                        <th>CBM</th>
+                                        <th>HS Code</th>
+                                        <th>DG</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in b.items.all %}
+                                    <tr>
+                                        <td>{{ item.description }}</td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td>{{ item.get_package_type_display }}</td>
+                                        <td>{{ item.weight_kg|floatformat:2 }}</td>
+                                        <td>
+                                            {% if item.length_cm and item.width_cm and item.height_cm %}
+                                            {{ item.length_cm|floatformat:0 }}&times;{{ item.width_cm|floatformat:0 }}&times;{{ item.height_cm|floatformat:0 }}
+                                            {% else %}-{% endif %}
+                                        </td>
+                                        <td>{{ item.volume_cbm|floatformat:3|default:"-" }}</td>
+                                        <td>{{ item.hs_code|default:"-" }}</td>
+                                        <td>
+                                            {% if item.is_hazardous %}
+                                            <span class="badge bg-danger">DG</span>
+                                            {% else %}-{% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <p class="text-muted small mb-2">No cargo items.</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Parties (collapsible) -->
+                    <div class="mb-2">
+                        <a class="text-decoration-none" data-bs-toggle="collapse" href="#parties-{{ b.id }}">
+                            <i class="fas fa-users me-1"></i>Parties ({{ b.booking_parties.count }})
+                            <i class="fas fa-chevron-down ms-1 small"></i>
+                        </a>
+                    </div>
+                    <div class="collapse show" id="parties-{{ b.id }}">
+                        {% if b.booking_parties.all %}
+                        <div class="row">
+                            {% for bp in b.booking_parties.all %}
+                            <div class="col-md-4 mb-2">
+                                <div class="border rounded p-2">
+                                    <small class="text-muted d-block">{{ bp.get_role_display }}</small>
+                                    <strong>{{ bp.company_name }}</strong>
+                                    {% if bp.address_text %}<br><small>{{ bp.address_text }}</small>{% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small mb-0">No parties assigned.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="card">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+                    No bookings in this consolidation yet.
+                </div>
+            </div>
+            {% endfor %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}

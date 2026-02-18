@@ -436,6 +436,7 @@ def booking_import_edit(request, index):
             'external_reference': bd.get('external_reference') or '',
             'special_instructions': bd.get('special_instructions') or '',
             'service_type': bd.get('service_type') or '',
+            'move_type': bd.get('move_type') or '',
         }
 
         # Air freight fields

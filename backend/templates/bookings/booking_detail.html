@@ -227,6 +227,16 @@
                                     {{ booking.get_service_type_display }}
                                 </span>
                                 {% endif %}
+                                {% if booking.move_type %}
+                                <span class="badge bg-info fs-6 mb-2 ms-1">
+                                    {{ booking.get_move_type_display }}
+                                </span>
+                                {% endif %}
+                                {% if booking.consolidation %}
+                                <a href="{% url 'consolidation_detail' booking.consolidation.pk %}" class="badge bg-warning text-dark fs-6 mb-2 ms-1 text-decoration-none">
+                                    <i class="fas fa-layer-group me-1"></i>{{ booking.consolidation.consolidation_number }}
+                                </a>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="row mb-4">

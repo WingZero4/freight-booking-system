@@ -279,6 +279,7 @@ JAZZMIN_SETTINGS = {
         "bookings.AuditLog": "fas fa-history",
         "bookings.Notification": "fas fa-bell",
         "bookings.BookingTemplate": "fas fa-copy",
+        "bookings.Consolidation": "fas fa-layer-group",
         "integrations.IntegrationConfig": "fas fa-plug",
         "integrations.CarrierConfig": "fas fa-shipping-fast",
         "integrations.IntegrationLog": "fas fa-exchange-alt",

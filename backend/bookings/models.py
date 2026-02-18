@@ -270,13 +270,28 @@ class Booking(models.Model):
 
     SERVICE_TYPE_CHOICES = [
         ('', 'N/A'),
+        # Ocean routing strategies
         ('AWS', 'AWS - All Water Service'),
         ('IPI', 'IPI - Interior Point Intermodal'),
         ('MLB', 'MLB - Mini Land Bridge'),
         ('RIPI', 'RIPI - Reverse IPI'),
-        ('CY_CY', 'CY-CY - Port to Port'),
-        ('CY_SD', 'CY-SD - Port to Door'),
-        ('SD_SD', 'SD-SD - Door to Door'),
+        # Air service levels
+        ('EXPRESS', 'Express'),
+        ('STANDARD', 'Standard'),
+        ('DEFERRED', 'Deferred'),
+    ]
+
+    MOVE_TYPE_CHOICES = [
+        ('', 'N/A'),
+        ('CY_CY', 'CY-CY (Yard to Yard)'),
+        ('CY_CFS', 'CY-CFS (Yard to CFS)'),
+        ('CY_SD', 'CY-SD (Yard to Door)'),
+        ('CFS_CY', 'CFS-CY (CFS to Yard)'),
+        ('CFS_CFS', 'CFS-CFS (CFS to CFS)'),
+        ('CFS_SD', 'CFS-SD (CFS to Door)'),
+        ('SD_CY', 'SD-CY (Door to Yard)'),
+        ('SD_CFS', 'SD-CFS (Door to CFS)'),
+        ('SD_SD', 'SD-SD (Door to Door)'),
     ]
 
     SOURCE_CHANNEL_CHOICES = [
@@ -296,11 +311,18 @@ class Booking(models.Model):
         help_text='Mode of transport for this shipment'
     )
 
-    # Service type (optional — routing strategy for ocean/intermodal)
+    # Service type (ocean routing strategy or air service level)
     service_type = models.CharField(
         max_length=10, choices=SERVICE_TYPE_CHOICES,
         blank=True, default='',
-        help_text='Routing/service type (optional, e.g. AWS, IPI, MLB)'
+        help_text='Routing type for ocean (AWS, IPI, MLB) or service level for air (Express, Standard, Deferred)'
+    )
+
+    # Move type (cargo receipt & delivery terms — sea modes only)
+    move_type = models.CharField(
+        max_length=10, choices=MOVE_TYPE_CHOICES,
+        blank=True, default='',
+        help_text='Cargo receipt & delivery terms (sea modes only, e.g. CY-CY, CY-SD, SD-SD)'
     )
 
     # Customer
@@ -333,6 +355,13 @@ class Booking(models.Model):
     lcl_consolidation_number = models.CharField(
         max_length=50, blank=True,
         help_text='Consolidation number for LCL shipments (assigned by forwarder)'
+    )
+
+    # Consolidation group (links multiple bookings under one reference)
+    consolidation = models.ForeignKey(
+        'Consolidation', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='bookings',
+        help_text='Consolidation group this booking belongs to'
     )
 
     # Trade terms (Phase 1.5)
@@ -834,6 +863,55 @@ class BookingParty(models.Model):
         ]
 
 
+class Consolidation(models.Model):
+    """Groups multiple bookings under one consolidation reference."""
+    STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('CLOSED', 'Closed'),
+    ]
+
+    consolidation_number = models.CharField(max_length=20, unique=True, editable=False)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='consolidations')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='OPEN')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='created_consolidations'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.consolidation_number} ({self.get_status_display()})"
+
+    def save(self, *args, **kwargs):
+        if not self.consolidation_number:
+            self.consolidation_number = self._generate_consolidation_number()
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def _generate_consolidation_number():
+        """Generate CONS-YYYYMM-NNNN (follows booking number pattern)."""
+        from django.db import transaction as tx
+        today = timezone.now()
+        prefix = f"CONS-{today.strftime('%Y%m')}-"
+        with tx.atomic():
+            last = (
+                Consolidation.objects.select_for_update()
+                .filter(consolidation_number__startswith=prefix)
+                .order_by('-consolidation_number')
+                .first()
+            )
+            if last:
+                last_num = int(last.consolidation_number.split('-')[-1])
+                new_num = last_num + 1
+            else:
+                new_num = 1
+        return f"{prefix}{new_num:04d}"
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class AuditLog(models.Model):
     """Track all changes to bookings for compliance and traceability."""
     ACTION_CHOICES = [
@@ -857,6 +935,8 @@ class AuditLog(models.Model):
         ('CUSTOMER_APPROVED', 'Customer Approved'),
         ('CUSTOMER_REJECTED', 'Customer Rejected'),
         ('RECONFIRMED', 'Re-confirmed after Customer Rejection'),
+        ('CONSOLIDATED', 'Added to Consolidation'),
+        ('UNCONSOLIDATED', 'Removed from Consolidation'),
     ]
 
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='audit_logs')

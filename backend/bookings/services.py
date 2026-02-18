@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from .models import (
     Booking, BookingItem, BookingDocument, BookingParty, Party, AuditLog,
-    ShipmentMilestone,
+    ShipmentMilestone, Consolidation,
 )
 from . import notifications, validators
 
@@ -143,6 +143,7 @@ class BookingService:
             'chargeable_weight_kg': str(booking.chargeable_weight_kg) if booking.chargeable_weight_kg else None,
             'flight_number': booking.flight_number,
             'service_type': booking.service_type,
+            'move_type': booking.move_type,
         }
 
     @staticmethod
@@ -306,6 +307,7 @@ class BookingService:
                 chargeable_weight_kg=data.get('chargeable_weight_kg'),
                 flight_number=data.get('flight_number', ''),
                 service_type=data.get('service_type', ''),
+                move_type=data.get('move_type', ''),
             )
             booking.save()
 
@@ -385,6 +387,7 @@ class BookingService:
                 'incoterms', 'incoterms_location', 'commodity_description',
                 'is_hazardous', 'external_reference', 'special_instructions',
                 'chargeable_weight_kg', 'flight_number', 'service_type',
+                'move_type',
             ]
             for field in updatable_fields:
                 if field in data:
@@ -926,3 +929,111 @@ class BookingService:
                 booking, 'PARTY_REMOVED', user=user, request=request,
                 old_value=old,
             )
+
+    # ── Consolidation Methods ──────────────────────────────────────
+
+    @classmethod
+    def create_consolidation(cls, customer, booking_ids, user, request=None, notes=''):
+        """Create a consolidation and assign bookings to it."""
+        if not booking_ids:
+            raise ValueError('At least one booking is required to create a consolidation.')
+
+        VALID_STATUSES = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED')
+
+        with transaction.atomic():
+            bookings = list(
+                Booking.objects.select_for_update()
+                .filter(pk__in=booking_ids, customer=customer)
+            )
+            if len(bookings) != len(booking_ids):
+                raise ValueError('One or more bookings not found for this customer.')
+
+            for b in bookings:
+                if b.status not in VALID_STATUSES:
+                    raise ValueError(
+                        f'Booking {b.booking_number} is in {b.get_status_display()} status '
+                        f'and cannot be consolidated.'
+                    )
+                if b.consolidation_id:
+                    raise ValueError(
+                        f'Booking {b.booking_number} is already in consolidation '
+                        f'{b.consolidation.consolidation_number}.'
+                    )
+
+            consolidation = Consolidation(
+                customer=customer,
+                notes=notes,
+                created_by=user,
+            )
+            consolidation.save()
+
+            for b in bookings:
+                b.consolidation = consolidation
+                b.save(update_fields=['consolidation'])
+                cls._log(
+                    b, 'CONSOLIDATED', user=user, request=request,
+                    new_value={'consolidation_number': consolidation.consolidation_number},
+                )
+
+        return consolidation
+
+    @classmethod
+    def add_booking_to_consolidation(cls, consolidation, booking, user, request=None):
+        """Add a single booking to an existing consolidation."""
+        VALID_STATUSES = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED')
+
+        with transaction.atomic():
+            booking = Booking.objects.select_for_update().get(pk=booking.pk)
+            consolidation = Consolidation.objects.select_for_update().get(pk=consolidation.pk)
+
+            if consolidation.status != 'OPEN':
+                raise ValueError('Cannot add bookings to a closed consolidation.')
+            if booking.customer_id != consolidation.customer_id:
+                raise ValueError('Booking must belong to the same customer as the consolidation.')
+            if booking.status not in VALID_STATUSES:
+                raise ValueError(f'Booking {booking.booking_number} cannot be consolidated in its current status.')
+            if booking.consolidation_id:
+                raise ValueError(f'Booking {booking.booking_number} is already consolidated.')
+
+            booking.consolidation = consolidation
+            booking.save(update_fields=['consolidation'])
+            cls._log(
+                booking, 'CONSOLIDATED', user=user, request=request,
+                new_value={'consolidation_number': consolidation.consolidation_number},
+            )
+
+    @classmethod
+    def remove_booking_from_consolidation(cls, consolidation, booking, user, request=None):
+        """Remove a booking from a consolidation."""
+        with transaction.atomic():
+            booking = Booking.objects.select_for_update().get(pk=booking.pk)
+            consolidation = Consolidation.objects.select_for_update().get(pk=consolidation.pk)
+
+            if consolidation.status != 'OPEN':
+                raise ValueError('Cannot remove bookings from a closed consolidation.')
+            if booking.consolidation_id != consolidation.pk:
+                raise ValueError('Booking is not in this consolidation.')
+
+            old_number = consolidation.consolidation_number
+            booking.consolidation = None
+            booking.save(update_fields=['consolidation'])
+            cls._log(
+                booking, 'UNCONSOLIDATED', user=user, request=request,
+                old_value={'consolidation_number': old_number},
+            )
+
+    @classmethod
+    def close_consolidation(cls, consolidation, user, request=None):
+        """Close a consolidation (no more bookings can be added/removed)."""
+        if consolidation.status != 'OPEN':
+            raise ValueError('Consolidation is already closed.')
+
+        with transaction.atomic():
+            consolidation.status = 'CLOSED'
+            consolidation.save(update_fields=['status', 'updated_at'])
+
+            for b in consolidation.bookings.all():
+                cls._log(
+                    b, 'CONSOLIDATED', user=user, request=request,
+                    new_value={'consolidation_closed': consolidation.consolidation_number},
+                )

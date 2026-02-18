@@ -492,6 +492,8 @@ def _create_single_booking(booking_entry, customer, user, request):
         'is_hazardous': bd.get('is_hazardous', False),
         'external_reference': bd.get('external_reference', '') or '',
         'special_instructions': bd.get('special_instructions', '') or '',
+        'service_type': bd.get('service_type') or '',
+        'move_type': bd.get('move_type') or '',
     }
 
     # Build formset management data
@@ -609,6 +611,7 @@ def build_session_entry_from_form(form, formset, index, original_entry):
         'external_reference': cd.get('external_reference') or '',
         'special_instructions': cd.get('special_instructions') or '',
         'service_type': cd.get('service_type') or '',
+        'move_type': cd.get('move_type') or '',
     }
 
     items_data = []

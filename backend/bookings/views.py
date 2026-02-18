@@ -16,7 +16,7 @@ from django.db import transaction
 from .models import (
     Booking, BookingItem, BookingDocument, Party, BookingParty,
     AuditLog, UserProfile, Notification, BookingTemplate, ShipmentMilestone,
-    Customer, ContainerType,
+    Customer, ContainerType, Consolidation,
 )
 from .notifications import _send_notification
 from .forms import (
@@ -25,6 +25,7 @@ from .forms import (
     CarrierDetailsForm, RejectBookingForm, CustomerRejectForm,
     MarkInTransitForm, MarkArrivedForm, CompleteBookingForm,
     CancelConfirmedForm, RecordMilestoneForm,
+    ConsolidationCreateForm, ConsolidationAddBookingForm,
 )
 from .services import BookingService
 
@@ -1401,6 +1402,7 @@ def booking_clone(request, booking_id):
                 created_by=request.user,
                 transport_mode=booking.transport_mode,
                 service_type=booking.service_type,
+                move_type=booking.move_type,
                 origin_port=booking.origin_port,
                 destination_port=booking.destination_port,
                 cargo_ready_date=booking.cargo_ready_date,
@@ -1527,7 +1529,7 @@ def booking_export_csv(request):
 
     writer = csv.writer(response)
     headers = [
-        'Booking Number', 'Status', 'Transport Mode', 'Service Type', 'Customer',
+        'Booking Number', 'Status', 'Transport Mode', 'Service Type', 'Move Type', 'Customer',
         'Origin', 'Destination',
         'Container Type', 'Container Count', 'LCL Consolidation',
         'Chargeable Weight (kg)', 'Flight Number',
@@ -1547,6 +1549,7 @@ def booking_export_csv(request):
         row = [
             b.booking_number, b.status, b.get_transport_mode_display(),
             b.get_service_type_display() if b.service_type else '',
+            b.get_move_type_display() if b.move_type else '',
             b.customer.code,
             b.origin_port.code, b.destination_port.code,
             b.container_type.code if b.container_type else '', b.container_count or '',
@@ -1659,6 +1662,7 @@ def template_save(request, booking_id):
     template_data = {
         'transport_mode': booking.transport_mode,
         'service_type': booking.service_type,
+        'move_type': booking.move_type,
         'origin_port_id': booking.origin_port_id,
         'destination_port_id': booking.destination_port_id,
         'container_type_id': booking.container_type_id,
@@ -1781,6 +1785,7 @@ def booking_create_from_template(request, template_id):
         initial = {
             'transport_mode': data.get('transport_mode'),
             'service_type': data.get('service_type', ''),
+            'move_type': data.get('move_type', ''),
             'origin_port': data.get('origin_port_id'),
             'destination_port': data.get('destination_port_id'),
             'container_type': data.get('container_type_id'),
@@ -2007,3 +2012,199 @@ def container_recommendations(request):
         'total_cbm': float(total_cbm),
         'total_weight_kg': float(total_weight),
     })
+
+
+# ─── Consolidations (Staff) ──────────────────────────────────────────
+
+@staff_required
+def consolidation_list(request):
+    """List all consolidations with filters."""
+    consolidations = Consolidation.objects.select_related('customer', 'created_by').annotate(
+        booking_count=Count('bookings')
+    )
+
+    status_filter = request.GET.get('status', '')
+    customer_filter = request.GET.get('customer', '')
+
+    if status_filter:
+        consolidations = consolidations.filter(status=status_filter)
+    if customer_filter:
+        try:
+            consolidations = consolidations.filter(customer_id=int(customer_filter))
+        except (ValueError, TypeError):
+            customer_filter = ''
+
+    consolidations = consolidations.order_by('-created_at')
+    paginator = Paginator(consolidations, 20)
+    page = paginator.get_page(request.GET.get('page'))
+
+    customers = Customer.objects.filter(is_active=True).order_by('name')
+
+    return render(request, 'bookings/consolidation_list.html', {
+        'page_obj': page,
+        'status_filter': status_filter,
+        'customer_filter': customer_filter,
+        'customers': customers,
+    })
+
+
+@staff_required
+def consolidation_create(request):
+    """Create a new consolidation — select customer, then bookings."""
+    if request.method == 'POST':
+        form = ConsolidationCreateForm(request.POST)
+        booking_ids = request.POST.getlist('booking_ids')
+
+        if form.is_valid() and booking_ids:
+            customer = form.cleaned_data['customer']
+            notes = form.cleaned_data['notes']
+            try:
+                ids = [int(bid) for bid in booking_ids]
+            except (ValueError, TypeError):
+                messages.error(request, 'Invalid booking selection.')
+                return render(request, 'bookings/consolidation_create.html', {'form': form})
+            try:
+                consolidation = BookingService.create_consolidation(
+                    customer=customer,
+                    booking_ids=ids,
+                    user=request.user,
+                    request=request,
+                    notes=notes,
+                )
+                messages.success(
+                    request,
+                    f'Consolidation {consolidation.consolidation_number} created with {len(ids)} booking(s).'
+                )
+                return redirect('consolidation_detail', pk=consolidation.pk)
+            except ValueError as e:
+                messages.error(request, str(e))
+        elif not booking_ids:
+            messages.error(request, 'Please select at least one booking.')
+    else:
+        form = ConsolidationCreateForm()
+
+    return render(request, 'bookings/consolidation_create.html', {
+        'form': form,
+    })
+
+
+@staff_required
+def api_consolidation_bookings(request):
+    """AJAX endpoint: return eligible bookings for a customer."""
+    customer_id = request.GET.get('customer_id')
+    if not customer_id:
+        return JsonResponse({'bookings': []})
+    try:
+        customer_id = int(customer_id)
+    except (ValueError, TypeError):
+        return JsonResponse({'bookings': []})
+
+    valid_statuses = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED')
+    bookings = (
+        Booking.objects.filter(
+            customer_id=customer_id,
+            status__in=valid_statuses,
+            consolidation__isnull=True,
+        )
+        .select_related('origin_port', 'destination_port', 'container_type')
+        .order_by('-created_at')
+    )
+
+    data = []
+    for b in bookings:
+        data.append({
+            'id': b.pk,
+            'booking_number': b.booking_number,
+            'status': b.get_status_display(),
+            'route': f"{b.origin_port.code} → {b.destination_port.code}",
+            'mode': b.get_transport_mode_display(),
+            'container': f"{b.container_type.code} x{b.container_count}" if b.container_type else '-',
+            'cargo_ready': str(b.cargo_ready_date) if b.cargo_ready_date else '-',
+        })
+
+    return JsonResponse({'bookings': data})
+
+
+@staff_required
+def consolidation_detail(request, pk):
+    """View consolidation with all linked bookings."""
+    consolidation = get_object_or_404(
+        Consolidation.objects.select_related('customer', 'created_by'),
+        pk=pk,
+    )
+
+    bookings = (
+        consolidation.bookings
+        .select_related('origin_port', 'destination_port', 'container_type', 'customer')
+        .prefetch_related('items', 'booking_parties')
+        .order_by('booking_number')
+    )
+
+    # Aggregated totals
+    total_weight = sum(b.total_weight_kg or 0 for b in bookings)
+    total_volume = sum(b.total_volume_cbm or 0 for b in bookings)
+
+    add_form = None
+    if consolidation.status == 'OPEN':
+        add_form = ConsolidationAddBookingForm(consolidation)
+
+    return render(request, 'bookings/consolidation_detail.html', {
+        'consolidation': consolidation,
+        'bookings': bookings,
+        'total_weight': total_weight,
+        'total_volume': total_volume,
+        'add_form': add_form,
+    })
+
+
+@staff_required
+def consolidation_add_booking(request, pk):
+    """Add a booking to a consolidation."""
+    consolidation = get_object_or_404(Consolidation, pk=pk)
+
+    if request.method == 'POST':
+        form = ConsolidationAddBookingForm(consolidation, request.POST)
+        if form.is_valid():
+            booking = form.cleaned_data['booking']
+            try:
+                BookingService.add_booking_to_consolidation(
+                    consolidation, booking, request.user, request
+                )
+                messages.success(request, f'Booking {booking.booking_number} added to consolidation.')
+            except ValueError as e:
+                messages.error(request, str(e))
+
+    return redirect('consolidation_detail', pk=pk)
+
+
+@staff_required
+def consolidation_remove_booking(request, pk, booking_id):
+    """Remove a booking from a consolidation."""
+    consolidation = get_object_or_404(Consolidation, pk=pk)
+    booking = get_object_or_404(Booking, pk=booking_id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.remove_booking_from_consolidation(
+                consolidation, booking, request.user, request
+            )
+            messages.success(request, f'Booking {booking.booking_number} removed from consolidation.')
+        except ValueError as e:
+            messages.error(request, str(e))
+
+    return redirect('consolidation_detail', pk=pk)
+
+
+@staff_required
+def consolidation_close(request, pk):
+    """Close a consolidation."""
+    consolidation = get_object_or_404(Consolidation, pk=pk)
+
+    if request.method == 'POST':
+        try:
+            BookingService.close_consolidation(consolidation, request.user, request)
+            messages.success(request, f'Consolidation {consolidation.consolidation_number} closed.')
+        except ValueError as e:
+            messages.error(request, str(e))
+
+    return redirect('consolidation_detail', pk=pk)

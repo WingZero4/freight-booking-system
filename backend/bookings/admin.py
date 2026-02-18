@@ -1,10 +1,11 @@
 from django.contrib import admin
+from django.db.models import Count
 from django.utils import timezone
 from .models import (
     Customer, UserProfile, Port, ContainerType, Carrier,
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog, Notification, BookingTemplate,
-    ShipmentMilestone, ImportLog, ImportBookingLog,
+    ShipmentMilestone, ImportLog, ImportBookingLog, Consolidation,
 )
 from .services import BookingService
 
@@ -131,8 +132,8 @@ class BookingAdmin(admin.ModelAdmin):
         'container_display',
         'cargo_ready_date', 'status',
     ]
-    list_filter = ['status', 'transport_mode', 'service_type', 'incoterms',
-                   'source_channel', 'is_hazardous', 'container_type',
+    list_filter = ['status', 'transport_mode', 'service_type', 'move_type',
+                   'incoterms', 'source_channel', 'is_hazardous', 'container_type',
                    'origin_port', 'destination_port']
     search_fields = ['booking_number', 'customer__name', 'customer__code',
                      'external_reference', 'carrier_booking_ref', 'contract_number',
@@ -158,10 +159,10 @@ class BookingAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Booking Info', {
             'fields': ('booking_number', 'status', 'customer', 'created_by',
-                       'source_channel', 'external_reference')
+                       'source_channel', 'external_reference', 'consolidation')
         }),
         ('Route & Mode', {
-            'fields': ('transport_mode', 'service_type',
+            'fields': ('transport_mode', 'service_type', 'move_type',
                        'origin_port', 'destination_port',
                        'cargo_ready_date')
         }),
@@ -240,7 +241,7 @@ class BookingAdmin(admin.ModelAdmin):
     @admin.action(description='Cancel selected bookings')
     def cancel_bookings(self, request, queryset):
         count = 0
-        for booking in queryset.filter(status__in=['DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED']):
+        for booking in queryset.filter(status__in=['DRAFT', 'SUBMITTED']):
             BookingService.cancel_booking(booking, user=request.user, request=request)
             count += 1
         self.message_user(request, f'{count} booking(s) cancelled.')
@@ -444,5 +445,24 @@ class ImportBookingLogAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
-    def has_change_permission(self, request, obj=None):
+    def has_change_permission(self, request, obj=None):  # ImportBookingLog
         return False
+
+
+@admin.register(Consolidation)
+class ConsolidationAdmin(admin.ModelAdmin):
+    list_display = ['consolidation_number', 'customer', 'status', 'booking_count',
+                    'created_by', 'created_at']
+    list_filter = ['status', 'customer']
+    search_fields = ['consolidation_number', 'customer__name', 'customer__code']
+    readonly_fields = ['consolidation_number', 'created_by', 'created_at', 'updated_at']
+    list_select_related = ['customer', 'created_by']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            _booking_count=Count('bookings')
+        )
+
+    @admin.display(description='Bookings')
+    def booking_count(self, obj):
+        return obj._booking_count

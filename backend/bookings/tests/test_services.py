@@ -698,6 +698,7 @@ class TestAuditHelpers(ServiceTestBase):
             'incoterms', 'incoterms_location', 'commodity_description',
             'is_hazardous', 'special_instructions', 'external_reference',
             'chargeable_weight_kg', 'flight_number', 'service_type',
+            'move_type',
         }
         self.assertEqual(set(snap.keys()), expected_keys)
 

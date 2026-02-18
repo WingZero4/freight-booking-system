@@ -93,7 +93,8 @@ class BookingListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = [
-            'id', 'booking_number', 'status', 'transport_mode', 'service_type',
+            'id', 'booking_number', 'status', 'transport_mode',
+            'service_type', 'move_type',
             'customer_code', 'customer_name',
             'origin', 'destination',
             'container', 'container_count',
@@ -127,7 +128,8 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = [
-            'id', 'booking_number', 'status', 'transport_mode', 'service_type',
+            'id', 'booking_number', 'status', 'transport_mode',
+            'service_type', 'move_type',
             'incoterms', 'incoterms_location',
             'chargeable_weight_kg', 'flight_number',
             'route', 'carrier', 'container', 'cargo',
@@ -377,6 +379,10 @@ class BookingCreateSerializer(serializers.Serializer):
         choices=Booking.SERVICE_TYPE_CHOICES, required=False,
         default='', allow_blank=True,
     )
+    move_type = serializers.ChoiceField(
+        choices=Booking.MOVE_TYPE_CHOICES, required=False,
+        default='', allow_blank=True,
+    )
 
     # Staff only: specify customer
     customer_code = serializers.CharField(max_length=20, required=False)
@@ -412,9 +418,12 @@ class BookingCreateSerializer(serializers.Serializer):
         errors = validators.validate_booking_data(data)
         if errors:
             raise serializers.ValidationError(errors)
-        # Clear service_type for non-ocean/hybrid modes (parity with BookingForm.clean)
-        if attrs['transport_mode'] not in ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'):
+        # Clear service_type/move_type for non-applicable modes (parity with BookingForm.clean)
+        OCEAN_MODES = ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA')
+        if attrs['transport_mode'] not in OCEAN_MODES and attrs['transport_mode'] != 'AIR':
             attrs['service_type'] = ''
+        if attrs['transport_mode'] not in OCEAN_MODES:
+            attrs['move_type'] = ''
         return attrs
 
 
@@ -458,6 +467,9 @@ class BookingUpdateSerializer(serializers.Serializer):
     flight_number = serializers.CharField(max_length=20, required=False)
     service_type = serializers.ChoiceField(
         choices=Booking.SERVICE_TYPE_CHOICES, required=False, allow_blank=True,
+    )
+    move_type = serializers.ChoiceField(
+        choices=Booking.MOVE_TYPE_CHOICES, required=False, allow_blank=True,
     )
 
     # If provided, replaces all existing items
@@ -513,10 +525,13 @@ class BookingUpdateSerializer(serializers.Serializer):
         )
         if errors:
             raise serializers.ValidationError(errors)
-        # Clear service_type for non-ocean/hybrid modes (parity with BookingForm.clean)
+        # Clear service_type/move_type for non-applicable modes (parity with BookingForm.clean)
+        OCEAN_MODES = ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA')
         mode = merged['transport_mode']
-        if mode not in ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'):
+        if mode not in OCEAN_MODES and mode != 'AIR':
             attrs['service_type'] = ''
+        if mode not in OCEAN_MODES:
+            attrs['move_type'] = ''
         return attrs
 
 

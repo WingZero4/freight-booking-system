@@ -125,7 +125,7 @@
                                 </div>
                                 <div class="col-4 mb-3">
                                     <label for="{{ form.container_count.id_for_label }}" class="form-label">
-                                        Qty <span class="container-required">*</span> <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Number of containers needed for this shipment."></i>
+                                        No. of Containers <span class="container-required">*</span> <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Number of containers needed for this shipment."></i>
                                     </label>
                                     {{ form.container_count }}
                                     {% if form.container_count.errors %}
@@ -151,15 +151,30 @@
                         </div>
                     </div>
 
-                    <!-- Service Type (progressive disclosure — ocean/hybrid modes only) -->
+                    <!-- Service Type (ocean routing or air service level) -->
                     <div id="service-type-section" style="display:none;">
                         <div class="row mb-2">
                             <div class="col-md-3 mb-3">
-                                <label for="{{ form.service_type.id_for_label }}" class="form-label">Service Type <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Routing strategy for ocean/intermodal shipments: AWS (All Water), IPI (Interior Point Intermodal), MLB (Mini Land Bridge), etc. Optional."></i></label>
+                                <label for="{{ form.service_type.id_for_label }}" class="form-label">Service Type <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Ocean: routing strategy (AWS, IPI, MLB, RIPI). Air: service level (Express, Standard, Deferred). Optional."></i></label>
                                 {{ form.service_type }}
                                 {% if form.service_type.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in form.service_type.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Move Type (cargo receipt & delivery terms — sea modes only) -->
+                    <div id="move-type-section" style="display:none;">
+                        <div class="row mb-2">
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.move_type.id_for_label }}" class="form-label">Move Type <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Cargo receipt & delivery terms: CY (Container Yard), CFS (Container Freight Station), SD (Store Door). Defines where carrier responsibility begins and ends."></i></label>
+                                {{ form.move_type }}
+                                {% if form.move_type.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.move_type.errors %}{{ error }}{% endfor %}
                                 </div>
                                 {% endif %}
                             </div>
@@ -409,7 +424,43 @@ document.addEventListener('DOMContentLoaded', function() {
     var hybridGuidance = document.getElementById('hybrid-guidance');
     var serviceTypeSection = document.getElementById('service-type-section');
     var serviceTypeSelect = document.getElementById('id_service_type');
+    var moveTypeSection = document.getElementById('move-type-section');
+    var moveTypeSelect = document.getElementById('id_move_type');
     var stars = document.querySelectorAll('.container-required');
+
+    // Service type option filtering by transport mode
+    var OCEAN_SERVICE_VALUES = ['', 'AWS', 'IPI', 'MLB', 'RIPI'];
+    var AIR_SERVICE_VALUES = ['', 'EXPRESS', 'STANDARD', 'DEFERRED'];
+    var allServiceTypeOptions = [];
+    if (serviceTypeSelect) {
+        for (var i = 0; i < serviceTypeSelect.options.length; i++) {
+            allServiceTypeOptions.push({
+                value: serviceTypeSelect.options[i].value,
+                text: serviceTypeSelect.options[i].text,
+            });
+        }
+    }
+
+    function filterServiceTypeOptions(mode) {
+        if (!serviceTypeSelect) return;
+        var allowed = (mode === 'AIR') ? AIR_SERVICE_VALUES : OCEAN_SERVICE_VALUES;
+        var currentVal = serviceTypeSelect.value;
+        serviceTypeSelect.innerHTML = '';
+        allServiceTypeOptions.forEach(function(opt) {
+            if (allowed.indexOf(opt.value) !== -1) {
+                var o = document.createElement('option');
+                o.value = opt.value;
+                o.text = opt.text;
+                serviceTypeSelect.appendChild(o);
+            }
+        });
+        // Restore selection if still valid
+        if (allowed.indexOf(currentVal) !== -1) {
+            serviceTypeSelect.value = currentVal;
+        } else {
+            serviceTypeSelect.value = '';
+        }
+    }
 
     // Port filtering — store all original <option> elements for each port select
     var originSelect = document.getElementById('id_origin_port');
@@ -528,13 +579,24 @@ document.addEventListener('DOMContentLoaded', function() {
         airGuidance.style.display = 'none';
         hybridGuidance.style.display = 'none';
         serviceTypeSection.style.display = 'none';
+        moveTypeSection.style.display = 'none';
         stars.forEach(function(s) { s.style.display = 'none'; });
 
-        // Service type: show for ocean and hybrid modes only
-        if (['SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'].indexOf(mode) !== -1) {
+        var OCEAN_MODES = ['SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'];
+
+        // Service type: show for ocean, hybrid, AND air modes
+        if (OCEAN_MODES.indexOf(mode) !== -1 || mode === 'AIR') {
             serviceTypeSection.style.display = '';
+            filterServiceTypeOptions(mode);
         } else if (shouldClear && serviceTypeSelect) {
             serviceTypeSelect.value = '';
+        }
+
+        // Move type: show for ocean/hybrid modes only (not air)
+        if (OCEAN_MODES.indexOf(mode) !== -1) {
+            moveTypeSection.style.display = '';
+        } else if (shouldClear && moveTypeSelect) {
+            moveTypeSelect.value = '';
         }
 
         if (mode === 'SEA_FCL') {

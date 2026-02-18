@@ -71,6 +71,15 @@ urlpatterns = [
     path('reports/routes/', report_views.customer_report_routes, name='customer_report_routes'),
     path('reports/performance/', report_views.customer_report_performance, name='customer_report_performance'),
 
+    # Consolidations (staff)
+    path('consolidations/', views.consolidation_list, name='consolidation_list'),
+    path('consolidations/create/', views.consolidation_create, name='consolidation_create'),
+    path('consolidations/<int:pk>/', views.consolidation_detail, name='consolidation_detail'),
+    path('consolidations/<int:pk>/add/', views.consolidation_add_booking, name='consolidation_add_booking'),
+    path('consolidations/<int:pk>/remove/<int:booking_id>/', views.consolidation_remove_booking, name='consolidation_remove_booking'),
+    path('consolidations/<int:pk>/close/', views.consolidation_close, name='consolidation_close'),
+    path('api/consolidation-bookings/', views.api_consolidation_bookings, name='api_consolidation_bookings'),
+
     # Bulk Operations (staff)
     path('bookings/bulk-action/', views.ops_bulk_action, name='ops_bulk_action'),
 

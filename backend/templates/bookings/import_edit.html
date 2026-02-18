@@ -136,7 +136,7 @@
                                 </div>
                                 <div class="col-4 mb-3">
                                     <label for="{{ form.container_count.id_for_label }}" class="form-label">
-                                        Qty <span class="container-required">*</span>
+                                        No. of Containers <span class="container-required">*</span>
                                     </label>
                                     {{ form.container_count }}
                                     {% if form.container_count.errors %}
@@ -162,7 +162,7 @@
                         </div>
                     </div>
 
-                    <!-- Service Type -->
+                    <!-- Service Type (ocean routing or air service level) -->
                     <div id="service-type-section" style="display:none;">
                         <div class="row mb-2">
                             <div class="col-md-3 mb-3">
@@ -171,6 +171,21 @@
                                 {% if form.service_type.errors %}
                                 <div class="invalid-feedback d-block">
                                     {% for error in form.service_type.errors %}{{ error }}{% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Move Type (cargo receipt & delivery terms — sea modes only) -->
+                    <div id="move-type-section" style="display:none;">
+                        <div class="row mb-2">
+                            <div class="col-md-3 mb-3">
+                                <label for="{{ form.move_type.id_for_label }}" class="form-label">Move Type</label>
+                                {{ form.move_type }}
+                                {% if form.move_type.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.move_type.errors %}{{ error }}{% endfor %}
                                 </div>
                                 {% endif %}
                             </div>
@@ -403,7 +418,41 @@ document.addEventListener('DOMContentLoaded', function() {
     var hybridGuidance = document.getElementById('hybrid-guidance');
     var serviceTypeSection = document.getElementById('service-type-section');
     var serviceTypeSelect = document.getElementById('id_service_type');
+    var moveTypeSection = document.getElementById('move-type-section');
+    var moveTypeSelect = document.getElementById('id_move_type');
     var stars = document.querySelectorAll('.container-required');
+
+    var OCEAN_SERVICE_VALUES = ['', 'AWS', 'IPI', 'MLB', 'RIPI'];
+    var AIR_SERVICE_VALUES = ['', 'EXPRESS', 'STANDARD', 'DEFERRED'];
+    var allServiceTypeOptions = [];
+    if (serviceTypeSelect) {
+        for (var i = 0; i < serviceTypeSelect.options.length; i++) {
+            allServiceTypeOptions.push({
+                value: serviceTypeSelect.options[i].value,
+                text: serviceTypeSelect.options[i].text,
+            });
+        }
+    }
+
+    function filterServiceTypeOptions(mode) {
+        if (!serviceTypeSelect) return;
+        var allowed = (mode === 'AIR') ? AIR_SERVICE_VALUES : OCEAN_SERVICE_VALUES;
+        var currentVal = serviceTypeSelect.value;
+        serviceTypeSelect.innerHTML = '';
+        allServiceTypeOptions.forEach(function(opt) {
+            if (allowed.indexOf(opt.value) !== -1) {
+                var o = document.createElement('option');
+                o.value = opt.value;
+                o.text = opt.text;
+                serviceTypeSelect.appendChild(o);
+            }
+        });
+        if (allowed.indexOf(currentVal) !== -1) {
+            serviceTypeSelect.value = currentVal;
+        } else {
+            serviceTypeSelect.value = '';
+        }
+    }
 
     var originSelect = document.getElementById('id_origin_port');
     var destSelect = document.getElementById('id_destination_port');
@@ -498,12 +547,22 @@ document.addEventListener('DOMContentLoaded', function() {
         airGuidance.style.display = 'none';
         hybridGuidance.style.display = 'none';
         serviceTypeSection.style.display = 'none';
+        moveTypeSection.style.display = 'none';
         stars.forEach(function(s) { s.style.display = 'none'; });
 
-        if (['SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'].indexOf(mode) !== -1) {
+        var OCEAN_MODES = ['SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'];
+
+        if (OCEAN_MODES.indexOf(mode) !== -1 || mode === 'AIR') {
             serviceTypeSection.style.display = '';
+            filterServiceTypeOptions(mode);
         } else if (shouldClear && serviceTypeSelect) {
             serviceTypeSelect.value = '';
+        }
+
+        if (OCEAN_MODES.indexOf(mode) !== -1) {
+            moveTypeSection.style.display = '';
+        } else if (shouldClear && moveTypeSelect) {
+            moveTypeSelect.value = '';
         }
 
         if (mode === 'SEA_FCL') {
