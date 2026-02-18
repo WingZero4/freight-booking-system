@@ -79,6 +79,7 @@ urlpatterns = [
     path('bookings/export/', views.booking_export_csv, name='booking_export_csv'),
     path('bookings/import/', import_views.booking_import, name='booking_import'),
     path('bookings/import/preview/', import_views.booking_import_preview, name='booking_import_preview'),
+    path('bookings/import/preview/<int:index>/edit/', import_views.booking_import_edit, name='booking_import_edit'),
     path('bookings/import/confirm/', import_views.booking_import_confirm, name='booking_import_confirm'),
     path('bookings/create/', views.booking_create, name='booking_create'),
     path('bookings/<int:booking_id>/', views.booking_detail, name='booking_detail'),
@@ -109,6 +110,9 @@ urlpatterns = [
          views.booking_party_add, name='booking_party_add'),
     path('bookings/<int:booking_id>/parties/<int:booking_party_id>/remove/',
          views.booking_party_remove, name='booking_party_remove'),
+
+    # AJAX utilities
+    path('api/container-recommendations/', views.container_recommendations, name='container_recommendations'),
 
     # Address book (parties)
     path('parties/', views.party_list, name='party_list'),

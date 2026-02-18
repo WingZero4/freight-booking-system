@@ -3,7 +3,7 @@
     <ul class="pagination justify-content-center">
         <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
             {% if page_obj.has_previous %}
-            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view={{ view_mode }}&role={{ role_filter }}&date_from={{ date_from }}&date_to={{ date_to }}">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view={{ view_mode }}&role={{ role_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}">
                 <i class="fas fa-chevron-left"></i>
             </a>
             {% else %}
@@ -15,13 +15,13 @@
             <li class="page-item active"><span class="page-link">{{ num }}</span></li>
             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ num }}&status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view={{ view_mode }}&role={{ role_filter }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ num }}</a>
+                <a class="page-link" href="?page={{ num }}&status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view={{ view_mode }}&role={{ role_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}">{{ num }}</a>
             </li>
             {% endif %}
         {% endfor %}
         <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
             {% if page_obj.has_next %}
-            <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view={{ view_mode }}&role={{ role_filter }}&date_from={{ date_from }}&date_to={{ date_to }}">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ status_filter }}&q={{ search_query }}&sort={{ sort_by }}&view={{ view_mode }}&role={{ role_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}">
                 <i class="fas fa-chevron-right"></i>
             </a>
             {% else %}

@@ -4,7 +4,7 @@ from .models import (
     Customer, UserProfile, Port, ContainerType, Carrier,
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog, Notification, BookingTemplate,
-    ShipmentMilestone,
+    ShipmentMilestone, ImportLog, ImportBookingLog,
 )
 from .services import BookingService
 
@@ -58,14 +58,14 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Port)
 class PortAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'country', 'region', 'is_active']
-    list_filter = ['region', 'country', 'is_active']
+    list_display = ['code', 'name', 'country', 'region', 'port_type', 'is_active']
+    list_filter = ['port_type', 'region', 'country', 'is_active']
     search_fields = ['code', 'name']
 
 
 @admin.register(ContainerType)
 class ContainerTypeAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'size_ft']
+    list_display = ['code', 'name', 'size_ft', 'capacity_cbm', 'max_payload_kg']
     ordering = ['size_ft', 'code']
 
 
@@ -131,8 +131,9 @@ class BookingAdmin(admin.ModelAdmin):
         'container_display',
         'cargo_ready_date', 'status',
     ]
-    list_filter = ['status', 'transport_mode', 'incoterms', 'source_channel',
-                   'is_hazardous', 'container_type', 'origin_port', 'destination_port']
+    list_filter = ['status', 'transport_mode', 'service_type', 'incoterms',
+                   'source_channel', 'is_hazardous', 'container_type',
+                   'origin_port', 'destination_port']
     search_fields = ['booking_number', 'customer__name', 'customer__code',
                      'external_reference', 'carrier_booking_ref', 'contract_number',
                      'fms_shipment_id', 'hbl_number', 'mbl_number']
@@ -160,7 +161,8 @@ class BookingAdmin(admin.ModelAdmin):
                        'source_channel', 'external_reference')
         }),
         ('Route & Mode', {
-            'fields': ('transport_mode', 'origin_port', 'destination_port',
+            'fields': ('transport_mode', 'service_type',
+                       'origin_port', 'destination_port',
                        'cargo_ready_date')
         }),
         ('Trade Terms', {
@@ -350,3 +352,97 @@ class ShipmentMilestoneAdmin(admin.ModelAdmin):
     search_fields = ['booking__booking_number', 'location', 'notes']
     list_select_related = ['booking', 'recorded_by']
     raw_id_fields = ['booking']
+
+
+class ImportBookingLogInline(admin.TabularInline):
+    model = ImportBookingLog
+    extra = 0
+    readonly_fields = [
+        'row_index', 'row_reference', 'status', 'confidence',
+        'booking', 'validation_errors', 'warnings',
+        'was_selected', 'error_message', 'created_at',
+    ]
+    fields = [
+        'row_index', 'row_reference', 'status', 'confidence',
+        'booking', 'was_selected', 'error_message',
+    ]
+    ordering = ['row_index']
+    max_num = 0
+    show_change_link = True
+
+
+@admin.register(ImportLog)
+class ImportLogAdmin(admin.ModelAdmin):
+    list_display = [
+        'import_id_short', 'filename', 'uploaded_by', 'customer',
+        'status', 'extracted_count', 'created_count', 'failed_count',
+        'created_at',
+    ]
+    list_filter = ['status', 'customer']
+    search_fields = ['filename', 'import_id', 'uploaded_by__username', 'customer__name']
+    list_select_related = ['uploaded_by', 'customer']
+    readonly_fields = [
+        'import_id', 'uploaded_by', 'customer', 'filename', 'file_size',
+        'status', 'extracted_count', 'valid_count', 'warning_count',
+        'error_count', 'created_count', 'failed_count',
+        'extraction_notes', 'error_message',
+        'ip_address', 'user_agent', 'created_at', 'completed_at',
+    ]
+    date_hierarchy = 'created_at'
+    inlines = [ImportBookingLogInline]
+
+    fieldsets = (
+        ('Import Session', {
+            'fields': ('import_id', 'filename', 'file_size', 'status',
+                       'uploaded_by', 'customer'),
+        }),
+        ('Extraction Summary', {
+            'fields': ('extracted_count', 'valid_count', 'warning_count',
+                       'error_count', 'extraction_notes'),
+        }),
+        ('Creation Results', {
+            'fields': ('created_count', 'failed_count'),
+        }),
+        ('Error', {
+            'fields': ('error_message',),
+            'classes': ('collapse',),
+        }),
+        ('Request Details', {
+            'fields': ('ip_address', 'user_agent', 'created_at', 'completed_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    @admin.display(description='Import ID')
+    def import_id_short(self, obj):
+        return str(obj.import_id)[:8] + '...'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ImportBookingLog)
+class ImportBookingLogAdmin(admin.ModelAdmin):
+    list_display = [
+        'import_log', 'row_index', 'row_reference', 'status',
+        'confidence', 'booking', 'was_selected', 'created_at',
+    ]
+    list_filter = ['status', 'confidence', 'was_selected']
+    search_fields = [
+        'import_log__import_id', 'booking__booking_number', 'row_reference',
+    ]
+    list_select_related = ['import_log', 'booking']
+    readonly_fields = [
+        'import_log', 'booking', 'row_index', 'row_reference',
+        'status', 'confidence', 'validation_errors', 'warnings',
+        'was_selected', 'error_message', 'created_at',
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

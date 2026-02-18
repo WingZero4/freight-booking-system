@@ -340,7 +340,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         """Carrier callback — receives booking confirmation/rejection."""
         booking = self.get_object()
 
-        if booking.status in ('CANCELLED', 'COMPLETED'):
+        if booking.status in ('CANCELLED', 'COMPLETED', 'REJECTED'):
             return Response(
                 {'error': f'Booking is {booking.status} — callback rejected.'},
                 status=status.HTTP_409_CONFLICT,

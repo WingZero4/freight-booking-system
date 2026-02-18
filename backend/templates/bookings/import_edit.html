@@ -1,22 +1,49 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}{% if is_edit %}Edit Booking {{ booking.booking_number }}{% else %}Create New Booking{% endif %} - Freight Booking{% endblock %}
+{% block title %}Edit Import Booking #{{ entry_index|add:1 }} - {{ theme_portal_name|default:"Freight Booking" }}{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-11">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">
-                    {% if is_edit %}
-                    <i class="fas fa-edit me-2"></i>Edit Booking {{ booking.booking_number }}
-                    {% else %}
-                    <i class="fas fa-plus-circle me-2"></i>Create New Booking
-                    {% endif %}
+                    <i class="fas fa-edit me-2"></i>Edit Import Booking #{{ entry_index|add:1 }}
                 </h4>
+                <span class="text-muted small">
+                    {{ entry.row_reference }}
+                    <span class="badge {% if entry.status == 'error' %}bg-danger{% elif entry.status == 'warning' %}bg-warning text-dark{% else %}bg-success{% endif %} ms-1">
+                        {{ entry.status }}
+                    </span>
+                    <span class="badge {% if entry.confidence == 'high' %}bg-success{% elif entry.confidence == 'medium' %}bg-warning text-dark{% else %}bg-danger{% endif %} ms-1">
+                        {{ entry.confidence }} confidence
+                    </span>
+                </span>
             </div>
             <div class="card-body">
+                {% if entry.validation_errors %}
+                <div class="alert alert-danger small mb-3">
+                    <strong><i class="fas fa-exclamation-circle me-1"></i>Original errors to fix:</strong>
+                    <ul class="mb-0 mt-1">
+                        {% for field, err in entry.validation_errors.items %}
+                        <li>{{ err }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if entry.issues %}
+                <div class="alert alert-warning small mb-3">
+                    <strong><i class="fas fa-exclamation-triangle me-1"></i>Warnings:</strong>
+                    <ul class="mb-0 mt-1">
+                        {% for issue in entry.issues %}
+                        <li>{{ issue }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
                 {% if form.non_field_errors %}
                 <div class="alert alert-danger">
                     {% for error in form.non_field_errors %}
@@ -25,30 +52,14 @@
                 </div>
                 {% endif %}
 
-                <form method="post" novalidate id="bookingForm">
+                <form method="post" novalidate>
                     {% csrf_token %}
-
-                    {% if is_staff_create and not is_edit %}
-                    <!-- Customer Selection (staff only) -->
-                    <h5 class="mb-3"><i class="fas fa-building me-2 text-themed-primary"></i>Customer</h5>
-                    <div class="row mb-2">
-                        <div class="col-md-6 mb-3">
-                            <label for="id_customer" class="form-label">Customer * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Select the customer this booking is being created for."></i></label>
-                            <select name="customer" class="form-select" required id="id_customer">
-                                <option value="">-- Select Customer --</option>
-                                {% for c in customers %}
-                                <option value="{{ c.id }}" {% if selected_customer|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }} - {{ c.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    {% endif %}
 
                     <!-- Route & Trade Terms -->
                     <h5 class="mb-3"><i class="fas fa-route me-2 text-themed-primary"></i>Route &amp; Trade Terms</h5>
                     <div class="row mb-2">
                         <div class="col-md-2 mb-3">
-                            <label for="{{ form.transport_mode.id_for_label }}" class="form-label">Mode * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="How cargo will be transported: Sea FCL (full container), Sea LCL (shared container), Air, Rail, Truck, or Multimodal."></i></label>
+                            <label for="{{ form.transport_mode.id_for_label }}" class="form-label">Mode *</label>
                             {{ form.transport_mode }}
                             {% if form.transport_mode.errors %}
                             <div class="invalid-feedback d-block">
@@ -57,7 +68,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.origin_port.id_for_label }}" class="form-label">Origin * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Port or airport where cargo will be loaded for departure."></i></label>
+                            <label for="{{ form.origin_port.id_for_label }}" class="form-label">Origin *</label>
                             {{ form.origin_port }}
                             {% if form.origin_port.errors %}
                             <div class="invalid-feedback d-block">
@@ -66,7 +77,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.destination_port.id_for_label }}" class="form-label">Destination * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Port or airport where cargo will arrive and be delivered."></i></label>
+                            <label for="{{ form.destination_port.id_for_label }}" class="form-label">Destination *</label>
                             {{ form.destination_port }}
                             {% if form.destination_port.errors %}
                             <div class="invalid-feedback d-block">
@@ -75,7 +86,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-2 mb-3">
-                            <label for="{{ form.incoterms.id_for_label }}" class="form-label">INCOTERMS * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="International trade terms defining buyer/seller responsibilities for costs, risks, and insurance (e.g. FOB, CIF, EXW)."></i></label>
+                            <label for="{{ form.incoterms.id_for_label }}" class="form-label">INCOTERMS *</label>
                             {{ form.incoterms }}
                             {% if form.incoterms.errors %}
                             <div class="invalid-feedback d-block">
@@ -84,16 +95,16 @@
                             {% endif %}
                         </div>
                         <div class="col-md-2 mb-3">
-                            <label for="{{ form.incoterms_location.id_for_label }}" class="form-label">Named Place <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Specific location referenced by the selected Incoterm (e.g. warehouse address for EXW, destination city for DAP)."></i></label>
+                            <label for="{{ form.incoterms_location.id_for_label }}" class="form-label">Named Place</label>
                             {{ form.incoterms_location }}
                         </div>
                     </div>
 
-                    <!-- Schedule, Reference & Container -->
+                    <!-- Schedule & Equipment -->
                     <h5 class="mb-3"><i class="fas fa-calendar-alt me-2 text-themed-primary"></i>Schedule &amp; Equipment</h5>
                     <div class="row mb-2">
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.cargo_ready_date.id_for_label }}" class="form-label">Cargo Ready Date * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Earliest date cargo will be ready for pickup or delivery to the port/airport."></i></label>
+                            <label for="{{ form.cargo_ready_date.id_for_label }}" class="form-label">Cargo Ready Date *</label>
                             {{ form.cargo_ready_date }}
                             {% if form.cargo_ready_date.errors %}
                             <div class="invalid-feedback d-block">
@@ -102,7 +113,7 @@
                             {% endif %}
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label for="{{ form.external_reference.id_for_label }}" class="form-label">Your Reference * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Your internal reference number (e.g. PO number, order ID) for cross-referencing. Required."></i></label>
+                            <label for="{{ form.external_reference.id_for_label }}" class="form-label">Your Reference *</label>
                             {{ form.external_reference }}
                             {% if form.external_reference.errors %}
                             <div class="invalid-feedback d-block">
@@ -114,7 +125,7 @@
                             <div class="row">
                                 <div class="col-8 mb-3">
                                     <label for="{{ form.container_type.id_for_label }}" class="form-label">
-                                        Container Type <span class="container-required">*</span> <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Size and type of container: 20GP (standard 20ft), 40GP (standard 40ft), 40HC (40ft high-cube), etc."></i>
+                                        Container Type <span class="container-required">*</span>
                                     </label>
                                     {{ form.container_type }}
                                     {% if form.container_type.errors %}
@@ -125,7 +136,7 @@
                                 </div>
                                 <div class="col-4 mb-3">
                                     <label for="{{ form.container_count.id_for_label }}" class="form-label">
-                                        Qty <span class="container-required">*</span> <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Number of containers needed for this shipment."></i>
+                                        Qty <span class="container-required">*</span>
                                     </label>
                                     {{ form.container_count }}
                                     {% if form.container_count.errors %}
@@ -151,11 +162,11 @@
                         </div>
                     </div>
 
-                    <!-- Service Type (progressive disclosure — ocean/hybrid modes only) -->
+                    <!-- Service Type -->
                     <div id="service-type-section" style="display:none;">
                         <div class="row mb-2">
                             <div class="col-md-3 mb-3">
-                                <label for="{{ form.service_type.id_for_label }}" class="form-label">Service Type <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Routing strategy for ocean/intermodal shipments: AWS (All Water), IPI (Interior Point Intermodal), MLB (Mini Land Bridge), etc. Optional."></i></label>
+                                <label for="{{ form.service_type.id_for_label }}" class="form-label">Service Type</label>
                                 {{ form.service_type }}
                                 {% if form.service_type.errors %}
                                 <div class="invalid-feedback d-block">
@@ -174,20 +185,18 @@
                     </div>
                     <div id="air-guidance" class="alert alert-info small mb-3" style="display:none;">
                         <i class="fas fa-info-circle me-1"></i>
-                        <strong>Air freight:</strong> Chargeable weight is the higher of actual weight or volumetric weight
-                        (L×W×H÷6000). Enter dimensions per cargo item below for auto-calculation.
+                        <strong>Air freight:</strong> Chargeable weight is the higher of actual weight or volumetric weight.
                     </div>
                     <div id="hybrid-guidance" class="alert alert-info small mb-3" style="display:none;">
                         <i class="fas fa-info-circle me-1"></i>
                         <strong>Hybrid shipment:</strong> This booking uses both sea and air legs.
-                        Container and air freight fields are both available as needed.
                     </div>
 
-                    <!-- Air Freight Details (shown only for Air mode) -->
+                    <!-- Air Freight Details -->
                     <div id="air-section" style="display:none;">
                         <div class="row mb-2">
                             <div class="col-md-3 mb-3">
-                                <label for="{{ form.chargeable_weight_kg.id_for_label }}" class="form-label">Chargeable Weight (kg) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="The higher of actual weight or volumetric weight (L×W×H÷6000 per piece). Used for air freight pricing."></i></label>
+                                <label for="{{ form.chargeable_weight_kg.id_for_label }}" class="form-label">Chargeable Weight (kg)</label>
                                 {{ form.chargeable_weight_kg }}
                                 {% if form.chargeable_weight_kg.errors %}
                                 <div class="invalid-feedback d-block">
@@ -196,7 +205,7 @@
                                 {% endif %}
                             </div>
                             <div class="col-md-3 mb-3">
-                                <label for="{{ form.flight_number.id_for_label }}" class="form-label">Flight Number <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Airline flight number if already assigned (e.g. SQ321). Can be added later."></i></label>
+                                <label for="{{ form.flight_number.id_for_label }}" class="form-label">Flight Number</label>
                                 {{ form.flight_number }}
                                 {% if form.flight_number.errors %}
                                 <div class="invalid-feedback d-block">
@@ -207,17 +216,12 @@
                         </div>
                     </div>
 
-                    <!-- LCL Consolidation (shown only for Sea LCL mode) -->
+                    <!-- LCL Consolidation -->
                     <div id="lcl-consol-section" style="display:none;">
                         <div class="row mb-2">
                             <div class="col-md-4 mb-3">
-                                <label for="{{ form.lcl_consolidation_number.id_for_label }}" class="form-label">Consolidation Number <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Consolidation reference assigned by the forwarder for grouping LCL cargo."></i></label>
+                                <label for="{{ form.lcl_consolidation_number.id_for_label }}" class="form-label">Consolidation Number</label>
                                 {{ form.lcl_consolidation_number }}
-                                {% if form.lcl_consolidation_number.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.lcl_consolidation_number.errors %}{{ error }}{% endfor %}
-                                </div>
-                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -226,14 +230,14 @@
                     <h5 class="mb-3"><i class="fas fa-clipboard-list me-2 text-themed-primary"></i>Cargo Description</h5>
                     <div class="row mb-2">
                         <div class="col-md-8 mb-3">
-                            <label for="{{ form.commodity_description.id_for_label }}" class="form-label">Commodity Description <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="General description of the goods being shipped (e.g. Electronics, Textiles, Automotive Parts)."></i></label>
+                            <label for="{{ form.commodity_description.id_for_label }}" class="form-label">Commodity Description</label>
                             {{ form.commodity_description }}
                         </div>
                         <div class="col-md-4 mb-3 d-flex align-items-end">
                             <div class="form-check">
                                 {{ form.is_hazardous }}
                                 <label class="form-check-label" for="{{ form.is_hazardous.id_for_label }}">
-                                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>Hazardous Materials <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Check if cargo contains dangerous goods requiring special handling, documentation, and carrier approval."></i>
+                                    <i class="fas fa-exclamation-triangle text-warning me-1"></i>Hazardous Materials
                                 </label>
                             </div>
                         </div>
@@ -267,25 +271,25 @@
                                 <!-- Row 1: Core fields -->
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-4">
-                                        <label class="form-label small">Description * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Specific description of this cargo item (e.g. Laptop computers, Cotton fabric rolls)."></i></label>
+                                        <label class="form-label small">Description *</label>
                                         {{ item_form.description }}
                                         {% if item_form.description.errors %}
                                         <div class="invalid-feedback d-block">{% for e in item_form.description.errors %}{{ e }}{% endfor %}</div>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Package Type * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="How the cargo is packaged: Cartons, Pallets, Crates, Drums, Bags, etc."></i></label>
+                                        <label class="form-label small">Package Type *</label>
                                         {{ item_form.package_type }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Quantity * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Number of packages or pieces of this item."></i></label>
+                                        <label class="form-label small">Quantity *</label>
                                         {{ item_form.quantity }}
                                         {% if item_form.quantity.errors %}
                                         <div class="invalid-feedback d-block">{% for e in item_form.quantity.errors %}{{ e }}{% endfor %}</div>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Weight (kg) * <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Total gross weight of this line item in kilograms."></i></label>
+                                        <label class="form-label small">Weight (kg) *</label>
                                         {{ item_form.weight_kg }}
                                         {% if item_form.weight_kg.errors %}
                                         <div class="invalid-feedback d-block">{% for e in item_form.weight_kg.errors %}{{ e }}{% endfor %}</div>
@@ -302,27 +306,27 @@
                                 <!-- Row 2: Dimensions & Volume -->
                                 <div class="row g-2 mb-2">
                                     <div class="col-md-2">
-                                        <label class="form-label small">HS Code <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Harmonized System code for customs classification (6-10 digits, e.g. 8471.30 for laptops)."></i></label>
+                                        <label class="form-label small">HS Code</label>
                                         {{ item_form.hs_code }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Volume (CBM) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Total volume in cubic meters. Auto-calculated from dimensions if provided."></i></label>
+                                        <label class="form-label small">Volume (CBM)</label>
                                         {{ item_form.volume_cbm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">L (cm) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Length of one package in centimeters."></i></label>
+                                        <label class="form-label small">L (cm)</label>
                                         {{ item_form.length_cm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">W (cm) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Width of one package in centimeters."></i></label>
+                                        <label class="form-label small">W (cm)</label>
                                         {{ item_form.width_cm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">H (cm) <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Height of one package in centimeters."></i></label>
+                                        <label class="form-label small">H (cm)</label>
                                         {{ item_form.height_cm }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">Origin <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Country where the goods were manufactured or produced."></i></label>
+                                        <label class="form-label small">Origin</label>
                                         {{ item_form.country_of_origin }}
                                     </div>
                                 </div>
@@ -332,20 +336,20 @@
                                         <div class="form-check">
                                             {{ item_form.is_hazardous }}
                                             <label class="form-check-label small" for="{{ item_form.is_hazardous.id_for_label }}">
-                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>DG <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Mark if this specific item is a dangerous good requiring UN number and IMO class."></i>
+                                                <i class="fas fa-exclamation-triangle text-warning me-1"></i>DG
                                             </label>
                                         </div>
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">UN# <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="UN number identifying the hazardous substance (e.g. UN1203 for gasoline)."></i></label>
+                                        <label class="form-label small">UN#</label>
                                         {{ item_form.un_number }}
                                     </div>
                                     <div class="col-md-2">
-                                        <label class="form-label small">IMO Class <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="International Maritime Dangerous Goods class (1-9) for this hazardous item."></i></label>
+                                        <label class="form-label small">IMO Class</label>
                                         {{ item_form.imo_class }}
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label small">Marks &amp; Numbers <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Shipping marks, container numbers, or identification labels on the packages."></i></label>
+                                        <label class="form-label small">Marks &amp; Numbers</label>
                                         {{ item_form.marks_and_numbers }}
                                     </div>
                                 </div>
@@ -362,27 +366,18 @@
 
                     <!-- Special Instructions -->
                     <div class="mb-3">
-                        <label for="{{ form.special_instructions.id_for_label }}" class="form-label"><i class="fas fa-sticky-note me-1 text-themed-primary"></i>Special Instructions <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Any additional handling instructions, delivery requirements, or notes for the carrier."></i></label>
+                        <label for="{{ form.special_instructions.id_for_label }}" class="form-label"><i class="fas fa-sticky-note me-1 text-themed-primary"></i>Special Instructions</label>
                         {{ form.special_instructions }}
-                        {% if form.special_instructions.errors %}
-                        <div class="invalid-feedback d-block">
-                            {% for error in form.special_instructions.errors %}{{ error }}{% endfor %}
-                        </div>
-                        {% endif %}
                     </div>
 
                     <!-- Form Actions -->
                     <hr>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-themed-primary">
-                            {% if is_edit %}
-                            <i class="fas fa-save me-1"></i>Save Changes
-                            {% else %}
-                            <i class="fas fa-plus me-1"></i>Create Booking
-                            {% endif %}
+                            <i class="fas fa-save me-1"></i>Save &amp; Return to Preview
                         </button>
-                        <a href="{% if is_edit %}{% url 'booking_detail' booking.id %}{% else %}{% url 'booking_list' %}{% endif %}" class="btn btn-outline-secondary">
-                            Cancel
+                        <a href="{% url 'booking_import_preview' %}" class="btn btn-outline-secondary">
+                            Cancel (Discard Changes)
                         </a>
                     </div>
                 </form>
@@ -394,7 +389,6 @@
 
 {% block extra_js %}
 <script src="{% static 'js/formset.js' %}"></script>
-<!-- Port type map for JavaScript filtering -->
 <script>
 var PORT_TYPE_MAP = {{ form.port_type_map|safe }};
 </script>
@@ -411,18 +405,15 @@ document.addEventListener('DOMContentLoaded', function() {
     var serviceTypeSelect = document.getElementById('id_service_type');
     var stars = document.querySelectorAll('.container-required');
 
-    // Port filtering — store all original <option> elements for each port select
     var originSelect = document.getElementById('id_origin_port');
     var destSelect = document.getElementById('id_destination_port');
     var allOriginOptions = captureOptions(originSelect);
     var allDestOptions = captureOptions(destSelect);
 
-    // Tom Select instances (initialized later)
     var originTS = null;
     var destTS = null;
 
     function captureOptions(selectEl) {
-        // Capture all options with their optgroup labels
         var items = [];
         for (var i = 0; i < selectEl.options.length; i++) {
             var opt = selectEl.options[i];
@@ -436,54 +427,38 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function getAllowedPortTypes(mode) {
-        // Returns which port_type values to show for this transport mode
         if (mode === 'SEA_FCL' || mode === 'SEA_LCL') {
             return ['SEA', 'BOTH'];
         } else if (mode === 'AIR') {
             return ['AIR', 'BOTH'];
         }
-        // SEA_AIR, AIR_SEA, RAIL, TRUCK, MULTIMODAL — show all
         return ['SEA', 'AIR', 'BOTH'];
     }
 
     function filterPorts(mode) {
         var allowed = getAllowedPortTypes(mode);
-
-        // Destroy existing Tom Select instances
         if (originTS) { originTS.destroy(); originTS = null; }
         if (destTS) { destTS.destroy(); destTS = null; }
-
-        // Save current selections
         var originVal = originSelect.value;
         var destVal = destSelect.value;
-
-        // Rebuild both selects with filtered options
         rebuildSelect(originSelect, allOriginOptions, allowed);
         rebuildSelect(destSelect, allDestOptions, allowed);
-
-        // Restore selection if still available
         if (originSelect.querySelector('option[value="' + originVal + '"]')) {
             originSelect.value = originVal;
         }
         if (destSelect.querySelector('option[value="' + destVal + '"]')) {
             destSelect.value = destVal;
         }
-
-        // Re-init Tom Select
         var tsConfig = {plugins: ['dropdown_input'], create: false};
         originTS = new TomSelect('#id_origin_port', tsConfig);
         destTS = new TomSelect('#id_destination_port', tsConfig);
     }
 
     function rebuildSelect(selectEl, allItems, allowedTypes) {
-        // Clear existing options/optgroups
         selectEl.innerHTML = '';
-
         var groups = {};
         for (var i = 0; i < allItems.length; i++) {
             var item = allItems[i];
-
-            // Always include the blank/placeholder option
             if (!item.value) {
                 var opt = document.createElement('option');
                 opt.value = '';
@@ -491,14 +466,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectEl.appendChild(opt);
                 continue;
             }
-
-            // Check if this port is in the allowed types
             var portType = PORT_TYPE_MAP[item.value];
             if (portType && allowedTypes.indexOf(portType) === -1) {
-                continue;  // Filter out
+                continue;
             }
-
-            // Add to appropriate optgroup
             if (item.group) {
                 if (!groups[item.group]) {
                     groups[item.group] = document.createElement('optgroup');
@@ -520,7 +491,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function toggleSections(shouldClear) {
         var mode = modeSelect.value;
-        // Reset all
         containerSection.style.display = 'none';
         airSection.style.display = 'none';
         lclConsolSection.style.display = 'none';
@@ -530,7 +500,6 @@ document.addEventListener('DOMContentLoaded', function() {
         serviceTypeSection.style.display = 'none';
         stars.forEach(function(s) { s.style.display = 'none'; });
 
-        // Service type: show for ocean and hybrid modes only
         if (['SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'].indexOf(mode) !== -1) {
             serviceTypeSection.style.display = '';
         } else if (shouldClear && serviceTypeSelect) {
@@ -550,18 +519,15 @@ document.addEventListener('DOMContentLoaded', function() {
             airGuidance.style.display = '';
             if (shouldClear) clearFields(['id_container_type', 'id_container_count', 'id_lcl_consolidation_number']);
         } else if (mode === 'SEA_AIR' || mode === 'AIR_SEA') {
-            // Hybrid: show container (optional) + air fields + guidance
             containerSection.style.display = '';
             airSection.style.display = '';
             hybridGuidance.style.display = '';
             if (shouldClear) clearFields(['id_lcl_consolidation_number']);
         } else {
-            // RAIL, TRUCK, MULTIMODAL: container optional
             containerSection.style.display = '';
             if (shouldClear) clearFields(['id_chargeable_weight_kg', 'id_flight_number', 'id_lcl_consolidation_number']);
         }
 
-        // Filter ports by transport mode
         filterPorts(mode);
     }
 
@@ -581,20 +547,17 @@ document.addEventListener('DOMContentLoaded', function() {
     modeSelect.addEventListener('change', function() {
         toggleSections(true);
     });
-    toggleSections(false); // Run on page load — don't clear values
+    toggleSections(false);
 
-    // Initialize Bootstrap tooltips
     var tooltipEls = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipEls.forEach(function(el) {
         new bootstrap.Tooltip(el);
         el.classList.add('tooltip-initialized');
     });
 
-    // Re-initialize tooltips when new cargo items are added
     var addBtn = document.getElementById('add-item-btn');
     if (addBtn) {
         addBtn.addEventListener('click', function() {
-            // formset.js runs synchronously, so DOM is ready immediately
             var newTooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]:not(.tooltip-initialized)'));
             newTooltips.forEach(function(el) {
                 new bootstrap.Tooltip(el);
@@ -603,18 +566,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
-
-// Double-submit prevention
-var bookingForm = document.getElementById('bookingForm');
-if (bookingForm) {
-    bookingForm.addEventListener('submit', function() {
-        var btn = bookingForm.querySelector('button[type="submit"]');
-        if (btn && !btn.disabled) {
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving...';
-        }
-    });
-}
 
 // CBM Container Recommendation
 (function() {
@@ -641,19 +592,16 @@ if (bookingForm) {
 
     function fetchRecommendations() {
         var mode = document.getElementById('id_transport_mode')?.value || '';
-        // Only show for FCL modes (SEA_FCL, RAIL, TRUCK, MULTIMODAL, SEA_AIR, AIR_SEA)
         var fclModes = ['SEA_FCL', 'RAIL', 'TRUCK', 'MULTIMODAL', 'SEA_AIR', 'AIR_SEA'];
         if (fclModes.indexOf(mode) === -1) {
             recEl.classList.add('d-none');
             return;
         }
-
         var totals = calcTotals();
         if (totals.cbm <= 0 && totals.weight <= 0) {
             recEl.classList.add('d-none');
             return;
         }
-
         fetch(recUrl + '?cbm=' + totals.cbm.toFixed(3) + '&weight=' + totals.weight.toFixed(2))
             .then(function(r) { return r.json(); })
             .then(function(data) {
@@ -661,10 +609,7 @@ if (bookingForm) {
                     recEl.classList.add('d-none');
                     return;
                 }
-
                 recMsg.textContent = data.message || '';
-
-                // Build compact table using DOM methods (avoid innerHTML XSS)
                 recTable.textContent = '';
                 var tbl = document.createElement('table');
                 tbl.className = 'table table-sm table-bordered small mb-0';
@@ -690,9 +635,7 @@ if (bookingForm) {
                 recTable.appendChild(tbl);
                 recEl.classList.remove('d-none');
             })
-            .catch(function() {
-                recEl.classList.add('d-none');
-            });
+            .catch(function() { recEl.classList.add('d-none'); });
     }
 
     function scheduleRec() {
@@ -700,24 +643,17 @@ if (bookingForm) {
         recTimer = setTimeout(fetchRecommendations, 800);
     }
 
-    // Listen for changes on cargo item volume/weight/quantity fields
     document.getElementById('cargo-items-container')?.addEventListener('input', function(e) {
         var name = e.target.name || '';
         if (name.includes('volume_cbm') || name.includes('weight_kg') || name.includes('quantity')) {
             scheduleRec();
         }
     });
-
-    // Also trigger on mode change and item add/remove
     document.getElementById('id_transport_mode')?.addEventListener('change', scheduleRec);
-
-    // Watch for formset add/remove (MutationObserver on container)
     var cargoContainer = document.getElementById('cargo-items-container');
     if (cargoContainer) {
         new MutationObserver(function() { scheduleRec(); }).observe(cargoContainer, { childList: true });
     }
-
-    // Initial check on page load (for edit mode with existing items)
     setTimeout(fetchRecommendations, 500);
 })();
 </script>

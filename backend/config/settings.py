@@ -220,7 +220,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '20/minute',
         'user': '120/minute',
-        'token_obtain': '5/minute',
+        'token_obtain': '10/minute',
     },
 }
 
@@ -289,6 +289,11 @@ JAZZMIN_SETTINGS = {
     "default_icon_parents": "fas fa-folder",
     "default_icon_children": "fas fa-circle",
 }
+
+# Session security
+SESSION_COOKIE_AGE = 3600  # 1 hour
+SESSION_SAVE_EVERY_REQUEST = True  # Reset timer on each request
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Django Axes (login rate limiting)
 AXES_FAILURE_LIMIT = 5

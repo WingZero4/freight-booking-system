@@ -1,6 +1,8 @@
+import json
 from django import forms
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
+from django.utils.safestring import mark_safe
 from datetime import date
 from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier
 from . import validators
@@ -11,7 +13,7 @@ class BookingForm(forms.ModelForm):
     class Meta:
         model = Booking
         fields = [
-            'transport_mode',
+            'transport_mode', 'service_type',
             'origin_port', 'destination_port', 'cargo_ready_date',
             'container_type', 'container_count',
             'chargeable_weight_kg', 'flight_number',
@@ -22,6 +24,7 @@ class BookingForm(forms.ModelForm):
         ]
         widgets = {
             'transport_mode': forms.Select(attrs={'class': 'form-select'}),
+            'service_type': forms.Select(attrs={'class': 'form-select'}),
             'origin_port': forms.Select(attrs={'class': 'form-select'}),
             'destination_port': forms.Select(attrs={'class': 'form-select'}),
             'cargo_ready_date': forms.DateInput(
@@ -64,13 +67,16 @@ class BookingForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        grouped = self._grouped_port_choices()
+        grouped, port_type_map = self._grouped_port_choices()
         self.fields['origin_port'].choices = grouped
         self.fields['destination_port'].choices = grouped
+        # JSON map of port PK → port_type for JavaScript filtering
+        self.port_type_map = mark_safe(json.dumps(port_type_map))
         self.fields['special_instructions'].required = False
         self.fields['incoterms_location'].required = False
         self.fields['commodity_description'].required = False
         self.fields['is_hazardous'].required = False
+        self.fields['service_type'].required = False
         # Mode-specific fields — all optional at form level; clean() enforces per mode
         self.fields['container_type'].required = False
         self.fields['container_count'].required = False
@@ -113,6 +119,29 @@ class BookingForm(forms.ModelForm):
 
         # Mode-aware field validation and cross-mode cleanup
         mode = cleaned.get('transport_mode', '')
+
+        # Server-side port type vs transport mode validation
+        mode_port_types = {
+            'SEA_FCL': ('SEA', 'BOTH'),
+            'SEA_LCL': ('SEA', 'BOTH'),
+            'AIR': ('AIR', 'BOTH'),
+            'SEA_AIR': ('SEA', 'AIR', 'BOTH'),
+            'AIR_SEA': ('SEA', 'AIR', 'BOTH'),
+            'RAIL': ('SEA', 'AIR', 'BOTH', 'RAIL'),
+            'TRUCK': ('SEA', 'AIR', 'BOTH', 'RAIL'),
+            'MULTIMODAL': ('SEA', 'AIR', 'BOTH', 'RAIL'),
+        }
+        allowed_types = mode_port_types.get(mode)
+        if allowed_types:
+            if origin and origin.port_type not in allowed_types:
+                self.add_error('origin_port', f'Port type {origin.port_type} is not compatible with {mode} transport mode.')
+            if dest and dest.port_type not in allowed_types:
+                self.add_error('destination_port', f'Port type {dest.port_type} is not compatible with {mode} transport mode.')
+
+        # Service type only applies to ocean and hybrid modes
+        if mode not in ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'):
+            cleaned['service_type'] = ''
+
         if mode == 'SEA_FCL':
             if not cleaned.get('container_type'):
                 self.add_error('container_type', 'Container type is required for FCL shipments.')
@@ -133,6 +162,13 @@ class BookingForm(forms.ModelForm):
             cleaned['container_type'] = None
             cleaned['container_count'] = None
             cleaned['lcl_consolidation_number'] = ''
+        elif mode in ('SEA_AIR', 'AIR_SEA'):
+            # Hybrid: container optional, air fields optional, LCL not applicable
+            if not cleaned.get('container_type'):
+                cleaned['container_type'] = None
+            if not cleaned.get('container_count'):
+                cleaned['container_count'] = None
+            cleaned['lcl_consolidation_number'] = ''
         else:
             # RAIL, TRUCK, MULTIMODAL: container optional, clear air and LCL fields
             if not cleaned.get('container_type'):
@@ -147,17 +183,25 @@ class BookingForm(forms.ModelForm):
 
     @staticmethod
     def _grouped_port_choices():
-        """Build grouped choices for port select: [(country, [(pk, label), ...]), ...]"""
+        """Build grouped choices and port_type map for JavaScript filtering.
+
+        Returns:
+            (choices, port_type_map) where:
+            - choices: [(country, [(pk, label), ...]), ...]
+            - port_type_map: {pk: port_type} dict for JS port filtering
+        """
         ports = Port.objects.filter(is_active=True).order_by('country', 'name')
         groups = {}
+        port_type_map = {}
         for port in ports:
             groups.setdefault(port.country, []).append(
                 (port.pk, f"{port.code} - {port.name}")
             )
+            port_type_map[str(port.pk)] = port.port_type
         choices = [('', '---------')]
         for country in sorted(groups.keys()):
             choices.append((country, groups[country]))
-        return choices
+        return choices, port_type_map
 
 
 class BookingItemForm(forms.ModelForm):
@@ -296,6 +340,7 @@ BookingItemFormSet = inlineformset_factory(
     form=BookingItemForm,
     extra=1,
     min_num=1,
+    max_num=50,
     validate_min=True,
     can_delete=True,
 )

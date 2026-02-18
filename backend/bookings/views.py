@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Avg, F, Count
 from django.db.models.functions import TruncMonth
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 
 from django.db import transaction
@@ -16,7 +16,7 @@ from django.db import transaction
 from .models import (
     Booking, BookingItem, BookingDocument, Party, BookingParty,
     AuditLog, UserProfile, Notification, BookingTemplate, ShipmentMilestone,
-    Customer,
+    Customer, ContainerType,
 )
 from .notifications import _send_notification
 from .forms import (
@@ -172,6 +172,18 @@ def booking_list(request):
         'customer', 'origin_port', 'destination_port', 'container_type'
     )
 
+    # Customer filter (staff only)
+    customer_filter = ''
+    customers_list = None
+    if not customer:
+        customers_list = Customer.objects.filter(is_active=True).order_by('name')
+        customer_filter = request.GET.get('customer', '')
+        if customer_filter:
+            try:
+                bookings = bookings.filter(customer_id=int(customer_filter))
+            except (ValueError, TypeError):
+                customer_filter = ''
+
     # Filtering
     status_filter = request.GET.get('status', '')
     if status_filter:
@@ -230,6 +242,8 @@ def booking_list(request):
         'sort_by': sort_by,
         'view_mode': view_mode,
         'status_choices': Booking.STATUS_CHOICES,
+        'customer_filter': customer_filter,
+        'customers_list': customers_list,
     })
 
 
@@ -341,6 +355,36 @@ def booking_detail(request, booking_id):
     shipment_milestones = booking.milestones.select_related('recorded_by').all()
     milestone_form = RecordMilestoneForm() if not customer else None
 
+    # CBM/weight container recommendation (for staff on FCL bookings)
+    import math
+    cbm_warning = None
+    if not customer and booking.container_type:
+        current = booking.container_count or 1
+        needed_vol = 0
+        needed_wt = 0
+        ct = booking.container_type
+
+        if (booking.total_volume_cbm and booking.total_volume_cbm > 0
+                and ct.capacity_cbm and ct.capacity_cbm > 0):
+            needed_vol = math.ceil(float(booking.total_volume_cbm) / float(ct.capacity_cbm))
+
+        if (booking.total_weight_kg and booking.total_weight_kg > 0
+                and ct.max_payload_kg and ct.max_payload_kg > 0):
+            needed_wt = math.ceil(float(booking.total_weight_kg) / float(ct.max_payload_kg))
+
+        needed = max(needed_vol, needed_wt)
+        if needed > 0 and current < needed:
+            reason_parts = []
+            if needed_vol > current:
+                reason_parts.append(f'{booking.total_volume_cbm} CBM')
+            if needed_wt > current:
+                reason_parts.append(f'{booking.total_weight_kg} kg')
+            cbm_warning = (
+                f'{" and ".join(reason_parts)} needs at least {needed}x '
+                f'{ct.code} (capacity {ct.capacity_cbm} CBM / {ct.max_payload_kg} kg each), '
+                f'but only {current} selected.'
+            )
+
     return render(request, 'bookings/booking_detail.html', {
         'booking': booking,
         'documents': documents,
@@ -352,6 +396,7 @@ def booking_detail(request, booking_id):
         'shipment_milestones': shipment_milestones,
         'milestone_form': milestone_form,
         'active_tab': request.GET.get('tab', 'overview'),
+        'cbm_warning': cbm_warning,
     })
 
 
@@ -1355,6 +1400,7 @@ def booking_clone(request, booking_id):
                 customer=customer,
                 created_by=request.user,
                 transport_mode=booking.transport_mode,
+                service_type=booking.service_type,
                 origin_port=booking.origin_port,
                 destination_port=booking.destination_port,
                 cargo_ready_date=booking.cargo_ready_date,
@@ -1433,6 +1479,15 @@ def booking_export_csv(request):
         'customer', 'origin_port', 'destination_port', 'container_type'
     )
 
+    # Customer filter (staff only)
+    if not customer:
+        customer_filter = request.GET.get('customer', '')
+        if customer_filter:
+            try:
+                bookings = bookings.filter(customer_id=int(customer_filter))
+            except (ValueError, TypeError):
+                pass
+
     status_filter = request.GET.get('status', '')
     if status_filter:
         bookings = bookings.filter(status=status_filter)
@@ -1472,7 +1527,7 @@ def booking_export_csv(request):
 
     writer = csv.writer(response)
     headers = [
-        'Booking Number', 'Status', 'Transport Mode', 'Customer',
+        'Booking Number', 'Status', 'Transport Mode', 'Service Type', 'Customer',
         'Origin', 'Destination',
         'Container Type', 'Container Count', 'LCL Consolidation',
         'Chargeable Weight (kg)', 'Flight Number',
@@ -1491,6 +1546,7 @@ def booking_export_csv(request):
     for b in bookings:
         row = [
             b.booking_number, b.status, b.get_transport_mode_display(),
+            b.get_service_type_display() if b.service_type else '',
             b.customer.code,
             b.origin_port.code, b.destination_port.code,
             b.container_type.code if b.container_type else '', b.container_count or '',
@@ -1602,6 +1658,7 @@ def template_save(request, booking_id):
     # Serialize booking data
     template_data = {
         'transport_mode': booking.transport_mode,
+        'service_type': booking.service_type,
         'origin_port_id': booking.origin_port_id,
         'destination_port_id': booking.destination_port_id,
         'container_type_id': booking.container_type_id,
@@ -1723,6 +1780,7 @@ def booking_create_from_template(request, template_id):
         from decimal import Decimal, InvalidOperation
         initial = {
             'transport_mode': data.get('transport_mode'),
+            'service_type': data.get('service_type', ''),
             'origin_port': data.get('origin_port_id'),
             'destination_port': data.get('destination_port_id'),
             'container_type': data.get('container_type_id'),
@@ -1858,4 +1916,94 @@ def ops_approve_registration(request, profile_id):
 
     return render(request, 'bookings/ops/approve_registration.html', {
         'profile': profile,
+    })
+
+
+# ─── Container Recommendations ──────────────────────────────────────
+
+@login_required
+def container_recommendations(request):
+    """Return JSON container/equipment recommendations based on total CBM and weight.
+
+    Called via AJAX from booking form and import edit to suggest appropriate
+    container type and count when cargo volume is entered.
+    """
+    from decimal import Decimal, InvalidOperation
+    import math
+
+    try:
+        total_cbm = Decimal(request.GET.get('cbm', '0'))
+        total_weight = Decimal(request.GET.get('weight', '0'))
+    except (InvalidOperation, TypeError):
+        return JsonResponse({'recommendations': [], 'message': ''})
+
+    if total_cbm <= 0 and total_weight <= 0:
+        return JsonResponse({'recommendations': [], 'message': ''})
+
+    # Get container types with capacity data, ordered by size
+    container_types = ContainerType.objects.filter(
+        capacity_cbm__isnull=False
+    ).order_by('size_ft', 'capacity_cbm')
+
+    if not container_types.exists():
+        return JsonResponse({'recommendations': [], 'message': ''})
+
+    recommendations = []
+    for ct in container_types:
+        if ct.capacity_cbm <= 0:
+            continue
+
+        # Calculate containers needed by volume
+        containers_by_vol = math.ceil(float(total_cbm) / float(ct.capacity_cbm)) if total_cbm > 0 else 1
+
+        # Calculate containers needed by weight
+        containers_by_wt = 1
+        if total_weight > 0 and ct.max_payload_kg and ct.max_payload_kg > 0:
+            containers_by_wt = math.ceil(float(total_weight) / float(ct.max_payload_kg))
+
+        containers_needed = max(containers_by_vol, containers_by_wt)
+
+        # Utilization percentage (volume-based)
+        if total_cbm > 0:
+            utilization = float(total_cbm) / (containers_needed * float(ct.capacity_cbm)) * 100
+        else:
+            utilization = 0
+
+        recommendations.append({
+            'container_code': ct.code,
+            'container_name': ct.name,
+            'count': containers_needed,
+            'capacity_cbm': float(ct.capacity_cbm),
+            'total_capacity': round(containers_needed * float(ct.capacity_cbm), 1),
+            'utilization_pct': round(utilization, 1),
+            'by_volume': containers_by_vol,
+            'by_weight': containers_by_wt,
+        })
+
+    # Sort by fewest containers first, then by highest utilization
+    recommendations.sort(key=lambda r: (r['count'], -r['utilization_pct']))
+
+    # Build a short recommendation message
+    message = ''
+    if total_cbm > 0:
+        # Find the best fit: fewest containers with >60% utilization
+        best = None
+        for r in recommendations:
+            if r['utilization_pct'] >= 60:
+                if best is None or r['count'] < best['count'] or (
+                    r['count'] == best['count'] and r['utilization_pct'] > best['utilization_pct']
+                ):
+                    best = r
+        if best:
+            message = (
+                f"Recommended: {best['count']}x {best['container_code']} "
+                f"({best['utilization_pct']}% utilization, "
+                f"{best['total_capacity']} CBM capacity)"
+            )
+
+    return JsonResponse({
+        'recommendations': recommendations,
+        'message': message,
+        'total_cbm': float(total_cbm),
+        'total_weight_kg': float(total_weight),
     })

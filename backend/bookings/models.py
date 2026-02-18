@@ -163,10 +163,17 @@ class Port(models.Model):
         ('OCEANIA', 'Oceania'),
     ]
 
+    PORT_TYPE_CHOICES = [
+        ('SEA', 'Sea Port'),
+        ('AIR', 'Airport'),
+        ('BOTH', 'Sea & Air (Dual-use)'),
+    ]
+
     code = models.CharField(max_length=10, unique=True)  # UN/LOCODE
     name = models.CharField(max_length=255)
     country = models.CharField(max_length=100)
     region = models.CharField(max_length=30, choices=REGION_CHOICES, default='NORTH_AMERICA')
+    port_type = models.CharField(max_length=4, choices=PORT_TYPE_CHOICES, default='SEA')
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
@@ -181,6 +188,14 @@ class ContainerType(models.Model):
     code = models.CharField(max_length=10, unique=True)
     name = models.CharField(max_length=50)
     size_ft = models.IntegerField()
+    capacity_cbm = models.DecimalField(
+        max_digits=6, decimal_places=1, null=True, blank=True,
+        help_text='Internal cargo capacity in cubic meters'
+    )
+    max_payload_kg = models.DecimalField(
+        max_digits=8, decimal_places=0, null=True, blank=True,
+        help_text='Maximum payload weight in kilograms'
+    )
 
     def __str__(self):
         return f"{self.code} ({self.name})"
@@ -232,6 +247,8 @@ class Booking(models.Model):
         ('SEA_FCL', 'Sea - FCL'),
         ('SEA_LCL', 'Sea - LCL'),
         ('AIR', 'Air Freight'),
+        ('SEA_AIR', 'Sea-Air'),
+        ('AIR_SEA', 'Air-Sea'),
         ('RAIL', 'Rail'),
         ('TRUCK', 'Trucking'),
         ('MULTIMODAL', 'Multimodal'),
@@ -251,11 +268,22 @@ class Booking(models.Model):
         ('FAS', 'FAS - Free Alongside Ship'),
     ]
 
+    SERVICE_TYPE_CHOICES = [
+        ('', 'N/A'),
+        ('AWS', 'AWS - All Water Service'),
+        ('IPI', 'IPI - Interior Point Intermodal'),
+        ('MLB', 'MLB - Mini Land Bridge'),
+        ('RIPI', 'RIPI - Reverse IPI'),
+        ('CY_CY', 'CY-CY - Port to Port'),
+        ('CY_SD', 'CY-SD - Port to Door'),
+        ('SD_SD', 'SD-SD - Door to Door'),
+    ]
+
     SOURCE_CHANNEL_CHOICES = [
         ('WEB', 'Web Portal'),
         ('API', 'API'),
         ('EDI', 'EDI'),
-        ('CSV', 'CSV/XLSX Import'),
+        ('CSV', 'File Import'),
         ('MANUAL', 'Manual Entry'),
     ]
 
@@ -266,6 +294,13 @@ class Booking(models.Model):
     transport_mode = models.CharField(
         max_length=20, choices=TRANSPORT_MODE_CHOICES, default='SEA_FCL',
         help_text='Mode of transport for this shipment'
+    )
+
+    # Service type (optional — routing strategy for ocean/intermodal)
+    service_type = models.CharField(
+        max_length=10, choices=SERVICE_TYPE_CHOICES,
+        blank=True, default='',
+        help_text='Routing/service type (optional, e.g. AWS, IPI, MLB)'
     )
 
     # Customer
@@ -931,3 +966,93 @@ class ShipmentMilestone(models.Model):
     class Meta:
         ordering = ['occurred_at']
         verbose_name = 'shipment milestone'
+
+
+class ImportLog(models.Model):
+    """Audit trail for file import sessions."""
+    STATUS_CHOICES = [
+        ('ANALYZING', 'Analyzing File'),
+        ('PREVIEWING', 'Awaiting Confirmation'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+    ]
+
+    import_id = models.UUIDField(unique=True, help_text='Matches session import_id')
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='import_logs',
+    )
+    customer = models.ForeignKey(
+        'Customer', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='import_logs',
+    )
+    filename = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(
+        null=True, blank=True, help_text='File size in bytes',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ANALYZING')
+
+    extracted_count = models.PositiveIntegerField(default=0)
+    valid_count = models.PositiveIntegerField(default=0)
+    warning_count = models.PositiveIntegerField(default=0)
+    error_count = models.PositiveIntegerField(default=0)
+    created_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+
+    extraction_notes = models.TextField(blank=True)
+    error_message = models.TextField(blank=True, help_text='Error if entire import failed')
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=500, blank=True)
+
+    created_at = models.DateTimeField(default=timezone.now)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Import {str(self.import_id)[:8]} - {self.filename} ({self.get_status_display()})"
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'import log'
+        verbose_name_plural = 'import logs'
+
+
+class ImportBookingLog(models.Model):
+    """Per-booking detail within an import session."""
+    STATUS_CHOICES = [
+        ('VALID', 'Valid'),
+        ('WARNING', 'Valid with Warnings'),
+        ('ERROR', 'Validation Error'),
+        ('CREATED', 'Booking Created'),
+        ('SKIPPED', 'Not Selected'),
+        ('CREATE_FAILED', 'Creation Failed'),
+    ]
+
+    import_log = models.ForeignKey(
+        ImportLog, on_delete=models.CASCADE, related_name='booking_logs',
+    )
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='import_booking_logs',
+    )
+    row_index = models.PositiveIntegerField(help_text='Zero-based index in extraction results')
+    row_reference = models.CharField(max_length=100, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='VALID')
+    confidence = models.CharField(max_length=20, blank=True, default='medium')
+
+    validation_errors = models.JSONField(default=dict, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+
+    was_selected = models.BooleanField(default=False)
+    error_message = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        bk = self.booking.booking_number if self.booking else 'N/A'
+        return f"Import row {self.row_index} -> {bk} ({self.get_status_display()})"
+
+    class Meta:
+        ordering = ['import_log', 'row_index']
+        verbose_name = 'import booking log'
+        verbose_name_plural = 'import booking logs'

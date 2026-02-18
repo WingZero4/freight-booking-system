@@ -28,10 +28,12 @@ Rules:
    Use the port CODE (e.g., "CNSHA"), not the name.
 3. Map container descriptions to the closest match in the provided container type
    reference list. Use the container CODE (e.g., "20GP").
-4. For transport_mode, map to one of: SEA_FCL, SEA_LCL, AIR, RAIL, TRUCK, MULTIMODAL.
+4. For transport_mode, map to one of: SEA_FCL, SEA_LCL, AIR, SEA_AIR, AIR_SEA, RAIL, TRUCK, MULTIMODAL.
    If the file mentions "ocean", "sea", "FCL", or "container", use SEA_FCL.
    If it mentions "LCL" or "less than container", use SEA_LCL.
    If it mentions "air" or "flight", use AIR.
+   If it mentions "sea-air" or "sea then air", use SEA_AIR.
+   If it mentions "air-sea" or "air then sea", use AIR_SEA.
 5. For incoterms, map to one of: FOB, CFR, CIF, EXW, FCA, CPT, CIP, DAP, DPU, DDP, FAS.
    Default to FOB if not specified.
 6. For package_type, map to one of: PALLET, CARTON, CRATE, DRUM, BAG, BUNDLE, PACKAGE, OTHER.
@@ -55,7 +57,7 @@ def _build_user_message(file_content: str, reference_data: dict) -> str:
     return f"""## Booking Schema
 
 ### Required Booking Fields:
-- transport_mode (string): SEA_FCL | SEA_LCL | AIR | RAIL | TRUCK | MULTIMODAL
+- transport_mode (string): SEA_FCL | SEA_LCL | AIR | SEA_AIR | AIR_SEA | RAIL | TRUCK | MULTIMODAL
 - origin_port_code (string): UN/LOCODE from the port reference list below
 - destination_port_code (string): UN/LOCODE from the port reference list below
 - cargo_ready_date (string): YYYY-MM-DD format

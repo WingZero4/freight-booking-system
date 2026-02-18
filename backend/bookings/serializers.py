@@ -16,13 +16,13 @@ from .models import (
 class PortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Port
-        fields = ['code', 'name', 'country']
+        fields = ['code', 'name', 'country', 'port_type']
 
 
 class ContainerTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContainerType
-        fields = ['code', 'name', 'size_ft']
+        fields = ['code', 'name', 'size_ft', 'capacity_cbm', 'max_payload_kg']
 
 
 class BookingItemSerializer(serializers.ModelSerializer):
@@ -93,7 +93,7 @@ class BookingListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = [
-            'id', 'booking_number', 'status', 'transport_mode',
+            'id', 'booking_number', 'status', 'transport_mode', 'service_type',
             'customer_code', 'customer_name',
             'origin', 'destination',
             'container', 'container_count',
@@ -127,7 +127,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = [
-            'id', 'booking_number', 'status', 'transport_mode',
+            'id', 'booking_number', 'status', 'transport_mode', 'service_type',
             'incoterms', 'incoterms_location',
             'chargeable_weight_kg', 'flight_number',
             'route', 'carrier', 'container', 'cargo',
@@ -373,6 +373,10 @@ class BookingCreateSerializer(serializers.Serializer):
     flight_number = serializers.CharField(
         max_length=20, required=False, default='',
     )
+    service_type = serializers.ChoiceField(
+        choices=Booking.SERVICE_TYPE_CHOICES, required=False,
+        default='', allow_blank=True,
+    )
 
     # Staff only: specify customer
     customer_code = serializers.CharField(max_length=20, required=False)
@@ -408,6 +412,9 @@ class BookingCreateSerializer(serializers.Serializer):
         errors = validators.validate_booking_data(data)
         if errors:
             raise serializers.ValidationError(errors)
+        # Clear service_type for non-ocean/hybrid modes (parity with BookingForm.clean)
+        if attrs['transport_mode'] not in ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'):
+            attrs['service_type'] = ''
         return attrs
 
 
@@ -449,6 +456,9 @@ class BookingUpdateSerializer(serializers.Serializer):
         max_digits=12, decimal_places=2, required=False, allow_null=True,
     )
     flight_number = serializers.CharField(max_length=20, required=False)
+    service_type = serializers.ChoiceField(
+        choices=Booking.SERVICE_TYPE_CHOICES, required=False, allow_blank=True,
+    )
 
     # If provided, replaces all existing items
     items = BookingItemWriteSerializer(many=True, required=False)
@@ -464,9 +474,9 @@ class BookingUpdateSerializer(serializers.Serializer):
         booking = self.context.get('booking')
         if not booking:
             raise serializers.ValidationError('Booking context required.')
-        if booking.status != 'DRAFT':
+        if booking.status not in ('DRAFT', 'SUBMITTED'):
             raise serializers.ValidationError(
-                'Only draft bookings can be updated.',
+                'Only draft or submitted bookings can be updated.',
             )
 
         # Merge with existing booking for cross-field validation
@@ -503,6 +513,10 @@ class BookingUpdateSerializer(serializers.Serializer):
         )
         if errors:
             raise serializers.ValidationError(errors)
+        # Clear service_type for non-ocean/hybrid modes (parity with BookingForm.clean)
+        mode = merged['transport_mode']
+        if mode not in ('SEA_FCL', 'SEA_LCL', 'SEA_AIR', 'AIR_SEA'):
+            attrs['service_type'] = ''
         return attrs
 
 

@@ -91,6 +91,10 @@
                         <span class="badge {% if entry.status == 'valid' %}bg-success{% elif entry.status == 'warning' %}bg-warning text-dark{% else %}bg-danger{% endif %} ms-1">
                             {{ entry.status }}
                         </span>
+                        <a href="{% url 'booking_import_edit' forloop.counter0 %}"
+                           class="btn btn-sm btn-outline-primary py-0 ms-1" title="Edit this booking">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
                         <button type="button"
                                 class="btn btn-sm btn-outline-secondary py-0 ms-1"
                                 data-bs-toggle="collapse"

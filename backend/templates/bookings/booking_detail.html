@@ -161,6 +161,15 @@
             </div>
         </div>
 
+        {% if cbm_warning %}
+        <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <div>
+                <strong>Container Check:</strong> {{ cbm_warning }}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-3" role="tablist">
             <li class="nav-item">
@@ -210,9 +219,14 @@
                         <div class="row mb-2">
                             <div class="col-md-12">
                                 <span class="badge bg-themed-primary fs-6 mb-2">
-                                    <i class="fas fa-{% if booking.transport_mode == 'AIR' %}plane{% elif booking.transport_mode == 'RAIL' %}train{% elif booking.transport_mode == 'TRUCK' %}truck{% else %}ship{% endif %} me-1"></i>
+                                    <i class="fas fa-{% if booking.transport_mode == 'AIR' %}plane{% elif booking.transport_mode == 'RAIL' %}train{% elif booking.transport_mode == 'TRUCK' %}truck{% elif booking.transport_mode == 'SEA_AIR' or booking.transport_mode == 'AIR_SEA' %}right-left{% else %}ship{% endif %} me-1"></i>
                                     {{ booking.get_transport_mode_display }}
                                 </span>
+                                {% if booking.service_type %}
+                                <span class="badge bg-secondary fs-6 mb-2 ms-1">
+                                    {{ booking.get_service_type_display }}
+                                </span>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="row mb-4">
@@ -836,7 +850,7 @@
                         {% endif %}
 
                         {% if booking.carrier_name or booking.vessel_name or booking.etd or booking.eta %}
-                        <h5 class="mt-4 mb-3"><i class="fas fa-{% if booking.transport_mode == 'AIR' %}plane{% else %}ship{% endif %} me-2 text-themed-primary"></i>Shipment Details</h5>
+                        <h5 class="mt-4 mb-3"><i class="fas fa-{% if booking.transport_mode == 'AIR' %}plane{% elif booking.transport_mode == 'SEA_AIR' or booking.transport_mode == 'AIR_SEA' %}right-left{% else %}ship{% endif %} me-2 text-themed-primary"></i>Shipment Details</h5>
                         <div class="row">
                             {% if booking.carrier_name %}
                             <div class="col-md-3 mb-3">
@@ -879,6 +893,42 @@
 
                         <!-- Bill of Lading / Airway Bill -->
                         {% if booking.transport_mode == 'AIR' %}
+                            {% if booking.hawb_number or booking.mawb_number %}
+                            <h5 class="mt-4 mb-3"><i class="fas fa-plane me-2 text-themed-primary"></i>Airway Bill Numbers</h5>
+                            <div class="row">
+                                {% if booking.hawb_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">HAWB</p>
+                                    <p class="fw-bold">{{ booking.hawb_number }}</p>
+                                </div>
+                                {% endif %}
+                                {% if booking.mawb_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">MAWB</p>
+                                    <p class="fw-bold">{{ booking.mawb_number }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% elif booking.transport_mode == 'SEA_AIR' or booking.transport_mode == 'AIR_SEA' %}
+                            {# Hybrid modes: show both BL and AWB sections #}
+                            {% if booking.hbl_number or booking.mbl_number %}
+                            <h5 class="mt-4 mb-3"><i class="fas fa-file-contract me-2 text-themed-primary"></i>Bill of Lading</h5>
+                            <div class="row">
+                                {% if booking.hbl_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">HBL</p>
+                                    <p class="fw-bold">{{ booking.hbl_number }}</p>
+                                </div>
+                                {% endif %}
+                                {% if booking.mbl_number %}
+                                <div class="col-md-4 mb-3">
+                                    <p class="text-muted mb-1">MBL</p>
+                                    <p class="fw-bold">{{ booking.mbl_number }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                             {% if booking.hawb_number or booking.mawb_number %}
                             <h5 class="mt-4 mb-3"><i class="fas fa-plane me-2 text-themed-primary"></i>Airway Bill Numbers</h5>
                             <div class="row">
@@ -975,7 +1025,7 @@
                             {% for log in audit_logs %}
                             {% if user.profile.customer %}
                             {# Customer view: show status transitions, documents, parties only #}
-                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'ARRIVED' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'RESUBMITTED' or log.action == 'CUSTOMER_APPROVED' or log.action == 'CUSTOMER_REJECTED' or log.action == 'RECONFIRMED' %}
+                            {% if log.action == 'CREATED' or log.action == 'SUBMITTED' or log.action == 'CONFIRMED' or log.action == 'REJECTED' or log.action == 'CANCELLED' or log.action == 'IN_TRANSIT' or log.action == 'ARRIVED' or log.action == 'COMPLETED' or log.action == 'DOCUMENT_UPLOADED' or log.action == 'PARTY_ADDED' or log.action == 'PARTY_REMOVED' or log.action == 'ITEM_ADDED' or log.action == 'ITEM_UPDATED' or log.action == 'ITEM_REMOVED' or log.action == 'RESUBMITTED' or log.action == 'CUSTOMER_APPROVED' or log.action == 'CUSTOMER_REJECTED' or log.action == 'RECONFIRMED' %}
                             <div class="list-group-item px-0">
                                 <div class="d-flex justify-content-between">
                                     <div>

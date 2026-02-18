@@ -142,6 +142,28 @@ class BookingService:
             'external_reference': booking.external_reference,
             'chargeable_weight_kg': str(booking.chargeable_weight_kg) if booking.chargeable_weight_kg else None,
             'flight_number': booking.flight_number,
+            'service_type': booking.service_type,
+        }
+
+    @staticmethod
+    def _item_snapshot(item):
+        """Return a JSON-safe dict of a cargo item for audit diffs."""
+        return {
+            'id': item.pk,
+            'description': item.description,
+            'package_type': item.package_type,
+            'quantity': item.quantity,
+            'weight_kg': str(item.weight_kg),
+            'hs_code': item.hs_code,
+            'volume_cbm': str(item.volume_cbm) if item.volume_cbm else None,
+            'length_cm': str(item.length_cm) if item.length_cm else None,
+            'width_cm': str(item.width_cm) if item.width_cm else None,
+            'height_cm': str(item.height_cm) if item.height_cm else None,
+            'marks_and_numbers': item.marks_and_numbers,
+            'is_hazardous': item.is_hazardous,
+            'un_number': item.un_number,
+            'imo_class': item.imo_class,
+            'country_of_origin': item.country_of_origin,
         }
 
     # ─── Create ───────────────────────────────────────────────────────
@@ -175,6 +197,12 @@ class BookingService:
                 new_value=cls._booking_snapshot(booking),
             )
 
+            for item in booking.items.all():
+                cls._log(
+                    booking, 'ITEM_ADDED', user=user, request=request,
+                    new_value=cls._item_snapshot(item),
+                )
+
         return booking
 
     # ─── Update ───────────────────────────────────────────────────────
@@ -193,9 +221,10 @@ class BookingService:
         if not form.is_valid() or not formset.is_valid():
             raise ValueError('Invalid form data.')
 
-        old = cls._booking_snapshot(booking)
-
         with transaction.atomic():
+            old = cls._booking_snapshot(booking)
+            old_items = {item.pk: cls._item_snapshot(item) for item in booking.items.all()}
+
             form.save()
             formset.save()
             booking.refresh_from_db()
@@ -206,6 +235,33 @@ class BookingService:
                 old_value=old,
                 new_value=cls._booking_snapshot(booking),
             )
+
+            new_items = {item.pk: cls._item_snapshot(item) for item in booking.items.all()}
+
+            # Removed items
+            for pk in old_items:
+                if pk not in new_items:
+                    cls._log(
+                        booking, 'ITEM_REMOVED', user=user, request=request,
+                        old_value=old_items[pk],
+                    )
+
+            # Added items
+            for pk in new_items:
+                if pk not in old_items:
+                    cls._log(
+                        booking, 'ITEM_ADDED', user=user, request=request,
+                        new_value=new_items[pk],
+                    )
+
+            # Updated items
+            for pk in old_items:
+                if pk in new_items and old_items[pk] != new_items[pk]:
+                    cls._log(
+                        booking, 'ITEM_UPDATED', user=user, request=request,
+                        old_value=old_items[pk],
+                        new_value=new_items[pk],
+                    )
 
         return booking
 
@@ -249,6 +305,7 @@ class BookingService:
                 special_instructions=data.get('special_instructions', ''),
                 chargeable_weight_kg=data.get('chargeable_weight_kg'),
                 flight_number=data.get('flight_number', ''),
+                service_type=data.get('service_type', ''),
             )
             booking.save()
 
@@ -292,6 +349,12 @@ class BookingService:
                 notes=f'Created via {source_channel}',
             )
 
+            for item in booking.items.all():
+                cls._log(
+                    booking, 'ITEM_ADDED', user=user, request=request,
+                    new_value=cls._item_snapshot(item),
+                )
+
         return booking
 
     @classmethod
@@ -313,15 +376,15 @@ class BookingService:
         if booking.status not in ('DRAFT', 'SUBMITTED'):
             raise ValueError('Only draft or submitted bookings can be edited.')
 
-        old = cls._booking_snapshot(booking)
-
         with transaction.atomic():
+            old = cls._booking_snapshot(booking)
+
             updatable_fields = [
                 'transport_mode', 'origin_port', 'destination_port',
                 'cargo_ready_date', 'container_type', 'container_count',
                 'incoterms', 'incoterms_location', 'commodity_description',
                 'is_hazardous', 'external_reference', 'special_instructions',
-                'chargeable_weight_kg', 'flight_number',
+                'chargeable_weight_kg', 'flight_number', 'service_type',
             ]
             for field in updatable_fields:
                 if field in data:
@@ -330,7 +393,16 @@ class BookingService:
             booking.save()
 
             if items_data is not None:
+                # Snapshot old items before deletion
+                old_items = [cls._item_snapshot(item) for item in booking.items.all()]
                 booking.items.all().delete()
+
+                for old_snap in old_items:
+                    cls._log(
+                        booking, 'ITEM_REMOVED', user=user, request=request,
+                        old_value=old_snap,
+                    )
+
                 for item_data in items_data:
                     BookingItem.objects.create(
                         booking=booking,
@@ -348,6 +420,12 @@ class BookingService:
                         un_number=item_data.get('un_number', ''),
                         imo_class=item_data.get('imo_class', ''),
                         country_of_origin=item_data.get('country_of_origin', ''),
+                    )
+
+                for item in booking.items.all():
+                    cls._log(
+                        booking, 'ITEM_ADDED', user=user, request=request,
+                        new_value=cls._item_snapshot(item),
                     )
 
             booking.recalculate_totals()

@@ -27,6 +27,15 @@ def _get_customer_emails(booking):
     return [p.user.email for p in profiles if p.user.email]
 
 
+def _get_staff_emails():
+    """Return list of email addresses for all active staff users (no customer)."""
+    profiles = UserProfile.objects.filter(
+        customer__isnull=True,
+        user__is_active=True,
+    ).select_related('user')
+    return [p.user.email for p in profiles if p.user.email]
+
+
 def _send_notification(subject, template_name, context, recipient_list):
     """Render template and send email, failing silently."""
     if not recipient_list:
@@ -87,13 +96,20 @@ def _create_staff_notifications(booking, notification_type, message):
 
 
 def notify_booking_submitted(booking):
-    """Notify customer that their booking has been submitted for review."""
-    emails = _get_customer_emails(booking)
+    """Notify customer and ops staff that a booking has been submitted for review."""
+    customer_emails = _get_customer_emails(booking)
+    staff_emails = _get_staff_emails()
     _send_notification(
         subject=f'Booking {booking.booking_number} Submitted',
         template_name='bookings/emails/booking_submitted.html',
         context={'booking': booking},
-        recipient_list=emails,
+        recipient_list=customer_emails,
+    )
+    _send_notification(
+        subject=f'Booking {booking.booking_number} Submitted',
+        template_name='bookings/emails/booking_submitted.html',
+        context={'booking': booking},
+        recipient_list=staff_emails,
     )
     _create_customer_notifications(
         booking, 'BOOKING_SUBMITTED',
@@ -181,22 +197,40 @@ def notify_booking_completed(booking):
 
 
 def notify_booking_cancelled(booking):
-    """Notify customer that their booking has been cancelled."""
-    emails = _get_customer_emails(booking)
+    """Notify customer and ops staff that a booking has been cancelled."""
+    customer_emails = _get_customer_emails(booking)
+    staff_emails = _get_staff_emails()
     _send_notification(
         subject=f'Booking {booking.booking_number} Cancelled',
         template_name='bookings/emails/booking_cancelled.html',
         context={'booking': booking},
-        recipient_list=emails,
+        recipient_list=customer_emails,
+    )
+    _send_notification(
+        subject=f'Booking {booking.booking_number} Cancelled',
+        template_name='bookings/emails/booking_cancelled.html',
+        context={'booking': booking},
+        recipient_list=staff_emails,
     )
     _create_customer_notifications(
         booking, 'BOOKING_CANCELLED',
         f'Booking {booking.booking_number} has been cancelled.',
     )
+    _create_staff_notifications(
+        booking, 'BOOKING_CANCELLED',
+        f'Booking {booking.booking_number} from {booking.customer.name} has been cancelled.',
+    )
 
 
 def notify_booking_customer_approved(booking):
     """Notify staff that the customer has approved the confirmed booking."""
+    staff_emails = _get_staff_emails()
+    _send_notification(
+        subject=f'Booking {booking.booking_number} — Customer Approved',
+        template_name='bookings/emails/booking_customer_approved.html',
+        context={'booking': booking},
+        recipient_list=staff_emails,
+    )
     _create_staff_notifications(
         booking, 'BOOKING_CUSTOMER_APPROVED',
         f'Customer approved booking {booking.booking_number} — ready for packing.',
@@ -205,6 +239,13 @@ def notify_booking_customer_approved(booking):
 
 def notify_booking_customer_rejected(booking):
     """Notify staff that the customer has rejected the confirmed booking."""
+    staff_emails = _get_staff_emails()
+    _send_notification(
+        subject=f'Booking {booking.booking_number} — Customer Rejected',
+        template_name='bookings/emails/booking_customer_rejected.html',
+        context={'booking': booking},
+        recipient_list=staff_emails,
+    )
     _create_staff_notifications(
         booking, 'BOOKING_CUSTOMER_REJECTED',
         f'Customer rejected booking {booking.booking_number}. Reason: '

@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h3><i class="fas fa-list me-2"></i>Bookings</h3>
     <div class="d-flex gap-2">
-        <a href="{% url 'booking_export_csv' %}?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}"
+        <a href="{% url 'booking_export_csv' %}?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&customer={{ customer_filter }}"
            class="btn btn-outline-success btn-sm">
             <i class="fas fa-file-csv me-1"></i>Export CSV
         </a>
@@ -22,10 +22,21 @@
 <div class="card mb-4">
     <div class="card-body">
         <form method="get" class="row g-3 align-items-end">
-            <div class="col-md-3">
+            <div class="{% if customers_list %}col-md-2{% else %}col-md-3{% endif %}">
                 <label class="form-label">Search</label>
                 <input type="text" name="q" class="form-control" placeholder="Booking # or port..." value="{{ search_query }}">
             </div>
+            {% if customers_list %}
+            <div class="col-md-2">
+                <label class="form-label">Customer</label>
+                <select name="customer" class="form-select">
+                    <option value="">All Customers</option>
+                    {% for c in customers_list %}
+                    <option value="{{ c.pk }}" {% if customer_filter == c.pk|stringformat:"d" %}selected{% endif %}>{{ c.code }} - {{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
             <div class="col-md-2">
                 <label class="form-label">Status</label>
                 <select name="status" class="form-select">
@@ -53,8 +64,8 @@
                     <option value="cargo_ready_date" {% if sort_by == 'cargo_ready_date' %}selected{% endif %}>Cargo Ready (Earliest)</option>
                 </select>
             </div>
-            <div class="col-md-1">
-                <button type="submit" class="btn btn-themed-outline w-100">
+            <div class="col-auto">
+                <button type="submit" class="btn btn-themed-outline">
                     <i class="fas fa-search"></i>
                 </button>
             </div>
@@ -70,11 +81,11 @@
         Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }} bookings
     </small>
     <div class="btn-group btn-group-sm">
-        <a href="?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort_by }}&view=table"
+        <a href="?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort_by }}&view=table&customer={{ customer_filter }}"
            class="btn {% if view_mode == 'table' %}btn-themed-primary{% else %}btn-themed-outline{% endif %}">
             <i class="fas fa-table"></i>
         </a>
-        <a href="?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort_by }}&view=card"
+        <a href="?status={{ status_filter }}&q={{ search_query }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ sort_by }}&view=card&customer={{ customer_filter }}"
            class="btn {% if view_mode == 'card' %}btn-themed-primary{% else %}btn-themed-outline{% endif %}">
             <i class="fas fa-th-large"></i>
         </a>
