@@ -1520,3 +1520,83 @@ class FieldConfig(models.Model):
     class Meta:
         verbose_name = 'field config'
         verbose_name_plural = 'field configs'
+
+
+class RateSheet(models.Model):
+    """Carrier rate sheet for a specific port pair and date range.
+
+    Linked to carrier, origin/destination ports, validity period, and transport mode.
+    Ops staff can reference these rates when creating carrier options for a booking.
+    """
+    CURRENCY_CHOICES = [
+        ('USD', 'USD'),
+        ('EUR', 'EUR'),
+        ('GBP', 'GBP'),
+        ('CNY', 'CNY'),
+        ('JPY', 'JPY'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='rate_sheets')
+    carrier = models.ForeignKey(
+        Carrier, on_delete=models.CASCADE, related_name='rate_sheets')
+    origin_port = models.ForeignKey(
+        Port, on_delete=models.CASCADE, related_name='rate_sheets_origin')
+    destination_port = models.ForeignKey(
+        Port, on_delete=models.CASCADE, related_name='rate_sheets_destination')
+    transport_mode = models.CharField(
+        max_length=10,
+        choices=[('SEA', 'Sea'), ('AIR', 'Air'), ('RAIL', 'Rail'), ('ROAD', 'Road')],
+        default='SEA')
+    container_type = models.ForeignKey(
+        ContainerType, on_delete=models.SET_NULL, null=True, blank=True,
+        help_text='Applicable container type (for FCL rates)')
+
+    # Rate details
+    rate_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text='Rate amount per unit (container, kg, CBM)')
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
+    rate_basis = models.CharField(
+        max_length=20,
+        choices=[
+            ('PER_CONTAINER', 'Per Container'),
+            ('PER_KG', 'Per Kilogram'),
+            ('PER_CBM', 'Per Cubic Meter'),
+            ('FLAT', 'Flat Rate'),
+        ],
+        default='PER_CONTAINER',
+        help_text='How the rate is measured')
+    transit_days = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Expected transit time in days')
+
+    # Validity period
+    valid_from = models.DateField(help_text='Rate effective from date')
+    valid_to = models.DateField(help_text='Rate effective until date')
+
+    # Metadata
+    notes = models.TextField(blank=True, help_text='Additional terms or conditions')
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return (f'{self.carrier.name}: {self.origin_port.code} → '
+                f'{self.destination_port.code} ({self.currency} {self.rate_amount})')
+
+    @property
+    def is_valid(self):
+        """Check if rate is currently within validity period."""
+        from datetime import date
+        today = date.today()
+        return self.is_active and self.valid_from <= today <= self.valid_to
+
+    class Meta:
+        ordering = ['-valid_from', 'carrier__name']
+        indexes = [
+            models.Index(fields=['origin_port', 'destination_port', 'carrier']),
+            models.Index(fields=['valid_from', 'valid_to']),
+        ]

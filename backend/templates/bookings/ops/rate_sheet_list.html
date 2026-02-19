@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Rate Sheets{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="fas fa-file-invoice-dollar me-2"></i>Rate Sheets</h3>
+        <a href="{% url 'rate_sheet_create' %}" class="btn btn-themed-primary">
+            <i class="fas fa-plus me-1"></i>Add Rate Sheet
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label small">Carrier</label>
+                    <select name="carrier" class="form-select form-select-sm">
+                        <option value="">All Carriers</option>
+                        {% for c in carriers %}
+                        <option value="{{ c.id }}" {% if filter_carrier == c.id|stringformat:"d" %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Origin</label>
+                    <input type="text" name="origin" value="{{ filter_origin }}" class="form-control form-control-sm" placeholder="Port code">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Destination</label>
+                    <input type="text" name="destination" value="{{ filter_destination }}" class="form-control form-control-sm" placeholder="Port code">
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check">
+                        <input type="checkbox" name="active" value="1" class="form-check-input" id="activeOnly"
+                               {% if filter_active == '1' %}checked{% endif %}>
+                        <label class="form-check-label" for="activeOnly">Valid today only</label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-filter me-1"></i>Filter
+                    </button>
+                    <a href="{% url 'rate_sheet_list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rate Sheet Table -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Carrier</th>
+                            <th>Route</th>
+                            <th>Mode</th>
+                            <th>Container</th>
+                            <th>Rate</th>
+                            <th>Basis</th>
+                            <th>Transit</th>
+                            <th>Valid From</th>
+                            <th>Valid To</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sheet in page_obj %}
+                        <tr>
+                            <td>{{ sheet.carrier.name }}</td>
+                            <td>{{ sheet.origin_port.code }} &rarr; {{ sheet.destination_port.code }}</td>
+                            <td>{{ sheet.get_transport_mode_display }}</td>
+                            <td>{{ sheet.container_type|default:"-" }}</td>
+                            <td><strong>{{ sheet.currency }} {{ sheet.rate_amount }}</strong></td>
+                            <td>{{ sheet.get_rate_basis_display }}</td>
+                            <td>{% if sheet.transit_days %}{{ sheet.transit_days }}d{% else %}-{% endif %}</td>
+                            <td>{{ sheet.valid_from|date:"M d, Y" }}</td>
+                            <td>{{ sheet.valid_to|date:"M d, Y" }}</td>
+                            <td>
+                                {% if sheet.is_valid %}
+                                <span class="badge bg-success">Active</span>
+                                {% elif not sheet.is_active %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Expired</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'rate_sheet_edit' sheet.id %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                                <form method="post" action="{% url 'rate_sheet_delete' sheet.id %}" class="d-inline"
+                                      onsubmit="return confirm('Delete this rate sheet?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">
+                                No rate sheets found. <a href="{% url 'rate_sheet_create' %}">Create one</a>.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-3">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&carrier={{ filter_carrier }}&origin={{ filter_origin }}&destination={{ filter_destination }}{% if filter_active %}&active={{ filter_active }}{% endif %}">&laquo;</a></li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}&carrier={{ filter_carrier }}&origin={{ filter_origin }}&destination={{ filter_destination }}{% if filter_active %}&active={{ filter_active }}{% endif %}">{{ num }}</a>
+            </li>
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&carrier={{ filter_carrier }}&origin={{ filter_origin }}&destination={{ filter_destination }}{% if filter_active %}&active={{ filter_active }}{% endif %}">&raquo;</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

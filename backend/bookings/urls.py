@@ -145,8 +145,15 @@ urlpatterns = [
     path('bookings/<int:booking_id>/parties/<int:booking_party_id>/remove/',
          views.booking_party_remove, name='booking_party_remove'),
 
+    # Rate Sheets (staff)
+    path('ops/rates/', views.rate_sheet_list, name='rate_sheet_list'),
+    path('ops/rates/create/', views.rate_sheet_create, name='rate_sheet_create'),
+    path('ops/rates/<int:rate_sheet_id>/edit/', views.rate_sheet_edit, name='rate_sheet_edit'),
+    path('ops/rates/<int:rate_sheet_id>/delete/', views.rate_sheet_delete, name='rate_sheet_delete'),
+
     # AJAX utilities
     path('api/container-recommendations/', views.container_recommendations, name='container_recommendations'),
+    path('api/matching-rates/', views.api_matching_rates, name='api_matching_rates'),
 
     # Address book (parties)
     path('parties/', views.party_list, name='party_list'),

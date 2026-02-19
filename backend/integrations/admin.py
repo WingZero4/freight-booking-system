@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from .models import (
     IntegrationConfig, IntegrationLog, CarrierConfig,
@@ -5,8 +6,30 @@ from .models import (
 )
 
 
+class IntegrationConfigForm(forms.ModelForm):
+    class Meta:
+        model = IntegrationConfig
+        fields = '__all__'
+        widgets = {
+            'api_key': forms.PasswordInput(render_value=True),
+            'api_secret': forms.PasswordInput(render_value=True),
+        }
+
+
+class CarrierConfigForm(forms.ModelForm):
+    class Meta:
+        model = CarrierConfig
+        fields = '__all__'
+        widgets = {
+            'api_key': forms.PasswordInput(render_value=True),
+            'api_secret': forms.PasswordInput(render_value=True),
+            'callback_secret': forms.PasswordInput(render_value=True),
+        }
+
+
 @admin.register(IntegrationConfig)
 class IntegrationConfigAdmin(admin.ModelAdmin):
+    form = IntegrationConfigForm
     list_display = [
         'customer', 'adapter_type', 'api_endpoint',
         'auth_type', 'auto_push_on_confirm', 'is_active',
@@ -31,6 +54,7 @@ class IntegrationConfigAdmin(admin.ModelAdmin):
 
 @admin.register(CarrierConfig)
 class CarrierConfigAdmin(admin.ModelAdmin):
+    form = CarrierConfigForm
     list_display = [
         'carrier_code', 'carrier_name', 'carrier_type',
         'adapter_type', 'api_endpoint', 'supports_async_callback',

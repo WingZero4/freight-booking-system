@@ -19,9 +19,10 @@ Configuration (via CarrierConfig in Django admin):
     }
 """
 import logging
-import threading
 import time
 from urllib.parse import quote, urlparse
+
+from django.core.cache import cache as django_cache
 
 import requests
 
@@ -51,9 +52,7 @@ class MaerskAdapter(BaseCarrierAdapter):
     Token is cached and refreshed automatically before expiry.
     """
 
-    # Class-level token cache shared across instances, keyed by api_key
-    _token_cache = {}  # {api_key: (token, expires_at)}
-    _cache_lock = threading.Lock()
+    # Token cache uses Django's file-based cache for cross-process sharing
 
     def __init__(self, carrier_config):
         super().__init__(carrier_config)
@@ -88,32 +87,25 @@ class MaerskAdapter(BaseCarrierAdapter):
     # ── OAuth 2.0 Token Management ──────────────────────────────────
 
     def _get_access_token(self):
-        """Obtain or refresh OAuth 2.0 access token (thread-safe, class-level cache).
+        """Obtain or refresh OAuth 2.0 access token via Django cache.
 
-        Uses double-check locking: the lock is only held for cache reads/writes,
-        never during the HTTP token request, so concurrent threads aren't blocked
-        for up to 30 seconds if the token endpoint is slow.
+        Uses file-based cache for cross-process sharing under WSGI.
         """
-        cache_key = self.api_key
+        cache_key = f'maersk_oauth:{self.api_key[:8]}'
 
-        # Fast path: check cache under lock
-        with MaerskAdapter._cache_lock:
-            cached = MaerskAdapter._token_cache.get(cache_key)
-            if cached and time.time() < cached[1]:
-                return cached[0]
+        # Fast path: check Django cache
+        cached_token = django_cache.get(cache_key)
+        if cached_token:
+            return cached_token
 
-        # Fetch token OUTSIDE the lock (may take up to TIMEOUT_SECONDS)
+        # Fetch token (may take up to TIMEOUT_SECONDS)
         token, expires_in = self._fetch_oauth_token()
 
-        # Store in cache under lock (double-check: another thread may have refreshed)
-        with MaerskAdapter._cache_lock:
-            cached = MaerskAdapter._token_cache.get(cache_key)
-            if cached and time.time() < cached[1]:
-                return cached[0]
-            expires_at = time.time() + expires_in - TOKEN_REFRESH_MARGIN
-            MaerskAdapter._token_cache[cache_key] = (token, expires_at)
-            logger.info('Maersk OAuth token acquired, expires in %ds', expires_in)
-            return token
+        # Store with TTL (subtract margin so we refresh before actual expiry)
+        timeout = max(expires_in - TOKEN_REFRESH_MARGIN, 60)
+        django_cache.set(cache_key, token, timeout=timeout)
+        logger.info('Maersk OAuth token acquired, expires in %ds', expires_in)
+        return token
 
     def _fetch_oauth_token(self):
         """Make the HTTP request to obtain an OAuth token. Returns (token, expires_in)."""
@@ -148,7 +140,11 @@ class MaerskAdapter(BaseCarrierAdapter):
             return token, expires_in
 
         except requests.RequestException as e:
-            logger.error('Maersk OAuth token request failed: %s', e)
+            logger.error(
+                'Maersk OAuth token request failed: %s (status=%s)',
+                type(e).__name__,
+                getattr(getattr(e, 'response', None), 'status_code', 'N/A'),
+            )
             raise
 
     def _get_headers(self):

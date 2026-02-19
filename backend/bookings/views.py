@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Avg, F, Count
@@ -16,7 +17,7 @@ from django.db import transaction
 from .models import (
     Booking, BookingItem, BookingDocument, Party, BookingParty,
     AuditLog, UserProfile, Notification, BookingTemplate, ShipmentMilestone,
-    Customer, ContainerType, Consolidation, CarrierOption,
+    Customer, ContainerType, Consolidation, CarrierOption, RateSheet,
 )
 from .notifications import _send_notification
 from .forms import (
@@ -26,7 +27,7 @@ from .forms import (
     MarkInTransitForm, MarkArrivedForm, CompleteBookingForm,
     CancelConfirmedForm, RecordMilestoneForm,
     ConsolidationCreateForm, ConsolidationAddBookingForm,
-    CarrierOptionForm,
+    CarrierOptionForm, RateSheetForm,
 )
 from .services import BookingService
 from .tenant import get_user_organization
@@ -88,10 +89,13 @@ def get_booking_for_user(booking_id, user):
 
 
 def staff_required(view_func):
-    """Decorator: requires login AND staff user (no customer association)."""
+    """Decorator: requires login AND staff user (is_staff + no customer association)."""
     @wraps(view_func)
     @login_required
     def wrapper(request, *args, **kwargs):
+        if not request.user.is_staff:
+            messages.error(request, 'You do not have permission to access this page.')
+            return redirect('dashboard')
         customer = get_user_customer(request.user)
         if customer is not None:
             messages.error(request, 'You do not have permission to access this page.')
@@ -1266,10 +1270,31 @@ def ops_carrier_options(request, booking_id):
     else:
         form = CarrierOptionForm()
 
+    # Fetch matching rate sheets for this booking's route
+    today = date.today()
+    matching_rates = RateSheet.objects.filter(
+        organization=request.user.profile.organization,
+        origin_port=booking.origin_port,
+        destination_port=booking.destination_port,
+        is_active=True,
+        valid_from__lte=today,
+        valid_to__gte=today,
+    ).select_related('carrier', 'container_type')
+    # Map Booking transport modes to RateSheet transport modes
+    BOOKING_TO_RATE_MODE = {
+        'SEA_FCL': 'SEA', 'SEA_LCL': 'SEA',
+        'AIR': 'AIR', 'SEA_AIR': 'SEA', 'AIR_SEA': 'AIR',
+        'RAIL': 'RAIL', 'TRUCK': 'ROAD', 'MULTIMODAL': '',
+    }
+    rate_mode = BOOKING_TO_RATE_MODE.get(booking.transport_mode, '')
+    if rate_mode:
+        matching_rates = matching_rates.filter(transport_mode=rate_mode)
+
     return render(request, 'bookings/ops/carrier_options.html', {
         'booking': booking,
         'options': options,
         'form': form,
+        'matching_rates': matching_rates[:20],
     })
 
 
@@ -2517,3 +2542,151 @@ def consolidation_close(request, pk):
             messages.error(request, str(e))
 
     return redirect('consolidation_detail', pk=pk)
+
+
+# ─── Rate Sheet Management (Staff) ──────────────────────────────────
+
+
+@staff_required
+def rate_sheet_list(request):
+    """List all rate sheets for the user's organization."""
+    org = request.user.profile.organization
+    sheets = RateSheet.objects.filter(organization=org).select_related(
+        'carrier', 'origin_port', 'destination_port', 'container_type')
+
+    # Filters
+    carrier_id = request.GET.get('carrier')
+    origin = request.GET.get('origin')
+    destination = request.GET.get('destination')
+    active_only = request.GET.get('active', '')
+
+    if carrier_id:
+        sheets = sheets.filter(carrier_id=carrier_id)
+    if origin:
+        sheets = sheets.filter(origin_port__code__icontains=origin)
+    if destination:
+        sheets = sheets.filter(destination_port__code__icontains=destination)
+    if active_only == '1':
+        today = date.today()
+        sheets = sheets.filter(is_active=True, valid_from__lte=today, valid_to__gte=today)
+
+    paginator = Paginator(sheets, 25)
+    page = paginator.get_page(request.GET.get('page'))
+
+    from .models import Carrier
+    carriers = Carrier.objects.filter(is_active=True)
+
+    return render(request, 'bookings/ops/rate_sheet_list.html', {
+        'page_obj': page,
+        'carriers': carriers,
+        'filter_carrier': carrier_id or '',
+        'filter_origin': origin or '',
+        'filter_destination': destination or '',
+        'filter_active': active_only,
+    })
+
+
+@staff_required
+def rate_sheet_create(request):
+    """Create a new rate sheet."""
+    org = request.user.profile.organization
+    if request.method == 'POST':
+        form = RateSheetForm(request.POST, organization=org)
+        if form.is_valid():
+            sheet = form.save(commit=False)
+            sheet.organization = org
+            sheet.created_by = request.user
+            sheet.save()
+            messages.success(request, f'Rate sheet created: {sheet}')
+            return redirect('rate_sheet_list')
+    else:
+        form = RateSheetForm(organization=org)
+
+    return render(request, 'bookings/ops/rate_sheet_form.html', {
+        'form': form,
+        'is_edit': False,
+    })
+
+
+@staff_required
+def rate_sheet_edit(request, rate_sheet_id):
+    """Edit an existing rate sheet."""
+    org = request.user.profile.organization
+    sheet = get_object_or_404(RateSheet, pk=rate_sheet_id, organization=org)
+
+    if request.method == 'POST':
+        form = RateSheetForm(request.POST, instance=sheet, organization=org)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Rate sheet updated: {sheet}')
+            return redirect('rate_sheet_list')
+    else:
+        form = RateSheetForm(instance=sheet, organization=org)
+
+    return render(request, 'bookings/ops/rate_sheet_form.html', {
+        'form': form,
+        'sheet': sheet,
+        'is_edit': True,
+    })
+
+
+@require_POST
+@staff_required
+def rate_sheet_delete(request, rate_sheet_id):
+    """Delete a rate sheet (POST only)."""
+    org = request.user.profile.organization
+    sheet = get_object_or_404(RateSheet, pk=rate_sheet_id, organization=org)
+    sheet.delete()
+    messages.success(request, 'Rate sheet deleted.')
+    return redirect('rate_sheet_list')
+
+
+@staff_required
+def api_matching_rates(request):
+    """AJAX endpoint: return matching rate sheets for a booking's route.
+
+    Used in the carrier options form to display applicable rates.
+    """
+    org = request.user.profile.organization
+    origin_id = request.GET.get('origin')
+    dest_id = request.GET.get('destination')
+    mode = request.GET.get('mode', '')
+
+    if not origin_id or not dest_id:
+        return JsonResponse({'rates': []})
+
+    today = date.today()
+    rates = RateSheet.objects.filter(
+        organization=org,
+        origin_port_id=origin_id,
+        destination_port_id=dest_id,
+        is_active=True,
+        valid_from__lte=today,
+        valid_to__gte=today,
+    ).select_related('carrier', 'container_type')
+
+    # Map Booking transport modes to RateSheet transport modes
+    BOOKING_TO_RATE_MODE = {
+        'SEA_FCL': 'SEA', 'SEA_LCL': 'SEA',
+        'AIR': 'AIR', 'SEA_AIR': 'SEA', 'AIR_SEA': 'AIR',
+        'RAIL': 'RAIL', 'TRUCK': 'ROAD', 'MULTIMODAL': '',
+    }
+    rate_mode = BOOKING_TO_RATE_MODE.get(mode, mode)
+    if rate_mode:
+        rates = rates.filter(transport_mode=rate_mode)
+
+    data = []
+    for r in rates[:20]:
+        data.append({
+            'id': r.id,
+            'carrier_name': r.carrier.name,
+            'carrier_id': r.carrier_id,
+            'rate': str(r.rate_amount),
+            'currency': r.currency,
+            'rate_basis': r.get_rate_basis_display(),
+            'transit_days': r.transit_days,
+            'container_type': str(r.container_type) if r.container_type else None,
+            'valid_to': r.valid_to.isoformat(),
+        })
+
+    return JsonResponse({'rates': data})

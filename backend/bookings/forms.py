@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from django.utils.safestring import mark_safe
 from datetime import date
-from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier, Customer, CarrierOption
+from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier, Customer, CarrierOption, RateSheet
 from . import validators
 
 
@@ -824,4 +824,61 @@ class CarrierOptionForm(forms.ModelForm):
         eta = cleaned.get('eta')
         if etd and eta and eta < etd:
             self.add_error('eta', 'ETA cannot be before ETD.')
+        return cleaned
+
+
+class RateSheetForm(forms.ModelForm):
+    """Form for creating/editing rate sheets."""
+    class Meta:
+        model = RateSheet
+        fields = [
+            'carrier', 'origin_port', 'destination_port', 'transport_mode',
+            'container_type', 'rate_amount', 'currency', 'rate_basis',
+            'transit_days', 'valid_from', 'valid_to', 'notes', 'is_active',
+        ]
+        widgets = {
+            'carrier': forms.Select(attrs={'class': 'form-select'}),
+            'origin_port': forms.Select(attrs={'class': 'form-select'}),
+            'destination_port': forms.Select(attrs={'class': 'form-select'}),
+            'transport_mode': forms.Select(attrs={'class': 'form-select'}),
+            'container_type': forms.Select(attrs={'class': 'form-select'}),
+            'rate_amount': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 0, 'step': '0.01'}),
+            'currency': forms.Select(attrs={'class': 'form-select'}),
+            'rate_basis': forms.Select(attrs={'class': 'form-select'}),
+            'transit_days': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 1}),
+            'valid_from': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}),
+            'valid_to': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}),
+            'notes': forms.Textarea(
+                attrs={'class': 'form-control', 'rows': 2}),
+            'is_active': forms.CheckboxInput(
+                attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['carrier'].queryset = Carrier.objects.filter(is_active=True)
+        self.fields['origin_port'].queryset = Port.objects.filter(is_active=True)
+        self.fields['destination_port'].queryset = Port.objects.filter(is_active=True)
+        self.fields['container_type'].required = False
+        self.fields['transit_days'].required = False
+        self.fields['notes'].required = False
+        self._organization = organization
+
+    def clean(self):
+        cleaned = super().clean()
+        valid_from = cleaned.get('valid_from')
+        valid_to = cleaned.get('valid_to')
+        if valid_from and valid_to and valid_to < valid_from:
+            self.add_error('valid_to', 'Valid-to date cannot be before valid-from date.')
+        origin = cleaned.get('origin_port')
+        dest = cleaned.get('destination_port')
+        if origin and dest and origin == dest:
+            self.add_error('destination_port', 'Origin and destination must be different.')
+        rate = cleaned.get('rate_amount')
+        if rate is not None and rate < 0:
+            self.add_error('rate_amount', 'Rate amount cannot be negative.')
         return cleaned

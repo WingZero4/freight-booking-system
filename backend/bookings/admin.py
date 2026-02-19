@@ -8,7 +8,7 @@ from .models import (
     ShipmentMilestone, ImportLog, ImportBookingLog, Consolidation,
     WorkflowTemplate, WorkflowTemplateVersion, WorkflowStep,
     WorkflowTransition, CustomerWorkflowConfig,
-    OrganizationFeatureConfig, FieldConfig,
+    OrganizationFeatureConfig, FieldConfig, RateSheet,
 )
 from .services import BookingService
 
@@ -667,3 +667,48 @@ class FieldConfigAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         from .feature_service import FieldConfigService
         FieldConfigService.invalidate_cache(obj.customer_id)
+
+
+@admin.register(RateSheet)
+class RateSheetAdmin(admin.ModelAdmin):
+    list_display = [
+        'carrier', 'origin_port', 'destination_port', 'transport_mode',
+        'container_type', 'rate_amount', 'currency', 'rate_basis',
+        'transit_days', 'valid_from', 'valid_to', 'is_active',
+    ]
+    list_filter = [
+        'transport_mode', 'currency', 'rate_basis', 'is_active',
+        'carrier', 'organization',
+    ]
+    search_fields = [
+        'carrier__name', 'carrier__scac_code',
+        'origin_port__code', 'origin_port__name',
+        'destination_port__code', 'destination_port__name',
+    ]
+    list_select_related = ['carrier', 'origin_port', 'destination_port',
+                           'container_type', 'organization']
+    readonly_fields = ['created_by', 'created_at', 'updated_at']
+    date_hierarchy = 'valid_from'
+    fieldsets = (
+        (None, {
+            'fields': ('organization', 'carrier', 'transport_mode', 'is_active'),
+        }),
+        ('Route', {
+            'fields': ('origin_port', 'destination_port', 'container_type'),
+        }),
+        ('Rate', {
+            'fields': ('rate_amount', 'currency', 'rate_basis', 'transit_days'),
+        }),
+        ('Validity', {
+            'fields': ('valid_from', 'valid_to'),
+        }),
+        ('Notes & Metadata', {
+            'fields': ('notes', 'created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)

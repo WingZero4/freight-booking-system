@@ -3,6 +3,8 @@ DRF API views for the freight booking system.
 
 Provides full booking CRUD + status transitions + FMS/carrier callbacks.
 """
+import hashlib
+import hmac
 import logging
 
 from django.core.cache import cache
@@ -305,6 +307,33 @@ class BookingViewSet(viewsets.ModelViewSet):
         """FMS callback — receives reference numbers from external FMS."""
         booking = self.get_object()
 
+        # Reject callbacks on terminal-status bookings
+        if booking.status in ('CANCELLED', 'COMPLETED', 'REJECTED'):
+            return Response(
+                {'error': f'Booking is {booking.status} — callback rejected.'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Verify HMAC signature if the integration has an api_secret
+        config = getattr(booking.customer, 'integration_config', None)
+        if config and config.api_secret:
+            sig_header = request.headers.get('X-Webhook-Signature', '')
+            expected = 'sha256=' + hmac.new(
+                config.api_secret.encode('utf-8'),
+                request.body,
+                hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(sig_header, expected):
+                return Response(
+                    {'error': 'Invalid signature.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        else:
+            logger.warning(
+                'FMS callback for %s processed WITHOUT HMAC verification',
+                booking.booking_number,
+            )
+
         serializer = FMSCallbackSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -331,8 +360,8 @@ class BookingViewSet(viewsets.ModelViewSet):
         )
 
         logger.info(
-            'FMS callback received for %s: %s',
-            booking.booking_number, data,
+            'FMS callback received for %s: updated fields=%s',
+            booking.booking_number, updated_fields,
         )
 
         return Response(
@@ -345,6 +374,26 @@ class BookingViewSet(viewsets.ModelViewSet):
     def carrier_callback(self, request, pk=None):
         """Carrier callback — receives booking confirmation/rejection."""
         booking = self.get_object()
+
+        # Verify HMAC signature if the carrier config has a callback_secret
+        carrier_cfg = booking.carrier_config
+        if carrier_cfg and carrier_cfg.callback_secret:
+            sig_header = request.headers.get('X-Callback-Signature', '')
+            expected = 'sha256=' + hmac.new(
+                carrier_cfg.callback_secret.encode('utf-8'),
+                request.body,
+                hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(sig_header, expected):
+                return Response(
+                    {'error': 'Invalid signature.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        else:
+            logger.warning(
+                'Carrier callback for %s processed WITHOUT HMAC verification',
+                booking.booking_number,
+            )
 
         if booking.status in ('CANCELLED', 'COMPLETED', 'REJECTED'):
             return Response(
