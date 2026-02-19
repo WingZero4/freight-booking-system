@@ -86,6 +86,7 @@ class BookingListSerializer(serializers.ModelSerializer):
     """Compact serializer for list views."""
     customer_code = serializers.CharField(source='customer.code', read_only=True)
     customer_name = serializers.CharField(source='customer.name', read_only=True)
+    company_type = serializers.CharField(source='customer.company_type', read_only=True)
     origin = serializers.CharField(source='origin_port.code', read_only=True)
     destination = serializers.CharField(source='destination_port.code', read_only=True)
     container = serializers.SerializerMethodField()
@@ -95,7 +96,7 @@ class BookingListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'booking_number', 'status', 'transport_mode',
             'service_type', 'move_type',
-            'customer_code', 'customer_name',
+            'customer_code', 'customer_name', 'company_type',
             'origin', 'destination',
             'container', 'container_count',
             'cargo_ready_date', 'etd', 'eta',

@@ -31,14 +31,17 @@ def nav_active(request):
     else:
         context['nav_active'] = ''
 
-    # Pending registrations badge for staff nav
+    # Pending registrations badge for staff nav (scoped to org)
     if hasattr(request, 'user') and request.user.is_authenticated:
         try:
             profile = request.user.profile
             if not profile.customer:  # staff/ops user
                 from bookings.models import UserProfile
+                filters = {'approval_status': 'PENDING'}
+                if profile.organization_id:
+                    filters['organization'] = profile.organization
                 context['pending_registrations_count'] = UserProfile.objects.filter(
-                    approval_status='PENDING'
+                    **filters
                 ).count()
         except Exception:
             pass
@@ -61,8 +64,7 @@ def notifications_context(request):
 def customer_theme(request):
     """Inject customer branding into template context.
 
-    Returns CSS custom property values and branding info.
-    Falls back to default Navy+Crimson theme when no customer branding is set.
+    Resolution order: Customer branding > Organization branding > System defaults.
     """
     defaults = {
         'theme_primary': '#1E2A4A',
@@ -74,7 +76,20 @@ def customer_theme(request):
         return defaults
     try:
         from bookings.models import UserProfile
-        profile = UserProfile.objects.select_related('customer').get(user=request.user)
+        profile = UserProfile.objects.select_related(
+            'customer', 'organization').get(user=request.user)
+        # Layer 1: Organization branding (fallback for staff)
+        if profile.organization:
+            org = profile.organization
+            if org.primary_color:
+                defaults['theme_primary'] = org.primary_color
+            if org.accent_color:
+                defaults['theme_accent'] = org.accent_color
+            if org.portal_name:
+                defaults['theme_portal_name'] = org.portal_name
+            if org.logo:
+                defaults['theme_logo_url'] = org.logo.url
+        # Layer 2: Customer branding (overrides org for customer users)
         if profile.customer:
             c = profile.customer
             if c.primary_color:

@@ -9,6 +9,7 @@ from django.utils import timezone
 from .models import Customer, UserProfile
 from .notifications import _send_notification
 from .registration_views import _generate_customer_code
+from .tenant import get_user_organization
 from .user_management_forms import CustomerUserForm, StaffUserForm, UserEditForm
 from .views import staff_required
 
@@ -16,7 +17,10 @@ from .views import staff_required
 @staff_required
 def ops_user_list(request):
     """List all users with search and type/status filtering."""
-    users = User.objects.select_related('profile', 'profile__customer').order_by('-date_joined')
+    org = get_user_organization(request.user)
+    users = User.objects.filter(
+        profile__organization=org
+    ).select_related('profile', 'profile__customer').order_by('-date_joined')
 
     type_filter = request.GET.get('type', '')
     if type_filter == 'staff':
@@ -51,7 +55,8 @@ def ops_user_list(request):
                 u.profile
             except UserProfile.DoesNotExist:
                 UserProfile.objects.create(
-                    user=u, role='ADMIN', approval_status='APPROVED',
+                    user=u, organization=org,
+                    role='ADMIN', approval_status='APPROVED',
                 )
 
     return render(request, 'bookings/ops/user_list.html', {
@@ -65,6 +70,7 @@ def ops_user_list(request):
 @staff_required
 def ops_user_add_staff(request):
     """Create a new staff/ops user."""
+    org = get_user_organization(request.user)
     if request.method == 'POST':
         form = StaffUserForm(request.POST)
         if form.is_valid():
@@ -80,6 +86,7 @@ def ops_user_add_staff(request):
                 )
                 UserProfile.objects.create(
                     user=user,
+                    organization=org,
                     customer=None,
                     role=form.cleaned_data['role'],
                     phone=form.cleaned_data.get('phone', ''),
@@ -108,13 +115,16 @@ def ops_user_add_staff(request):
 @staff_required
 def ops_user_add_customer(request):
     """Create a new customer user."""
+    org = get_user_organization(request.user)
     if request.method == 'POST':
-        form = CustomerUserForm(request.POST)
+        form = CustomerUserForm(request.POST, organization=org)
         if form.is_valid():
             with transaction.atomic():
                 if form.cleaned_data['customer_mode'] == 'new':
-                    code = _generate_customer_code(form.cleaned_data['company_name'])
+                    code = _generate_customer_code(
+                        form.cleaned_data['company_name'], organization=org)
                     customer = Customer.objects.create(
+                        organization=org,
                         code=code,
                         name=form.cleaned_data['company_name'],
                         email=form.cleaned_data.get('company_email', ''),
@@ -138,6 +148,7 @@ def ops_user_add_customer(request):
                 )
                 UserProfile.objects.create(
                     user=user,
+                    organization=org,
                     customer=customer,
                     role=form.cleaned_data['role'],
                     phone=form.cleaned_data.get('phone', ''),
@@ -155,7 +166,7 @@ def ops_user_add_customer(request):
             messages.success(request, f'Customer user "{user.username}" created for {customer.name}.')
             return redirect('ops_user_list')
     else:
-        form = CustomerUserForm()
+        form = CustomerUserForm(organization=org)
 
     return render(request, 'bookings/ops/user_form.html', {
         'form': form,
@@ -166,8 +177,10 @@ def ops_user_add_customer(request):
 @staff_required
 def ops_user_edit(request, user_id):
     """Edit an existing user's details."""
+    org = get_user_organization(request.user)
     target_user = get_object_or_404(
-        User.objects.select_related('profile', 'profile__customer'), pk=user_id,
+        User.objects.filter(profile__organization=org)
+        .select_related('profile', 'profile__customer'), pk=user_id,
     )
 
     if target_user == request.user:
@@ -181,7 +194,7 @@ def ops_user_edit(request, user_id):
     # Ensure profile exists for template rendering and form init
     UserProfile.objects.get_or_create(
         user=target_user,
-        defaults={'role': 'ADMIN', 'approval_status': 'APPROVED'},
+        defaults={'organization': org, 'role': 'ADMIN', 'approval_status': 'APPROVED'},
     )
 
     if request.method == 'POST':
@@ -216,7 +229,9 @@ def ops_user_toggle_active(request, user_id):
     if request.method != 'POST':
         return redirect('ops_user_list')
 
-    target_user = get_object_or_404(User, pk=user_id)
+    org = get_user_organization(request.user)
+    target_user = get_object_or_404(
+        User.objects.filter(profile__organization=org), pk=user_id)
 
     if target_user == request.user:
         messages.error(request, 'You cannot deactivate your own account.')

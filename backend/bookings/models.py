@@ -5,10 +5,110 @@ from django.utils import timezone
 from django.core.validators import FileExtensionValidator, RegexValidator
 
 
-class Customer(models.Model):
-    """Shipper company"""
-    code = models.CharField(max_length=20, unique=True)
+# ─── Shared validators ──────────────────────────────────────────────
+_hex_color_validator = RegexValidator(
+    r'^#[0-9A-Fa-f]{6}$', 'Enter a valid hex color code (e.g. #1E2A4A).')
+
+
+class Organization(models.Model):
+    """Platform tenant / subscriber — the company that purchased access.
+
+    Could be a freight forwarder, shipper, consignee, or any logistics company.
+    Each Organization has its own companies, users, workflows, and branding.
+    """
+    ORG_TYPE_CHOICES = [
+        ('FORWARDER', 'Freight Forwarder'),
+        ('SHIPPER', 'Shipper'),
+        ('CONSIGNEE', 'Consignee'),
+        ('RETAILER', 'Retailer / Buyer'),
+        ('OTHER', 'Other'),
+    ]
+    SUBSCRIPTION_TIER_CHOICES = [
+        ('FREE', 'Free Tier'),
+        ('STANDARD', 'Standard'),
+        ('PROFESSIONAL', 'Professional'),
+        ('ENTERPRISE', 'Enterprise'),
+    ]
+
+    code = models.CharField(
+        max_length=20, unique=True,
+        help_text='Short unique identifier (e.g. ACME, PRETFIT)')
     name = models.CharField(max_length=255)
+    slug = models.SlugField(
+        max_length=50, unique=True,
+        help_text='URL-safe identifier for subdomain/path routing')
+    company_type = models.CharField(
+        max_length=20, choices=ORG_TYPE_CHOICES, default='FORWARDER',
+        help_text='Type of logistics company that owns this platform instance')
+
+    # Contact info
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    website = models.URLField(blank=True)
+
+    # Branding (platform-level defaults; company branding overrides these)
+    logo = models.ImageField(
+        upload_to='org_logos/', blank=True, null=True,
+        validators=[FileExtensionValidator(
+            allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])],
+        help_text='Organization logo (recommended: 200x50px PNG with transparent bg)')
+    primary_color = models.CharField(
+        max_length=7, blank=True, default='#1E2A4A',
+        validators=[_hex_color_validator],
+        help_text='Primary brand color hex')
+    accent_color = models.CharField(
+        max_length=7, blank=True, default='#DC3545',
+        validators=[_hex_color_validator],
+        help_text='Accent/button color hex')
+    portal_name = models.CharField(
+        max_length=100, blank=True, default='Freight Booking',
+        help_text='Platform name shown in navbar for this org')
+    favicon = models.ImageField(
+        upload_to='org_favicons/', blank=True, null=True,
+        help_text='Browser tab icon')
+
+    subscription_tier = models.CharField(
+        max_length=20, choices=SUBSCRIPTION_TIER_CHOICES, default='STANDARD')
+
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.code} - {self.name}"
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'organization'
+        verbose_name_plural = 'organizations'
+
+
+class Customer(models.Model):
+    """Company participating in the logistics chain.
+
+    Represents a shipper, consignee, or forwarding partner within an
+    Organization's ecosystem. The DB table name remains 'bookings_customer'
+    for backward compatibility; a future migration may rename to 'Company'.
+    """
+    COMPANY_TYPE_CHOICES = [
+        ('FORWARDER_ORIGIN', 'Forwarder (Origin)'),
+        ('FORWARDER_DEST', 'Forwarder (Destination)'),
+        ('SHIPPER', 'Shipper'),
+        ('CONSIGNEE', 'Consignee'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name='companies',
+        help_text='The platform tenant this company belongs to')
+    code = models.CharField(max_length=20)
+    name = models.CharField(max_length=255)
+    company_type = models.CharField(
+        max_length=20, choices=COMPANY_TYPE_CHOICES, blank=True, default='',
+        help_text='Role in the logistics chain')
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=50, blank=True)
     address = models.TextField(blank=True)
@@ -17,20 +117,18 @@ class Customer(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # Branding / White-label
-    hex_color_validator = RegexValidator(
-        r'^#[0-9A-Fa-f]{6}$', 'Enter a valid hex color code (e.g. #1E2A4A).')
+    # Branding / White-label (overrides Organization branding)
     logo = models.ImageField(
         upload_to='customer_logos/', blank=True, null=True,
         validators=[FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'webp'])],
         help_text='Company logo (recommended: 200x50px PNG with transparent bg)')
     primary_color = models.CharField(
         max_length=7, blank=True, default='',
-        validators=[hex_color_validator],
+        validators=[_hex_color_validator],
         help_text='Primary brand color hex, e.g. #1E2A4A')
     accent_color = models.CharField(
         max_length=7, blank=True, default='',
-        validators=[hex_color_validator],
+        validators=[_hex_color_validator],
         help_text='Accent/button color hex, e.g. #DC3545')
     portal_name = models.CharField(
         max_length=100, blank=True, default='',
@@ -41,15 +139,19 @@ class Customer(models.Model):
 
     class Meta:
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'code'],
+                name='unique_company_code_per_org'),
+        ]
 
 
 class UserProfile(models.Model):
-    """Link Django user to customer"""
+    """Link Django user to an organization and optionally to a company."""
     ROLE_CHOICES = [
-        ('ADMIN', 'Admin'),
         ('USER', 'User'),
-        ('OPERATIONS', 'Operations'),
-        ('SALES', 'Sales'),
+        ('ADMIN', 'Admin'),
+        ('OPS', 'Operations'),
     ]
 
     APPROVAL_STATUS_CHOICES = [
@@ -59,6 +161,10 @@ class UserProfile(models.Model):
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name='user_profiles',
+        help_text='Organization this user belongs to')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='USER')
     phone = models.CharField(max_length=50, blank=True)
@@ -83,7 +189,11 @@ class UserProfile(models.Model):
 
     @property
     def is_staff_user(self):
-        return self.customer is None
+        return self.customer is None and self.organization is not None
+
+    @property
+    def is_customer_user(self):
+        return self.customer is not None
 
 
 class Party(models.Model):

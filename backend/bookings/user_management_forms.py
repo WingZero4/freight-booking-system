@@ -33,7 +33,7 @@ class StaffUserForm(forms.Form):
         ),
     )
     role = forms.ChoiceField(
-        choices=[('OPERATIONS', 'Operations'), ('SALES', 'Sales'), ('ADMIN', 'Admin')],
+        choices=[('OPS', 'Operations'), ('ADMIN', 'Admin')],
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
 
@@ -112,9 +112,12 @@ class CustomerUserForm(forms.Form):
         label='Select Customer',
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['existing_customer'].queryset = Customer.objects.filter(is_active=True)
+        qs = Customer.objects.filter(is_active=True)
+        if organization:
+            qs = qs.filter(organization=organization)
+        self.fields['existing_customer'].queryset = qs
 
     # New customer fields
     company_name = forms.CharField(max_length=255, required=False, widget=forms.TextInput(
@@ -191,7 +194,7 @@ class UserEditForm(forms.Form):
         attrs={'class': 'form-control'}
     ))
     role = forms.ChoiceField(
-        choices=[('OPERATIONS', 'Operations'), ('SALES', 'Sales'), ('ADMIN', 'Admin')],
+        choices=[('OPS', 'Operations'), ('ADMIN', 'Admin')],
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
     is_active = forms.BooleanField(required=False, widget=forms.CheckboxInput(
@@ -213,13 +216,9 @@ class UserEditForm(forms.Form):
                 if profile.customer:
                     self.fields['role'].choices = [('USER', 'User'), ('ADMIN', 'Admin')]
                 else:
-                    self.fields['role'].choices = [
-                        ('OPERATIONS', 'Operations'), ('SALES', 'Sales'), ('ADMIN', 'Admin'),
-                    ]
+                    self.fields['role'].choices = [('OPS', 'Operations'), ('ADMIN', 'Admin')]
             except UserProfile.DoesNotExist:
-                self.fields['role'].choices = [
-                    ('OPERATIONS', 'Operations'), ('SALES', 'Sales'), ('ADMIN', 'Admin'),
-                ]
+                self.fields['role'].choices = [('OPS', 'Operations'), ('ADMIN', 'Admin')]
 
     def clean_email(self):
         email = self.cleaned_data['email']

@@ -10,12 +10,15 @@ from rest_framework.test import APIClient
 from bookings.models import (
     Booking, BookingItem, Customer, Port, ContainerType, UserProfile,
 )
+from bookings.tests.helpers import get_default_org
 
 
 def _setup_data():
     """Create shared test data."""
+    org = get_default_org()
     customer = Customer.objects.create(
         name='Test Corp', code='TEST01', is_active=True,
+        organization=org,
     )
     origin = Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
     dest = Port.objects.create(code='USNYC', name='New York', country='US')
@@ -25,13 +28,17 @@ def _setup_data():
     staff = User.objects.create_user(
         'staffuser', 'staff@test.com', 'pass123', is_staff=True,
     )
+    UserProfile.objects.create(user=staff, organization=org, role='ADMIN')
     staff_token = Token.objects.create(user=staff)
 
     # Customer user
     cust_user = User.objects.create_user(
         'custuser', 'cust@test.com', 'pass123',
     )
-    UserProfile.objects.create(user=cust_user, customer=customer, role='USER')
+    UserProfile.objects.create(
+        user=cust_user, customer=customer, role='USER',
+        organization=org,
+    )
     cust_token = Token.objects.create(user=cust_user)
 
     return {
@@ -223,8 +230,9 @@ class TestBookingUpdateAPI(TestCase):
         self.assertEqual(booking.items.first().description, 'New item')
 
     def test_update_non_draft_fails(self):
-        # Submit the booking first
+        # Confirm the booking (submit then confirm via DB — service allows DRAFT+SUBMITTED updates)
         self.client.post(f'/api/v1/bookings/{self.booking_id}/submit/')
+        Booking.objects.filter(pk=self.booking_id).update(status='CONFIRMED')
         resp = self.client.patch(
             f'/api/v1/bookings/{self.booking_id}/',
             {'commodity_description': 'Should fail'},

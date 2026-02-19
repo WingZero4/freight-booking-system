@@ -61,15 +61,21 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Booking.objects.select_related(
-            'customer', 'origin_port', 'destination_port', 'container_type',
-            'carrier_config',
+            'customer__organization', 'origin_port', 'destination_port',
+            'container_type', 'carrier_config',
         ).prefetch_related('items', 'booking_parties', 'documents')
-        # Customer users only see their own bookings
         user = self.request.user
+        profile = getattr(user, 'profile', None)
         if not user.is_staff:
-            profile = getattr(user, 'profile', None)
+            # Customer users only see their own bookings
             if profile and profile.customer:
                 qs = qs.filter(customer=profile.customer)
+            else:
+                qs = qs.none()
+        else:
+            # Staff users only see their organization's bookings
+            if profile and profile.organization_id:
+                qs = qs.filter(customer__organization=profile.organization)
             else:
                 qs = qs.none()
         return qs
@@ -370,9 +376,12 @@ class BookingViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             customer_code = data.get('customer_code')
             if customer_code:
+                profile = getattr(user, 'profile', None)
+                org = profile.organization if profile else None
                 try:
                     return Customer.objects.get(
                         code=customer_code, is_active=True,
+                        organization=org,
                     )
                 except Customer.DoesNotExist:
                     raise ValidationError(

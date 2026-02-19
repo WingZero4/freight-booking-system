@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.db import transaction
 from django.shortcuts import redirect, render
 
-from .models import Customer, UserProfile
+from .models import Customer, Organization, UserProfile
 from .notifications import _send_notification
 from .registration_forms import RegistrationForm
 
@@ -36,9 +36,14 @@ def register(request):
                         pass
                     old_user.delete()
 
-                code = _generate_customer_code(form.cleaned_data['company_name'])
+                # Assign to default organization (future: resolve from URL/subdomain)
+                default_org = Organization.objects.filter(
+                    is_active=True).order_by('pk').first()
+                code = _generate_customer_code(
+                    form.cleaned_data['company_name'], default_org)
 
                 customer = Customer.objects.create(
+                    organization=default_org,
                     code=code,
                     name=form.cleaned_data['company_name'],
                     email=form.cleaned_data.get('company_email', ''),
@@ -60,6 +65,7 @@ def register(request):
 
                 UserProfile.objects.create(
                     user=user,
+                    organization=default_org,
                     customer=customer,
                     role='USER',
                     phone=form.cleaned_data.get('phone', ''),
@@ -81,13 +87,16 @@ def register(request):
     return render(request, 'registration/register.html', {'form': form})
 
 
-def _generate_customer_code(company_name):
-    """Generate a unique customer code from company name."""
+def _generate_customer_code(company_name, organization=None):
+    """Generate a unique customer code within the organization."""
     words = re.sub(r'[^A-Za-z0-9 ]', '', company_name).split()
     base = words[0][:6].upper() if words else 'CUST'
     code = base
     counter = 1
-    while Customer.objects.filter(code=code).exists():
+    qs = Customer.objects.all()
+    if organization:
+        qs = qs.filter(organization=organization)
+    while qs.filter(code=code).exists():
         code = f"{base}{counter:02d}"
         counter += 1
     return code
@@ -103,18 +112,18 @@ def _send_registration_received(user, customer):
 
 
 def _send_staff_new_registration(user, customer):
-    staff_emails = list(
-        User.objects.filter(
-            is_staff=True, is_active=True,
-        ).exclude(email='').values_list('email', flat=True)
-    )
+    filters = {
+        'customer__isnull': True,
+        'user__is_active': True,
+    }
+    if customer.organization_id:
+        filters['organization'] = customer.organization
     ops_emails = list(
         UserProfile.objects.filter(
-            customer__isnull=True,
-            user__is_active=True,
+            **filters,
         ).exclude(user__email='').values_list('user__email', flat=True)
     )
-    all_emails = list(set(staff_emails + ops_emails))
+    all_emails = list(set(ops_emails))
     if all_emails:
         _send_notification(
             subject=f'New Registration: {customer.name} ({user.username})',

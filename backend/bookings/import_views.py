@@ -15,6 +15,7 @@ from django.utils import timezone
 from .models import Customer, Booking, BookingItem, ImportLog, ImportBookingLog
 from .forms import BookingForm, BookingItemForm
 from .views import get_user_customer
+from .tenant import get_user_organization
 from .import_service import (
     validate_import_file, analyze_file, create_bookings_from_import,
     build_session_entry_from_form, recalculate_summary,
@@ -34,7 +35,13 @@ def _resolve_import_customer(request):
     """
     customer = get_user_customer(request.user)
     is_staff = customer is None
-    customers_list = Customer.objects.filter(is_active=True).order_by('name') if is_staff else None
+    if is_staff:
+        org = get_user_organization(request.user)
+        customers_list = Customer.objects.filter(
+            is_active=True, organization=org,
+        ).order_by('name') if org else Customer.objects.none()
+    else:
+        customers_list = None
     return customer, is_staff, customers_list
 
 
@@ -50,8 +57,11 @@ def booking_import(request):
         # Resolve customer for staff
         if is_staff:
             customer_id = request.POST.get('customer')
+            org = get_user_organization(request.user)
             try:
-                customer = Customer.objects.get(pk=customer_id, is_active=True)
+                customer = Customer.objects.get(
+                    pk=customer_id, is_active=True, organization=org,
+                )
             except (Customer.DoesNotExist, ValueError, TypeError):
                 messages.error(request, 'Please select a valid customer.')
                 return render(request, 'bookings/import_upload.html', {
@@ -236,7 +246,10 @@ def booking_import_preview(request):
         customer_id = request.session.get('import_customer_id')
         if customer_id:
             try:
-                customer = Customer.objects.get(pk=customer_id, is_active=True)
+                org = get_user_organization(request.user)
+                customer = Customer.objects.get(
+                    pk=customer_id, is_active=True, organization=org,
+                )
             except Customer.DoesNotExist:
                 messages.error(request, 'Selected customer no longer exists.')
                 return redirect('booking_import')
@@ -268,7 +281,10 @@ def booking_import_confirm(request):
         customer_id = request.session.get('import_customer_id')
         if customer_id:
             try:
-                customer = Customer.objects.get(pk=customer_id, is_active=True)
+                org = get_user_organization(request.user)
+                customer = Customer.objects.get(
+                    pk=customer_id, is_active=True, organization=org,
+                )
             except Customer.DoesNotExist:
                 messages.error(request, 'Selected customer no longer exists.')
                 return redirect('booking_import')
@@ -362,7 +378,10 @@ def booking_import_edit(request, index):
         customer_id = request.session.get('import_customer_id')
         if customer_id:
             try:
-                customer = Customer.objects.get(pk=customer_id, is_active=True)
+                org = get_user_organization(request.user)
+                customer = Customer.objects.get(
+                    pk=customer_id, is_active=True, organization=org,
+                )
             except Customer.DoesNotExist:
                 messages.error(request, 'Selected customer no longer exists.')
                 return redirect('booking_import')

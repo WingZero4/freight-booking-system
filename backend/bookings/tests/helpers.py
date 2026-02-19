@@ -12,13 +12,35 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from bookings.models import (
-    Customer, UserProfile, Port, ContainerType,
+    Organization, Customer, UserProfile, Port, ContainerType,
     Booking, BookingItem, BookingDocument, Party, BookingParty,
     ShipmentMilestone,
 )
 
+_default_org = None
 
-def create_customer(code='CUST01', name='Test Customer', **kwargs):
+
+def get_default_org():
+    """Get or create a default Organization for tests."""
+    global _default_org
+    if _default_org is None or not Organization.objects.filter(pk=_default_org.pk).exists():
+        _default_org = create_organization()
+    return _default_org
+
+
+def create_organization(code='TESTORG', name='Test Organization', **kwargs):
+    defaults = {
+        'slug': code.lower(),
+        'company_type': 'FORWARDER',
+        'is_active': True,
+    }
+    defaults.update(kwargs)
+    return Organization.objects.create(code=code, name=name, **defaults)
+
+
+def create_customer(code='CUST01', name='Test Customer', organization=None, **kwargs):
+    if organization is None:
+        organization = get_default_org()
     defaults = {
         'email': f'{code.lower()}@example.com',
         'phone': '+1-555-0100',
@@ -26,18 +48,26 @@ def create_customer(code='CUST01', name='Test Customer', **kwargs):
         'is_active': True,
     }
     defaults.update(kwargs)
-    return Customer.objects.create(code=code, name=name, **defaults)
+    return Customer.objects.create(
+        code=code, name=name, organization=organization, **defaults)
 
 
-def create_user(username='testuser', is_staff=False, customer=None, role='USER', **kwargs):
+def create_user(username='testuser', is_staff=False, customer=None,
+                role='USER', organization=None, **kwargs):
     """Create a User + UserProfile. Returns the User instance."""
+    if organization is None:
+        if customer and customer.organization:
+            organization = customer.organization
+        else:
+            organization = get_default_org()
     password = kwargs.pop('password', 'testpass123')
     email = kwargs.pop('email', f'{username}@example.com')
     user = User.objects.create_user(
         username=username, password=password, email=email,
         is_staff=is_staff, **kwargs
     )
-    UserProfile.objects.create(user=user, customer=customer, role=role)
+    UserProfile.objects.create(
+        user=user, organization=organization, customer=customer, role=role)
     return user
 
 

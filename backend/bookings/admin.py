@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.db.models import Count
 from django.utils import timezone
 from .models import (
-    Customer, UserProfile, Port, ContainerType, Carrier,
+    Organization, Customer, UserProfile, Port, ContainerType, Carrier,
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog, Notification, BookingTemplate,
     ShipmentMilestone, ImportLog, ImportBookingLog, Consolidation,
@@ -10,17 +10,33 @@ from .models import (
 from .services import BookingService
 
 
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'company_type', 'subscription_tier', 'is_active']
+    list_filter = ['company_type', 'subscription_tier', 'is_active']
+    search_fields = ['code', 'name']
+    prepopulated_fields = {'slug': ('code',)}
+    fieldsets = (
+        (None, {'fields': ('code', 'name', 'slug', 'company_type', 'is_active')}),
+        ('Contact', {'fields': ('email', 'phone', 'address', 'city', 'country', 'website')}),
+        ('Branding', {
+            'fields': ('logo', 'primary_color', 'accent_color', 'portal_name', 'favicon'),
+        }),
+        ('Subscription', {'fields': ('subscription_tier',)}),
+    )
+
+
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'email', 'city', 'country', 'is_active']
-    list_filter = ['is_active', 'country']
+    list_display = ['code', 'name', 'organization', 'company_type', 'email', 'city', 'country', 'is_active']
+    list_filter = ['is_active', 'company_type', 'organization', 'country']
     search_fields = ['code', 'name', 'email']
     fieldsets = (
-        (None, {'fields': ('code', 'name', 'email', 'phone', 'is_active')}),
+        (None, {'fields': ('organization', 'code', 'name', 'company_type', 'email', 'phone', 'is_active')}),
         ('Address', {'fields': ('address', 'city', 'country')}),
         ('Branding', {
             'fields': ('logo', 'primary_color', 'accent_color', 'portal_name'),
-            'description': 'Customize the portal appearance for this customer. '
+            'description': 'Customize the portal appearance for this company. '
                            'Colors should be hex codes (e.g. #1E2A4A). '
                            'Logo recommended: 200x50px PNG with transparent background.',
         }),
@@ -29,10 +45,10 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'get_email', 'customer', 'role', 'phone', 'timezone', 'approval_status']
-    list_filter = ['role', 'customer', 'approval_status']
+    list_display = ['user', 'get_email', 'organization', 'customer', 'role', 'phone', 'timezone', 'approval_status']
+    list_filter = ['role', 'organization', 'customer', 'approval_status']
     search_fields = ['user__username', 'user__email', 'customer__name', 'customer__code']
-    list_select_related = ['user', 'customer']
+    list_select_related = ['user', 'customer', 'organization']
     readonly_fields = ['approved_by', 'approved_at']
     actions = ['approve_registrations']
 

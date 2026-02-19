@@ -268,6 +268,7 @@ JAZZMIN_SETTINGS = {
         "auth": "fas fa-users-cog",
         "auth.user": "fas fa-user",
         "auth.Group": "fas fa-users",
+        "bookings.Organization": "fas fa-sitemap",
         "bookings.Booking": "fas fa-ship",
         "bookings.Customer": "fas fa-building",
         "bookings.Port": "fas fa-anchor",

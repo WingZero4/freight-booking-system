@@ -25,10 +25,11 @@ class IsCustomerOrStaff(BasePermission):
         return profile is not None and profile.customer is not None
 
     def has_object_permission(self, request, view, obj):
-        if request.user.is_staff:
-            return True
         profile = getattr(request.user, 'profile', None)
         if profile is None:
             return False
-        # obj is a Booking — check customer match
+        if request.user.is_staff:
+            # Staff must belong to the same organization
+            return obj.customer.organization_id == profile.organization_id
+        # Customer users: check customer match
         return obj.customer_id == profile.customer_id

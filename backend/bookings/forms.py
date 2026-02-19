@@ -663,9 +663,12 @@ class ConsolidationCreateForm(forms.Form):
         label='Notes',
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['customer'].queryset = Customer.objects.filter(is_active=True)
+        qs = Customer.objects.filter(is_active=True)
+        if organization:
+            qs = qs.filter(organization=organization)
+        self.fields['customer'].queryset = qs
 
 
 class ConsolidationAddBookingForm(forms.Form):

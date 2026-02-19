@@ -12,15 +12,19 @@ from bookings.models import (
     Booking, BookingDocument, BookingParty, Customer, Port,
     ContainerType, UserProfile,
 )
+from bookings.tests.helpers import get_default_org
 
 
 def _setup_data():
     """Create shared test data (two customers, staff, ports)."""
+    org = get_default_org()
     customer_a = Customer.objects.create(
         name='Alpha Corp', code='ALPHA1', is_active=True,
+        organization=org,
     )
     customer_b = Customer.objects.create(
         name='Beta Corp', code='BETA01', is_active=True,
+        organization=org,
     )
     origin = Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
     dest = Port.objects.create(code='USNYC', name='New York', country='US')
@@ -29,14 +33,21 @@ def _setup_data():
     staff = User.objects.create_user(
         'staffuser', 'staff@test.com', 'pass123', is_staff=True,
     )
+    UserProfile.objects.create(user=staff, organization=org, role='ADMIN')
     staff_token = Token.objects.create(user=staff)
 
     cust_a = User.objects.create_user('cust_a', 'a@test.com', 'pass123')
-    UserProfile.objects.create(user=cust_a, customer=customer_a, role='USER')
+    UserProfile.objects.create(
+        user=cust_a, customer=customer_a, role='USER',
+        organization=org,
+    )
     cust_a_token = Token.objects.create(user=cust_a)
 
     cust_b = User.objects.create_user('cust_b', 'b@test.com', 'pass123')
-    UserProfile.objects.create(user=cust_b, customer=customer_b, role='USER')
+    UserProfile.objects.create(
+        user=cust_b, customer=customer_b, role='USER',
+        organization=org,
+    )
     cust_b_token = Token.objects.create(user=cust_b)
 
     return {

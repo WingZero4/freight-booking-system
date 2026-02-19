@@ -28,6 +28,7 @@ from .forms import (
     ConsolidationCreateForm, ConsolidationAddBookingForm,
 )
 from .services import BookingService
+from .tenant import get_user_organization
 
 
 def get_user_customer(user):
@@ -45,13 +46,20 @@ def get_booking_for_user(booking_id, user):
     """Get a booking, checking that the user has permission to access it."""
     booking = get_object_or_404(
         Booking.objects.select_related(
-            'customer', 'origin_port', 'destination_port', 'container_type'
+            'customer__organization', 'origin_port', 'destination_port',
+            'container_type',
         ),
         id=booking_id,
     )
     customer = get_user_customer(user)
-    if customer and booking.customer != customer:
-        raise Http404
+    if customer:
+        if booking.customer != customer:
+            raise Http404
+    else:
+        # Staff: must belong to same organization
+        org = get_user_organization(user)
+        if org and booking.customer.organization_id != org.pk:
+            raise Http404
     return booking
 
 
@@ -81,17 +89,17 @@ def dashboard(request):
 
     bookings = Booking.objects.filter(customer=customer)
 
-    stats = {
-        'total': bookings.count(),
-        'draft': bookings.filter(status='DRAFT').count(),
-        'submitted': bookings.filter(status='SUBMITTED').count(),
-        'confirmed': bookings.filter(status='CONFIRMED').count(),
-        'packing': bookings.filter(status='PACKING').count(),
-        'in_transit': bookings.filter(status='IN_TRANSIT').count(),
-        'arrived': bookings.filter(status='ARRIVED').count(),
-        'completed': bookings.filter(status='COMPLETED').count(),
-        'cancelled': bookings.filter(status='CANCELLED').count(),
-    }
+    stats = bookings.aggregate(
+        total=Count('id'),
+        draft=Count('id', filter=Q(status='DRAFT')),
+        submitted=Count('id', filter=Q(status='SUBMITTED')),
+        confirmed=Count('id', filter=Q(status='CONFIRMED')),
+        packing=Count('id', filter=Q(status='PACKING')),
+        in_transit=Count('id', filter=Q(status='IN_TRANSIT')),
+        arrived=Count('id', filter=Q(status='ARRIVED')),
+        completed=Count('id', filter=Q(status='COMPLETED')),
+        cancelled=Count('id', filter=Q(status='CANCELLED')),
+    )
     recent_bookings = bookings.select_related(
         'customer', 'origin_port', 'destination_port', 'container_type'
     )[:5]
@@ -135,8 +143,16 @@ def profile_edit(request):
     from .profile_forms import ProfileEditForm
 
     # Ensure profile exists (handles createsuperuser accounts)
+    from .tenant import get_user_organization
+    org = get_user_organization(request.user)
+    if not org:
+        from .models import Organization
+        org = Organization.objects.filter(is_active=True).first()
     UserProfile.objects.get_or_create(
-        user=request.user, defaults={'role': 'ADMIN', 'approval_status': 'APPROVED'}
+        user=request.user, defaults={
+            'role': 'ADMIN', 'approval_status': 'APPROVED',
+            'organization': org,
+        }
     )
 
     if request.method == 'POST':
@@ -164,10 +180,11 @@ def profile_edit(request):
 def booking_list(request):
     """List bookings with filtering, sorting, and pagination"""
     customer = get_user_customer(request.user)
+    org = get_user_organization(request.user)
     if customer:
         bookings = Booking.objects.filter(customer=customer)
     else:
-        bookings = Booking.objects.all()
+        bookings = Booking.objects.filter(customer__organization=org)
 
     bookings = bookings.select_related(
         'customer', 'origin_port', 'destination_port', 'container_type'
@@ -177,7 +194,8 @@ def booking_list(request):
     customer_filter = ''
     customers_list = None
     if not customer:
-        customers_list = Customer.objects.filter(is_active=True).order_by('name')
+        customers_list = Customer.objects.filter(
+            organization=org, is_active=True).order_by('name')
         customer_filter = request.GET.get('customer', '')
         if customer_filter:
             try:
@@ -257,7 +275,9 @@ def booking_create(request):
     is_staff = customer is None
 
     # Staff must select a customer; customers use their own
-    customers_list = Customer.objects.filter(is_active=True).order_by('name') if is_staff else None
+    org = get_user_organization(request.user)
+    customers_list = Customer.objects.filter(
+        organization=org, is_active=True).order_by('name') if is_staff else None
 
     if request.method == 'POST':
         form = BookingForm(request.POST)
@@ -267,7 +287,8 @@ def booking_create(request):
         if is_staff:
             customer_id = request.POST.get('customer')
             try:
-                customer = Customer.objects.get(pk=customer_id, is_active=True)
+                customer = Customer.objects.filter(
+                    organization=org).get(pk=customer_id, is_active=True)
             except (Customer.DoesNotExist, ValueError, TypeError):
                 messages.error(request, 'Please select a valid customer.')
                 return render(request, 'bookings/booking_form.html', {
@@ -782,8 +803,10 @@ def party_list(request):
     """List all parties in the customer's address book"""
     customer = get_user_customer(request.user)
     if not customer:
-        # Staff can see all parties
-        parties = Party.objects.filter(is_active=True).select_related('customer')
+        org = get_user_organization(request.user)
+        parties = Party.objects.filter(
+            customer__organization=org, is_active=True
+        ).select_related('customer')
     else:
         parties = Party.objects.filter(customer=customer, is_active=True)
 
@@ -843,6 +866,10 @@ def party_edit(request, party_id):
 
     if customer and party.customer != customer:
         raise Http404
+    elif not customer:
+        org = get_user_organization(request.user)
+        if not org or party.customer.organization_id != org.pk:
+            raise Http404
 
     if request.method == 'POST':
         form = PartyForm(request.POST, instance=party)
@@ -868,6 +895,10 @@ def party_delete(request, party_id):
 
     if customer and party.customer != customer:
         raise Http404
+    elif not customer:
+        org = get_user_organization(request.user)
+        if not org or party.customer.organization_id != org.pk:
+            raise Http404
 
     if request.method == 'POST':
         party.is_active = False
@@ -963,13 +994,15 @@ def ops_bulk_action(request):
         return redirect('booking_list')
 
     required_statuses, service_method = action_map[action]
+    org = get_user_organization(request.user)
     success_count = 0
     skip_count = 0
     error_count = 0
 
     for booking_id in selected_ids:
         try:
-            booking = Booking.objects.get(pk=booking_id)
+            booking = Booking.objects.filter(
+                customer__organization=org).get(pk=booking_id)
             if booking.status not in required_statuses:
                 skip_count += 1
                 continue
@@ -1011,7 +1044,8 @@ def ops_dashboard(request):
     week_ago = today - timedelta(days=7)
     seven_days_out = today + timedelta(days=7)
 
-    all_bookings = Booking.objects.all()
+    org = get_user_organization(request.user)
+    all_bookings = Booking.objects.filter(customer__organization=org)
 
     # Action Required sections
     pending_confirmation = (
@@ -1043,19 +1077,20 @@ def ops_dashboard(request):
         .order_by('etd')
     )
 
-    # Status pipeline counts
-    pipeline = {
-        'draft': all_bookings.filter(status='DRAFT').count(),
-        'submitted': all_bookings.filter(status='SUBMITTED').count(),
-        'confirmed': all_bookings.filter(status='CONFIRMED').count(),
-        'packing': all_bookings.filter(status='PACKING').count(),
-        'in_transit': all_bookings.filter(status='IN_TRANSIT').count(),
-        'arrived': all_bookings.filter(status='ARRIVED').count(),
-        'completed': all_bookings.filter(status='COMPLETED').count(),
-        'rejected': all_bookings.filter(status='REJECTED').count(),
-        'customer_rejected': all_bookings.filter(status='CUSTOMER_REJECTED').count(),
-        'cancelled': all_bookings.filter(status='CANCELLED').count(),
-    }
+    # Status pipeline counts (single query instead of 10)
+    pipeline_agg = all_bookings.aggregate(
+        draft=Count('id', filter=Q(status='DRAFT')),
+        submitted=Count('id', filter=Q(status='SUBMITTED')),
+        confirmed=Count('id', filter=Q(status='CONFIRMED')),
+        packing=Count('id', filter=Q(status='PACKING')),
+        in_transit=Count('id', filter=Q(status='IN_TRANSIT')),
+        arrived=Count('id', filter=Q(status='ARRIVED')),
+        completed=Count('id', filter=Q(status='COMPLETED')),
+        rejected=Count('id', filter=Q(status='REJECTED')),
+        customer_rejected=Count('id', filter=Q(status='CUSTOMER_REJECTED')),
+        cancelled=Count('id', filter=Q(status='CANCELLED')),
+    )
+    pipeline = pipeline_agg
 
     # Key stats
     submitted_today = all_bookings.filter(submitted_at__date=today).count()
@@ -1069,15 +1104,16 @@ def ops_dashboard(request):
     if avg_result['avg_time'] is not None:
         avg_confirm_hours = avg_result['avg_time'].total_seconds() / 3600
 
-    # Recent activity
+    # Recent activity (scoped to org)
     recent_activity = (
         AuditLog.objects
+        .filter(booking__customer__organization=org)
         .select_related('booking', 'performed_by')
         .order_by('-performed_at')[:20]
     )
 
     pending_registrations_count = UserProfile.objects.filter(
-        approval_status='PENDING'
+        organization=org, approval_status='PENDING'
     ).count()
 
     return render(request, 'bookings/ops/dashboard.html', {
@@ -1097,7 +1133,7 @@ def ops_dashboard(request):
 @staff_required
 def ops_booking_confirm(request, booking_id):
     """Confirm a SUBMITTED booking with optional carrier details (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status != 'SUBMITTED':
         messages.warning(request, f'This booking cannot be confirmed (current status: {booking.get_status_display()}).')
@@ -1124,7 +1160,7 @@ def ops_booking_confirm(request, booking_id):
 @staff_required
 def ops_booking_reject(request, booking_id):
     """Reject a SUBMITTED booking with reason (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     allowed_reject = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
     if booking.status not in allowed_reject:
@@ -1155,7 +1191,7 @@ def ops_booking_reject(request, booking_id):
 @staff_required
 def ops_carrier_details(request, booking_id):
     """Edit carrier details on a CONFIRMED or IN_TRANSIT booking (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status not in ('CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
         messages.warning(request, 'Carrier details can only be edited on confirmed, packing, in-transit, or arrived bookings.')
@@ -1182,7 +1218,7 @@ def ops_carrier_details(request, booking_id):
 @staff_required
 def ops_reconfirm_booking(request, booking_id):
     """Re-confirm a CUSTOMER_REJECTED booking (staff re-proposes after adjustments)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status != 'CUSTOMER_REJECTED':
         messages.warning(request, 'Only customer-rejected bookings can be re-confirmed.')
@@ -1222,7 +1258,7 @@ def ops_reconfirm_booking(request, booking_id):
 @staff_required
 def ops_submit_to_carrier(request, booking_id):
     """Manually submit or resubmit a booking to its assigned carrier API."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if request.method == 'POST':
         try:
@@ -1241,7 +1277,7 @@ def ops_submit_to_carrier(request, booking_id):
 @staff_required
 def ops_mark_in_transit(request, booking_id):
     """Mark a PACKING booking as in transit (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status != 'PACKING':
         messages.warning(request, 'Only packing bookings can be marked in transit.')
@@ -1271,7 +1307,7 @@ def ops_mark_in_transit(request, booking_id):
 @staff_required
 def ops_mark_arrived(request, booking_id):
     """Mark an IN_TRANSIT booking as arrived at destination (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status != 'IN_TRANSIT':
         messages.warning(request, 'Only in-transit bookings can be marked as arrived.')
@@ -1301,7 +1337,7 @@ def ops_mark_arrived(request, booking_id):
 @staff_required
 def ops_complete_booking(request, booking_id):
     """Mark an IN_TRANSIT or ARRIVED booking as completed (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status not in ('IN_TRANSIT', 'ARRIVED'):
         messages.warning(request, 'Only in-transit or arrived bookings can be completed.')
@@ -1331,7 +1367,7 @@ def ops_complete_booking(request, booking_id):
 @staff_required
 def ops_record_milestone(request, booking_id):
     """Record an operational milestone on a booking (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status not in ('CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
         messages.warning(request, 'Milestones can only be added to confirmed, packing, in-transit, or arrived bookings.')
@@ -1363,7 +1399,7 @@ def ops_record_milestone(request, booking_id):
 @staff_required
 def ops_delete_milestone(request, booking_id, milestone_id):
     """Delete an operational milestone (staff only)."""
-    booking = get_object_or_404(Booking, id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
     milestone = get_object_or_404(ShipmentMilestone, id=milestone_id, booking=booking)
 
     if booking.status not in ('CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
@@ -1472,10 +1508,11 @@ def booking_clone(request, booking_id):
 def booking_export_csv(request):
     """Export filtered bookings as CSV."""
     customer = get_user_customer(request.user)
+    org = get_user_organization(request.user)
     if customer:
         bookings = Booking.objects.filter(customer=customer)
     else:
-        bookings = Booking.objects.all()
+        bookings = Booking.objects.filter(customer__organization=org)
 
     bookings = bookings.select_related(
         'customer', 'origin_port', 'destination_port', 'container_type'
@@ -1862,8 +1899,9 @@ def booking_create_from_template(request, template_id):
 @staff_required
 def ops_pending_registrations(request):
     """List all pending registration requests."""
+    org = get_user_organization(request.user)
     pending = (
-        UserProfile.objects.filter(approval_status='PENDING')
+        UserProfile.objects.filter(organization=org, approval_status='PENDING')
         .select_related('user', 'customer')
         .order_by('-user__date_joined')
     )
@@ -1875,7 +1913,9 @@ def ops_pending_registrations(request):
 @staff_required
 def ops_approve_registration(request, profile_id):
     """Approve or reject a pending registration."""
-    profile = get_object_or_404(UserProfile, id=profile_id, approval_status='PENDING')
+    org = get_user_organization(request.user)
+    profile = get_object_or_404(
+        UserProfile, id=profile_id, approval_status='PENDING', organization=org)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -2019,7 +2059,10 @@ def container_recommendations(request):
 @staff_required
 def consolidation_list(request):
     """List all consolidations with filters."""
-    consolidations = Consolidation.objects.select_related('customer', 'created_by').annotate(
+    org = get_user_organization(request.user)
+    consolidations = Consolidation.objects.filter(
+        customer__organization=org
+    ).select_related('customer', 'created_by').annotate(
         booking_count=Count('bookings')
     )
 
@@ -2038,7 +2081,8 @@ def consolidation_list(request):
     paginator = Paginator(consolidations, 20)
     page = paginator.get_page(request.GET.get('page'))
 
-    customers = Customer.objects.filter(is_active=True).order_by('name')
+    customers = Customer.objects.filter(
+        organization=org, is_active=True).order_by('name')
 
     return render(request, 'bookings/consolidation_list.html', {
         'page_obj': page,
@@ -2051,8 +2095,9 @@ def consolidation_list(request):
 @staff_required
 def consolidation_create(request):
     """Create a new consolidation — select customer, then bookings."""
+    org = get_user_organization(request.user)
     if request.method == 'POST':
-        form = ConsolidationCreateForm(request.POST)
+        form = ConsolidationCreateForm(request.POST, organization=org)
         booking_ids = request.POST.getlist('booking_ids')
 
         if form.is_valid() and booking_ids:
@@ -2081,7 +2126,7 @@ def consolidation_create(request):
         elif not booking_ids:
             messages.error(request, 'Please select at least one booking.')
     else:
-        form = ConsolidationCreateForm()
+        form = ConsolidationCreateForm(organization=org)
 
     return render(request, 'bookings/consolidation_create.html', {
         'form': form,
@@ -2091,6 +2136,7 @@ def consolidation_create(request):
 @staff_required
 def api_consolidation_bookings(request):
     """AJAX endpoint: return eligible bookings for a customer."""
+    org = get_user_organization(request.user)
     customer_id = request.GET.get('customer_id')
     if not customer_id:
         return JsonResponse({'bookings': []})
@@ -2102,6 +2148,7 @@ def api_consolidation_bookings(request):
     valid_statuses = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED', 'COMPLETED')
     bookings = (
         Booking.objects.filter(
+            customer__organization=org,
             customer_id=customer_id,
             status__in=valid_statuses,
             consolidation__isnull=True,
@@ -2128,8 +2175,11 @@ def api_consolidation_bookings(request):
 @staff_required
 def consolidation_detail(request, pk):
     """View consolidation with all linked bookings."""
+    org = get_user_organization(request.user)
     consolidation = get_object_or_404(
-        Consolidation.objects.select_related('customer', 'created_by'),
+        Consolidation.objects.filter(
+            customer__organization=org
+        ).select_related('customer', 'created_by'),
         pk=pk,
     )
 
@@ -2160,7 +2210,9 @@ def consolidation_detail(request, pk):
 @staff_required
 def consolidation_add_booking(request, pk):
     """Add a booking to a consolidation."""
-    consolidation = get_object_or_404(Consolidation, pk=pk)
+    org = get_user_organization(request.user)
+    consolidation = get_object_or_404(
+        Consolidation.objects.filter(customer__organization=org), pk=pk)
 
     if request.method == 'POST':
         form = ConsolidationAddBookingForm(consolidation, request.POST)
@@ -2180,8 +2232,11 @@ def consolidation_add_booking(request, pk):
 @staff_required
 def consolidation_remove_booking(request, pk, booking_id):
     """Remove a booking from a consolidation."""
-    consolidation = get_object_or_404(Consolidation, pk=pk)
-    booking = get_object_or_404(Booking, pk=booking_id)
+    org = get_user_organization(request.user)
+    consolidation = get_object_or_404(
+        Consolidation.objects.filter(customer__organization=org), pk=pk)
+    booking = get_object_or_404(
+        Booking.objects.filter(customer__organization=org), pk=booking_id)
 
     if request.method == 'POST':
         try:
@@ -2198,7 +2253,9 @@ def consolidation_remove_booking(request, pk, booking_id):
 @staff_required
 def consolidation_close(request, pk):
     """Close a consolidation."""
-    consolidation = get_object_or_404(Consolidation, pk=pk)
+    org = get_user_organization(request.user)
+    consolidation = get_object_or_404(
+        Consolidation.objects.filter(customer__organization=org), pk=pk)
 
     if request.method == 'POST':
         try:
