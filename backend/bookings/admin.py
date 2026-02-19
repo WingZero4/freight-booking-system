@@ -3,7 +3,7 @@ from django.db.models import Count
 from django.utils import timezone
 from .models import (
     Organization, Customer, UserProfile, Port, ContainerType, Carrier,
-    Booking, BookingItem, BookingDocument,
+    Booking, BookingItem, BookingDocument, CarrierOption,
     Party, BookingParty, AuditLog, Notification, BookingTemplate,
     ShipmentMilestone, ImportLog, ImportBookingLog, Consolidation,
     WorkflowTemplate, WorkflowTemplateVersion, WorkflowStep,
@@ -132,6 +132,14 @@ class ShipmentMilestoneInline(admin.TabularInline):
     max_num = 0  # Read-only — managed via ops views
 
 
+class CarrierOptionInline(admin.TabularInline):
+    model = CarrierOption
+    extra = 0
+    fields = ['carrier_name', 'vessel_name', 'voyage_number', 'etd', 'eta',
+              'transit_days', 'cost_amount', 'cost_currency', 'is_selected', 'created_by']
+    readonly_fields = ['created_by']
+
+
 class AuditLogInline(admin.TabularInline):
     model = AuditLog
     extra = 0
@@ -173,8 +181,9 @@ class BookingAdmin(admin.ModelAdmin):
         'fms_push_status', 'fms_push_error',
         'carrier_request_status', 'carrier_request_error',
         'carrier_confirmation_ref', 'container_numbers',
+        'selected_option', 'options_presented_at',
     ]
-    inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, ShipmentMilestoneInline, AuditLogInline]
+    inlines = [BookingItemInline, BookingPartyInline, BookingDocumentInline, CarrierOptionInline, ShipmentMilestoneInline, AuditLogInline]
 
     fieldsets = (
         ('Booking Info', {
@@ -223,7 +232,8 @@ class BookingAdmin(admin.ModelAdmin):
         }),
         ('Status Details', {
             'fields': ('confirmed_by', 'cancellation_reason',
-                       'actual_departure_date', 'actual_arrival_date'),
+                       'actual_departure_date', 'actual_arrival_date',
+                       'selected_option', 'options_presented_at'),
             'classes': ('collapse',)
         }),
         ('Customer Approval', {

@@ -37,6 +37,7 @@ def nav_active(request):
     if hasattr(request, 'user') and request.user.is_authenticated:
         try:
             profile = request.user.profile
+            context['is_shipper_user'] = (profile.role == 'SHIPPER')
             if not profile.customer:  # staff/ops user
                 from bookings.models import UserProfile
                 filters = {'approval_status': 'PENDING'}

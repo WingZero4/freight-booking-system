@@ -256,6 +256,11 @@
 
                     <!-- Cargo Items Section (Formset) -->
                     <h5 class="mb-3"><i class="fas fa-cubes me-2 text-themed-primary"></i>Cargo Items</h5>
+                    {% if allow_item_edit == False and is_edit %}
+                    <div class="alert alert-info small mb-3">
+                        <i class="fas fa-info-circle me-1"></i>Cargo items cannot be modified after submission. Only selected fields above can be updated.
+                    </div>
+                    {% endif %}
 
                     {% if formset.non_form_errors %}
                     <div class="alert alert-danger">
@@ -369,11 +374,13 @@
                         {% endfor %}
                     </div>
 
+                    {% if allow_item_edit != False or not is_edit %}
                     <div class="mb-4">
                         <button type="button" class="btn btn-themed-outline btn-sm" id="add-item-btn">
                             <i class="fas fa-plus me-1"></i>Add Cargo Item
                         </button>
                     </div>
+                    {% endif %}
 
                     <!-- Special Instructions -->
                     <div class="mb-3">

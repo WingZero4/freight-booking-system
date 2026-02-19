@@ -271,3 +271,19 @@ def notify_booking_resubmitted(booking):
         booking, 'BOOKING_RESUBMITTED',
         f'Booking {booking.booking_number} has been returned to draft for revision.',
     )
+
+
+def notify_options_presented(booking):
+    """Notify customer that carrier options are available for selection."""
+    emails = _get_customer_emails(booking)
+    options_count = booking.carrier_options.count()
+    _send_notification(
+        subject=f'Booking {booking.booking_number} — {options_count} Carrier Options Available',
+        template_name='bookings/emails/options_presented.html',
+        context={'booking': booking, 'options_count': options_count},
+        recipient_list=emails,
+    )
+    _create_customer_notifications(
+        booking, 'BOOKING_OPTIONS_PRESENTED',
+        f'Booking {booking.booking_number} has {options_count} carrier option(s) for your selection.',
+    )

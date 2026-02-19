@@ -113,6 +113,18 @@ urlpatterns = [
     path('bookings/<int:booking_id>/customer-reject/', views.booking_customer_reject, name='booking_customer_reject'),
     path('bookings/<int:booking_id>/clone/', views.booking_clone, name='booking_clone'),
 
+    # Carrier options workflow
+    path('bookings/<int:booking_id>/options/',
+         views.ops_carrier_options, name='ops_carrier_options'),
+    path('bookings/<int:booking_id>/options/<int:option_id>/remove/',
+         views.ops_remove_carrier_option, name='ops_remove_carrier_option'),
+    path('bookings/<int:booking_id>/options/present/',
+         views.ops_present_options, name='ops_present_options'),
+    path('bookings/<int:booking_id>/options/select/',
+         views.booking_view_options, name='booking_view_options'),
+    path('bookings/<int:booking_id>/options/<int:option_id>/select/',
+         views.booking_select_option, name='booking_select_option'),
+
     # PDF downloads
     path('bookings/<int:booking_id>/pdf/confirmation/',
          pdf_views.booking_confirmation_pdf, name='booking_confirmation_pdf'),

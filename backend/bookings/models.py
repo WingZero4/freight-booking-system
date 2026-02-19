@@ -150,6 +150,7 @@ class UserProfile(models.Model):
     """Link Django user to an organization and optionally to a company."""
     ROLE_CHOICES = [
         ('USER', 'User'),
+        ('SHIPPER', 'Shipper'),
         ('ADMIN', 'Admin'),
         ('OPS', 'Operations'),
     ]
@@ -194,6 +195,10 @@ class UserProfile(models.Model):
     @property
     def is_customer_user(self):
         return self.customer is not None
+
+    @property
+    def is_shipper_user(self):
+        return self.customer is not None and self.role == 'SHIPPER'
 
 
 class Party(models.Model):
@@ -343,6 +348,7 @@ class Booking(models.Model):
     STATUS_CHOICES = [
         ('DRAFT', 'Draft'),
         ('SUBMITTED', 'Submitted'),
+        ('OPTIONS_PRESENTED', 'Options Presented'),
         ('CONFIRMED', 'Confirmed'),
         ('CUSTOMER_REJECTED', 'Customer Rejected'),
         ('REJECTED', 'Rejected'),
@@ -517,8 +523,8 @@ class Booking(models.Model):
         max_length=10, choices=SOURCE_CHANNEL_CHOICES, default='WEB'
     )
     external_reference = models.CharField(
-        max_length=100,
-        help_text='Customer or external system reference number (required)'
+        max_length=100, blank=True,
+        help_text='Customer or external reference number (required before submission)'
     )
     carrier_booking_ref = models.CharField(
         max_length=100, blank=True,
@@ -631,7 +637,14 @@ class Booking(models.Model):
         help_text='Actual date cargo arrived at destination (set when completing)'
     )
 
+    # Carrier options (selected option from the options workflow)
+    selected_option = models.ForeignKey(
+        'CarrierOption', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='+',
+        help_text='Customer-selected carrier option (from options workflow)')
+
     # Timestamps
+    options_presented_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
     confirmed_by = models.ForeignKey(
@@ -737,8 +750,9 @@ class Booking(models.Model):
 
     def reject(self, user=None, reason=''):
         """Reject a submitted booking."""
-        if self.status != 'SUBMITTED':
-            raise ValueError('Only submitted bookings can be rejected.')
+        allowed = ('SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
+        if self.status not in allowed:
+            raise ValueError('This booking cannot be rejected.')
         self.status = 'REJECTED'
         self.rejected_at = timezone.now()
         if user:
@@ -772,7 +786,7 @@ class Booking(models.Model):
 
     def cancel(self, user=None, reason=''):
         """Cancel booking."""
-        if self.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
+        if self.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
             raise ValueError('This booking cannot be cancelled.')
         self.status = 'CANCELLED'
         self.cancelled_at = timezone.now()
@@ -784,6 +798,43 @@ class Booking(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class CarrierOption(models.Model):
+    """A carrier/voyage option presented to a customer for selection."""
+    booking = models.ForeignKey(
+        Booking, on_delete=models.CASCADE, related_name='carrier_options')
+    carrier = models.ForeignKey(
+        Carrier, on_delete=models.SET_NULL, null=True, blank=True)
+    carrier_name = models.CharField(
+        max_length=200, blank=True,
+        help_text='Carrier name (auto-filled from carrier FK if set)')
+    vessel_name = models.CharField(max_length=200, blank=True)
+    voyage_number = models.CharField(max_length=50, blank=True)
+    etd = models.DateField(null=True, blank=True, verbose_name='ETD')
+    eta = models.DateField(null=True, blank=True, verbose_name='ETA')
+    transit_days = models.PositiveIntegerField(null=True, blank=True)
+    cost_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text='Quoted cost for this option')
+    cost_currency = models.CharField(max_length=3, default='USD')
+    notes = models.TextField(blank=True)
+    is_selected = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        carrier = self.carrier_name or (self.carrier.name if self.carrier else 'Unknown')
+        return f"Option: {carrier} ({self.etd} → {self.eta})"
+
+    def save(self, *args, **kwargs):
+        if self.carrier and not self.carrier_name:
+            self.carrier_name = self.carrier.name
+        super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['created_at']
 
 
 class BookingItem(models.Model):
@@ -1052,6 +1103,8 @@ class AuditLog(models.Model):
         ('CUSTOMER_APPROVED', 'Customer Approved'),
         ('CUSTOMER_REJECTED', 'Customer Rejected'),
         ('RECONFIRMED', 'Re-confirmed after Customer Rejection'),
+        ('OPTIONS_PRESENTED', 'Carrier Options Presented'),
+        ('OPTION_SELECTED', 'Carrier Option Selected'),
         ('CONSOLIDATED', 'Added to Consolidation'),
         ('UNCONSOLIDATED', 'Removed from Consolidation'),
     ]
@@ -1088,6 +1141,8 @@ class Notification(models.Model):
         ('BOOKING_RESUBMITTED', 'Booking Resubmitted'),
         ('BOOKING_CUSTOMER_APPROVED', 'Booking Customer Approved'),
         ('BOOKING_CUSTOMER_REJECTED', 'Booking Customer Rejected'),
+        ('BOOKING_OPTIONS_PRESENTED', 'Carrier Options Presented'),
+        ('BOOKING_OPTION_SELECTED', 'Carrier Option Selected'),
         ('GENERAL', 'General'),
     ]
 

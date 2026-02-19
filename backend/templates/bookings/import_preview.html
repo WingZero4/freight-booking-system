@@ -147,9 +147,10 @@
                     {% if entry.issues %}
                     <div class="mb-1">
                         {% for issue in entry.issues %}
-                        <span class="badge bg-warning text-dark me-1 mb-1 small">
-                            <i class="fas fa-exclamation-triangle me-1"></i>{{ issue }}
-                        </span>
+                        <div class="alert alert-warning py-1 px-2 mb-1 small d-flex align-items-start">
+                            <i class="fas fa-exclamation-triangle me-1 mt-1 flex-shrink-0"></i>
+                            <span style="word-break: break-word;">{{ issue }}</span>
+                        </div>
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -158,9 +159,10 @@
                     {% if entry.validation_errors %}
                     <div class="mb-1">
                         {% for field, err in entry.validation_errors.items %}
-                        <span class="badge bg-danger me-1 mb-1 small">
-                            {{ err }}
-                        </span>
+                        <div class="alert alert-danger py-1 px-2 mb-1 small d-flex align-items-start">
+                            <i class="fas fa-times-circle me-1 mt-1 flex-shrink-0"></i>
+                            <span style="word-break: break-word;">{{ err }}</span>
+                        </div>
                         {% endfor %}
                     </div>
                     {% endif %}

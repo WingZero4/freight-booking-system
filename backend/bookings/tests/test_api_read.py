@@ -73,6 +73,7 @@ def _booking_payload(**overrides):
         'destination_port': 'USNYC',
         'cargo_ready_date': str(date.today() + timedelta(days=7)),
         'incoterms': 'FOB',
+        'external_reference': 'TEST-REF-001',
         'container_type': '20GP',
         'container_count': 2,
         'items': [

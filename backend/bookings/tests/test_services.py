@@ -162,14 +162,21 @@ class TestUpdateBooking(ServiceTestBase):
         updated = BookingService.update_booking(booking, form, formset, self.user)
         self.assertEqual(updated.container_count, 5)
 
-    def test_update_confirmed_raises(self):
-        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+    def test_update_in_transit_raises(self):
+        booking = create_booking(self.customer, self.user, status='IN_TRANSIT')
         create_booking_item(booking)
         data = {**self._valid_booking_data(), **self._valid_item_data()}
         form = BookingForm(data, instance=booking)
         formset = BookingItemFormSet(data, instance=booking, prefix='items')
         with self.assertRaises(ValueError):
             BookingService.update_booking(booking, form, formset, self.user)
+
+    def test_update_confirmed_with_none_formset(self):
+        booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        create_booking_item(booking)
+        data = {**self._valid_booking_data(), **self._valid_item_data()}
+        form = BookingForm(data, instance=booking)
+        BookingService.update_booking(booking, form, None, self.user)
 
     def test_update_creates_audit_log_with_old_new(self):
         booking = create_booking(self.customer, self.user)

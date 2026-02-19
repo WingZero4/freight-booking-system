@@ -52,6 +52,10 @@ def booking_import(request):
     Step 1 (GET): Show upload form.
     Step 2 (POST): Parse file, call LLM, store in session, redirect to preview.
     """
+    from .views import is_shipper_user
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot import bookings.')
+        return redirect('dashboard')
     customer, is_staff, customers_list = _resolve_import_customer(request)
 
     if request.method == 'POST':

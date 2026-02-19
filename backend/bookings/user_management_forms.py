@@ -95,7 +95,7 @@ class CustomerUserForm(forms.Form):
         ),
     )
     role = forms.ChoiceField(
-        choices=[('USER', 'User'), ('ADMIN', 'Admin')],
+        choices=[('USER', 'User'), ('SHIPPER', 'Shipper'), ('ADMIN', 'Admin')],
         widget=forms.Select(attrs={'class': 'form-select'}),
     )
 
@@ -214,7 +214,7 @@ class UserEditForm(forms.Form):
                 self.fields['phone'].initial = profile.phone
                 self.fields['role'].initial = profile.role
                 if profile.customer:
-                    self.fields['role'].choices = [('USER', 'User'), ('ADMIN', 'Admin')]
+                    self.fields['role'].choices = [('USER', 'User'), ('SHIPPER', 'Shipper'), ('ADMIN', 'Admin')]
                 else:
                     self.fields['role'].choices = [('OPS', 'Operations'), ('ADMIN', 'Admin')]
             except UserProfile.DoesNotExist:

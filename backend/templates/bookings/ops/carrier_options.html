@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Carrier Options — {{ booking.booking_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3>
+                <i class="fas fa-shipping-fast me-2"></i>Carrier Options
+                <span class="badge bg-themed-primary">{{ booking.booking_number }}</span>
+            </h3>
+            <p class="text-muted mb-0">
+                {{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}
+                | {{ booking.get_transport_mode_display }}
+                | Cargo Ready: {{ booking.cargo_ready_date|date:"M d, Y" }}
+            </p>
+        </div>
+        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Booking
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Existing Options -->
+        <div class="col-lg-7">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Options ({{ options|length }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if options %}
+                    {% for opt in options %}
+                    <div class="card mb-3 {% if opt.is_selected %}border-success{% endif %}">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-ship me-1 text-themed-primary"></i>
+                                        {{ opt.carrier_name }}
+                                        {% if opt.is_selected %}<span class="badge bg-success ms-1">Selected</span>{% endif %}
+                                    </h6>
+                                    <div class="small text-muted">
+                                        {% if opt.vessel_name %}Vessel: {{ opt.vessel_name }}{% endif %}
+                                        {% if opt.voyage_number %} / {{ opt.voyage_number }}{% endif %}
+                                    </div>
+                                </div>
+                                {% if booking.status == 'SUBMITTED' or booking.status == 'OPTIONS_PRESENTED' %}
+                                <form method="post" action="{% url 'ops_remove_carrier_option' booking.id opt.id %}"
+                                      onsubmit="return confirm('Remove this option?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            <div class="row mt-2 small">
+                                {% if opt.etd %}
+                                <div class="col-md-3">
+                                    <strong>ETD:</strong> {{ opt.etd|date:"M d, Y" }}
+                                </div>
+                                {% endif %}
+                                {% if opt.eta %}
+                                <div class="col-md-3">
+                                    <strong>ETA:</strong> {{ opt.eta|date:"M d, Y" }}
+                                </div>
+                                {% endif %}
+                                {% if opt.transit_days %}
+                                <div class="col-md-3">
+                                    <strong>Transit:</strong> {{ opt.transit_days }} days
+                                </div>
+                                {% endif %}
+                                {% if opt.cost_amount %}
+                                <div class="col-md-3">
+                                    <strong>Cost:</strong> {{ opt.cost_currency }} {{ opt.cost_amount }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% if opt.notes %}
+                            <p class="small text-muted mt-2 mb-0">{{ opt.notes }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    {% if booking.status == 'SUBMITTED' and options %}
+                    <form method="post" action="{% url 'ops_present_options' booking.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-1"></i>Present {{ options|length }} Option{{ options|length|pluralize }} to Customer
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-muted text-center py-3">No options created yet. Use the form to add carrier options.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Option Form -->
+        <div class="col-lg-5">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-plus me-2"></i>Add Option</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Carrier</label>
+                            {{ form.carrier }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Carrier Name (if not in list)</label>
+                            {{ form.carrier_name }}
+                            {% if form.carrier_name.errors %}
+                            <div class="text-danger small">{{ form.carrier_name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Vessel</label>
+                                {{ form.vessel_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Voyage</label>
+                                {{ form.voyage_number }}
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">ETD</label>
+                                {{ form.etd }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">ETA</label>
+                                {{ form.eta }}
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Transit Days</label>
+                                {{ form.transit_days }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Cost</label>
+                                {{ form.cost_amount }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Currency</label>
+                                {{ form.cost_currency }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            {{ form.notes }}
+                        </div>
+                        <button type="submit" class="btn btn-themed-primary w-100">
+                            <i class="fas fa-plus me-1"></i>Add Option
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

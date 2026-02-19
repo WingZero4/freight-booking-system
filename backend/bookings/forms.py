@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 from django.utils.safestring import mark_safe
 from datetime import date
-from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier, Customer
+from .models import Booking, BookingItem, BookingDocument, BookingParty, Party, Port, Carrier, Customer, CarrierOption
 from . import validators
 
 
@@ -58,7 +58,7 @@ class BookingForm(forms.ModelForm):
             ),
             'external_reference': forms.TextInput(
                 attrs={'class': 'form-control',
-                       'placeholder': 'Your reference number (e.g. PO-12345)'}
+                       'placeholder': 'Your reference (e.g. PO-12345) — required before submission'}
             ),
             'special_instructions': forms.Textarea(
                 attrs={'class': 'form-control', 'rows': 2,
@@ -66,10 +66,25 @@ class BookingForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, customer=None, is_staff=False, **kwargs):
+    # Fields editable per booking status (customer perspective).
+    # Staff can always edit all fields on DRAFT/SUBMITTED.
+    EDITABLE_BY_STATUS = {
+        'DRAFT': None,  # All fields editable
+        'SUBMITTED': {
+            'external_reference', 'special_instructions',
+            'commodity_description', 'is_hazardous',
+            'cargo_ready_date',
+        },
+        'CONFIRMED': {
+            'special_instructions',
+        },
+    }
+
+    def __init__(self, *args, customer=None, is_staff=False, booking_status=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._customer = customer
         self._is_staff = is_staff
+        self._booking_status = booking_status
         grouped, port_type_map = self._grouped_port_choices()
         self.fields['origin_port'].choices = grouped
         self.fields['destination_port'].choices = grouped
@@ -79,6 +94,7 @@ class BookingForm(forms.ModelForm):
         self.fields['incoterms_location'].required = False
         self.fields['commodity_description'].required = False
         self.fields['is_hazardous'].required = False
+        self.fields['external_reference'].required = False  # Optional in draft, required on submit
         self.fields['service_type'].required = False
         self.fields['move_type'].required = False
         # Mode-specific fields — all optional at form level; clean() enforces per mode
@@ -87,6 +103,16 @@ class BookingForm(forms.ModelForm):
         self.fields['chargeable_weight_kg'].required = False
         self.fields['flight_number'].required = False
         self.fields['lcl_consolidation_number'].required = False
+
+        # Restrict editable fields for non-draft statuses (customer only)
+        if booking_status and not is_staff:
+            editable = self.EDITABLE_BY_STATUS.get(booking_status)
+            if editable is not None:  # None = all editable
+                self._locked_fields = set()
+                for field_name in list(self.fields.keys()):
+                    if field_name not in editable:
+                        self.fields[field_name].disabled = True
+                        self._locked_fields.add(field_name)
 
         # Apply customer field config (staff users see all fields)
         if customer and not is_staff:
@@ -736,3 +762,66 @@ class ConsolidationAddBookingForm(forms.Form):
         self.fields['booking'].label_from_instance = (
             lambda obj: f"{obj.booking_number} — {obj.origin_port.code}→{obj.destination_port.code} ({obj.get_status_display()})"
         )
+
+
+class CarrierOptionForm(forms.ModelForm):
+    """Form for ops to create a carrier option for a booking."""
+    class Meta:
+        model = CarrierOption
+        fields = [
+            'carrier', 'carrier_name', 'vessel_name', 'voyage_number',
+            'etd', 'eta', 'transit_days',
+            'cost_amount', 'cost_currency', 'notes',
+        ]
+        widgets = {
+            'carrier': forms.Select(attrs={'class': 'form-select'}),
+            'carrier_name': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'e.g. Maersk, MSC'}),
+            'vessel_name': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'e.g. Maersk Elba'}),
+            'voyage_number': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'e.g. 123W'}),
+            'etd': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}),
+            'eta': forms.DateInput(
+                attrs={'class': 'form-control', 'type': 'date'}),
+            'transit_days': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 1, 'placeholder': 'Days'}),
+            'cost_amount': forms.NumberInput(
+                attrs={'class': 'form-control', 'min': 0, 'step': '0.01',
+                       'placeholder': 'Amount'}),
+            'cost_currency': forms.TextInput(
+                attrs={'class': 'form-control', 'placeholder': 'USD', 'maxlength': 3}),
+            'notes': forms.Textarea(
+                attrs={'class': 'form-control', 'rows': 2,
+                       'placeholder': 'Additional details about this option'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['carrier'].queryset = Carrier.objects.filter(is_active=True)
+        self.fields['carrier'].required = False
+        self.fields['carrier_name'].required = False
+        self.fields['vessel_name'].required = False
+        self.fields['voyage_number'].required = False
+        self.fields['transit_days'].required = False
+        self.fields['cost_amount'].required = False
+        self.fields['notes'].required = False
+
+    def clean_cost_amount(self):
+        cost = self.cleaned_data.get('cost_amount')
+        if cost is not None and cost < 0:
+            raise forms.ValidationError('Cost amount cannot be negative.')
+        return cost
+
+    def clean(self):
+        cleaned = super().clean()
+        carrier = cleaned.get('carrier')
+        carrier_name = cleaned.get('carrier_name')
+        if not carrier and not carrier_name:
+            self.add_error('carrier_name', 'Either select a carrier or enter a carrier name.')
+        etd = cleaned.get('etd')
+        eta = cleaned.get('eta')
+        if etd and eta and eta < etd:
+            self.add_error('eta', 'ETA cannot be before ETD.')
+        return cleaned

@@ -238,15 +238,18 @@ class BookingService:
     @classmethod
     def update_booking(cls, booking, form, formset, user, request=None):
         """
-        Update an existing DRAFT or SUBMITTED booking from validated form + formset.
+        Update an existing booking from validated form + optional formset.
 
         Returns the updated Booking instance.
-        Raises ValueError if booking is not DRAFT/SUBMITTED or forms are invalid.
+        Raises ValueError if booking status doesn't allow editing or forms are invalid.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED'):
-            raise ValueError('Only draft or submitted bookings can be edited.')
+        editable_statuses = ('DRAFT', 'SUBMITTED', 'CONFIRMED')
+        if booking.status not in editable_statuses:
+            raise ValueError('This booking cannot be edited in its current status.')
 
-        if not form.is_valid() or not formset.is_valid():
+        if not form.is_valid():
+            raise ValueError('Invalid form data.')
+        if formset is not None and not formset.is_valid():
             raise ValueError('Invalid form data.')
 
         with transaction.atomic():
@@ -254,7 +257,8 @@ class BookingService:
             old_items = {item.pk: cls._item_snapshot(item) for item in booking.items.all()}
 
             form.save()
-            formset.save()
+            if formset is not None:
+                formset.save()
             booking.refresh_from_db()
             booking.recalculate_totals()
 
@@ -477,6 +481,8 @@ class BookingService:
         cls._validate_workflow_transition(booking, 'SUBMITTED', user)
         if booking.status != 'DRAFT':
             raise ValueError('Only draft bookings can be submitted.')
+        if not booking.external_reference:
+            raise ValueError('Customer reference number is required before submission.')
         if not booking.items.exists():
             raise ValueError('Cannot submit a booking with no cargo items.')
         if booking.transport_mode == 'SEA_FCL':
@@ -495,7 +501,7 @@ class BookingService:
 
     @classmethod
     def confirm_booking(cls, booking, user=None, request=None):
-        """Confirm a SUBMITTED booking (operations action)."""
+        """Confirm a SUBMITTED booking (operations action — direct confirm flow)."""
         cls._validate_workflow_transition(booking, 'CONFIRMED', user)
         if booking.status != 'SUBMITTED':
             raise ValueError('Only submitted bookings can be confirmed.')
@@ -519,6 +525,62 @@ class BookingService:
             _safe_fms_dispatch('dispatch_booking_confirmed', booking)
 
         # Auto-advance to PACKING when customer approval is disabled
+        cls._auto_advance_if_no_approval(booking, user, request)
+
+    @classmethod
+    def present_options(cls, booking, user=None, request=None):
+        """Present carrier options to customer (ops action on SUBMITTED booking)."""
+        cls._validate_workflow_transition(booking, 'OPTIONS_PRESENTED', user)
+        if booking.status != 'SUBMITTED':
+            raise ValueError('Options can only be presented for submitted bookings.')
+        if not booking.carrier_options.exists():
+            raise ValueError('At least one carrier option must be created before presenting.')
+
+        with transaction.atomic():
+            booking.status = 'OPTIONS_PRESENTED'
+            booking.options_presented_at = timezone.now()
+            booking.save()
+
+            cls._log(booking, 'OPTIONS_PRESENTED', user=user, request=request)
+
+        notifications.notify_options_presented(booking)
+
+    @classmethod
+    def select_option(cls, booking, option, user=None, request=None):
+        """Customer selects a carrier option, confirming the booking."""
+        cls._validate_workflow_transition(booking, 'CONFIRMED', user)
+        if booking.status != 'OPTIONS_PRESENTED':
+            raise ValueError('Options can only be selected when options are presented.')
+        if option.booking_id != booking.pk:
+            raise ValueError('This option does not belong to this booking.')
+
+        with transaction.atomic():
+            # Mark selected option
+            booking.carrier_options.update(is_selected=False)
+            option.is_selected = True
+            option.save()
+
+            # Copy option details to booking
+            booking.selected_option = option
+            booking.carrier_name = option.carrier_name
+            booking.vessel_name = option.vessel_name
+            booking.voyage_number = option.voyage_number
+            booking.etd = option.etd
+            booking.eta = option.eta
+
+            # Confirm the booking
+            booking.status = 'CONFIRMED'
+            booking.confirmed_at = timezone.now()
+            booking.confirmed_by = user
+            booking.save()
+
+            cls._log(
+                booking, 'OPTION_SELECTED', user=user, request=request,
+                new_value={'option_id': option.pk, 'carrier': option.carrier_name},
+            )
+            cls._log(booking, 'CONFIRMED', user=user, request=request)
+
+        notifications.notify_booking_confirmed(booking)
         cls._auto_advance_if_no_approval(booking, user, request)
 
     @classmethod
@@ -584,7 +646,7 @@ class BookingService:
     def reject_booking(cls, booking, user=None, reason='', request=None):
         """Reject a booking (ops action). Allowed from most active statuses."""
         cls._validate_workflow_transition(booking, 'REJECTED', user)
-        allowed = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
+        allowed = ('SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
         if booking.status not in allowed:
             raise ValueError('This booking cannot be rejected.')
 
@@ -823,7 +885,7 @@ class BookingService:
         Cancelling a CONFIRMED or PACKING booking requires a reason and is staff-only.
         """
         cls._validate_workflow_transition(booking, 'CANCELLED', user)
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
             raise ValueError('This booking cannot be cancelled.')
 
         if booking.status in ('CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
@@ -883,7 +945,7 @@ class BookingService:
 
         Returns the new BookingDocument instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Documents can only be uploaded to active bookings.')
 
         if not form.is_valid():
@@ -941,7 +1003,7 @@ class BookingService:
 
         Returns the new BookingParty instance.
         """
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Parties can only be added to active bookings.')
 
         with transaction.atomic():
@@ -960,7 +1022,7 @@ class BookingService:
     @classmethod
     def remove_party_from_booking(cls, booking, booking_party, user=None, request=None):
         """Remove a party assignment from a booking."""
-        if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+        if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Parties can only be removed from active bookings.')
 
         old = {

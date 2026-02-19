@@ -226,9 +226,15 @@ class TestBookingEdit(ViewTestBase):
         resp = self.client.get(reverse('booking_edit', args=[booking.id]))
         self.assertEqual(resp.status_code, 200)
 
-    def test_edit_confirmed_redirects(self):
+    def test_edit_confirmed_allowed_for_customer(self):
         self._login_customer()
         booking = create_booking(self.customer, self.user, status='CONFIRMED')
+        resp = self.client.get(reverse('booking_edit', args=[booking.id]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_edit_in_transit_redirects(self):
+        self._login_customer()
+        booking = create_booking(self.customer, self.user, status='IN_TRANSIT')
         resp = self.client.get(reverse('booking_edit', args=[booking.id]))
         self.assertRedirects(resp, reverse('booking_detail', args=[booking.id]))
 

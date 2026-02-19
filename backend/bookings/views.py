@@ -16,7 +16,7 @@ from django.db import transaction
 from .models import (
     Booking, BookingItem, BookingDocument, Party, BookingParty,
     AuditLog, UserProfile, Notification, BookingTemplate, ShipmentMilestone,
-    Customer, ContainerType, Consolidation,
+    Customer, ContainerType, Consolidation, CarrierOption,
 )
 from .notifications import _send_notification
 from .forms import (
@@ -26,6 +26,7 @@ from .forms import (
     MarkInTransitForm, MarkArrivedForm, CompleteBookingForm,
     CancelConfirmedForm, RecordMilestoneForm,
     ConsolidationCreateForm, ConsolidationAddBookingForm,
+    CarrierOptionForm,
 )
 from .services import BookingService
 from .tenant import get_user_organization
@@ -40,6 +41,14 @@ def get_user_customer(user):
     except user.__class__.profile.RelatedObjectDoesNotExist:
         pass
     return None
+
+
+def is_shipper_user(user):
+    """Return True if the user has the SHIPPER role."""
+    try:
+        return user.profile.role == 'SHIPPER'
+    except (AttributeError, user.__class__.profile.RelatedObjectDoesNotExist):
+        return False
 
 
 def require_feature(flag_name):
@@ -285,7 +294,10 @@ def booking_list(request):
 
 @login_required
 def booking_create(request):
-    """Create a new booking with cargo items (customers and staff)"""
+    """Create a new booking with cargo items (customers and staff, not shippers)"""
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot create bookings.')
+        return redirect('dashboard')
     customer = get_user_customer(request.user)
     is_staff = customer is None
 
@@ -344,29 +356,46 @@ def booking_create(request):
 
 @login_required
 def booking_edit(request, booking_id):
-    """Edit a draft or submitted booking"""
+    """Edit a booking — fields available depend on booking status and user role."""
     booking = get_booking_for_user(booking_id, request.user)
-
-    if booking.status not in ('DRAFT', 'SUBMITTED'):
-        messages.error(request, 'Only draft or submitted bookings can be edited.')
-        return redirect('booking_detail', booking_id=booking.id)
 
     customer = get_user_customer(request.user)
     is_staff = customer is None
 
+    # Staff can edit DRAFT and SUBMITTED (all fields)
+    # Customers can edit DRAFT (all), SUBMITTED (limited), CONFIRMED (very limited)
+    if is_staff:
+        allowed = ('DRAFT', 'SUBMITTED')
+    else:
+        allowed = ('DRAFT', 'SUBMITTED', 'CONFIRMED')
+
+    if booking.status not in allowed:
+        messages.error(request, 'This booking cannot be edited in its current status.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    # Cargo items can only be modified in DRAFT and SUBMITTED
+    allow_item_edit = booking.status in ('DRAFT', 'SUBMITTED')
+
     if request.method == 'POST':
         form = BookingForm(request.POST, instance=booking,
-                           customer=booking.customer, is_staff=is_staff)
-        formset = BookingItemFormSet(request.POST, instance=booking, prefix='items')
+                           customer=booking.customer, is_staff=is_staff,
+                           booking_status=booking.status)
+        if allow_item_edit:
+            formset = BookingItemFormSet(request.POST, instance=booking, prefix='items')
+        else:
+            formset = BookingItemFormSet(instance=booking, prefix='items')
 
-        if form.is_valid() and formset.is_valid():
+        formset_valid = formset.is_valid() if allow_item_edit else True
+        if form.is_valid() and formset_valid:
             BookingService.update_booking(
-                booking, form, formset, request.user, request=request,
+                booking, form, formset if allow_item_edit else None,
+                request.user, request=request,
             )
             messages.success(request, f'Booking {booking.booking_number} updated successfully!')
             return redirect('booking_detail', booking_id=booking.id)
     else:
-        form = BookingForm(instance=booking, customer=booking.customer, is_staff=is_staff)
+        form = BookingForm(instance=booking, customer=booking.customer,
+                           is_staff=is_staff, booking_status=booking.status)
         formset = BookingItemFormSet(instance=booking, prefix='items')
 
     return render(request, 'bookings/booking_form.html', {
@@ -374,6 +403,7 @@ def booking_edit(request, booking_id):
         'formset': formset,
         'booking': booking,
         'is_edit': True,
+        'allow_item_edit': allow_item_edit,
     })
 
 
@@ -480,6 +510,22 @@ def _build_tracking_milestones(booking):
             'status': 'pending' if booking.status == 'DRAFT' else 'completed',
         })
 
+    # 2.5. Options Presented (optional step)
+    if booking.options_presented_at:
+        milestones.append({
+            'label': 'Options Presented',
+            'icon': 'fas fa-shipping-fast',
+            'timestamp': booking.options_presented_at,
+            'status': 'active' if booking.status == 'OPTIONS_PRESENTED' else 'completed',
+        })
+    elif booking.status == 'OPTIONS_PRESENTED':
+        milestones.append({
+            'label': 'Options Presented',
+            'icon': 'fas fa-shipping-fast',
+            'timestamp': None,
+            'status': 'active',
+        })
+
     # 3. Rejected (ops rejection — terminal)
     if is_rejected:
         milestones.append({
@@ -524,7 +570,7 @@ def _build_tracking_milestones(booking):
             'timestamp': booking.packing_at,
             'status': 'active' if booking.status == 'PACKING' else 'completed',
         })
-    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED'):
+    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED'):
         milestones.append({
             'label': 'Packing',
             'icon': 'fas fa-box',
@@ -540,7 +586,7 @@ def _build_tracking_milestones(booking):
             'timestamp': booking.in_transit_at,
             'status': 'active' if booking.status == 'IN_TRANSIT' else 'completed',
         })
-    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED'):
+    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED'):
         milestones.append({
             'label': 'In Transit',
             'icon': 'fas fa-shipping-fast',
@@ -572,7 +618,7 @@ def _build_tracking_milestones(booking):
             'timestamp': booking.completed_at,
             'status': 'completed',
         })
-    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED'):
+    elif not is_cancelled and booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED'):
         milestones.append({
             'label': 'Delivered',
             'icon': 'fas fa-flag-checkered',
@@ -597,6 +643,9 @@ def _build_tracking_milestones(booking):
 @login_required
 def booking_submit(request, booking_id):
     """Submit a draft booking (POST performs action, GET shows confirmation)"""
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot submit bookings.')
+        return redirect('booking_detail', booking_id=booking_id)
     booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status != 'DRAFT':
@@ -619,14 +668,17 @@ def booking_submit(request, booking_id):
 @login_required
 def booking_cancel(request, booking_id):
     """Cancel a booking (DRAFT/SUBMITTED for customers, CONFIRMED for staff)"""
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot cancel bookings.')
+        return redirect('booking_detail', booking_id=booking_id)
     booking = get_booking_for_user(booking_id, request.user)
     customer = get_user_customer(request.user)
 
-    # Customers can cancel DRAFT/SUBMITTED; staff can also cancel CONFIRMED/PACKING
-    if customer and booking.status not in ('DRAFT', 'SUBMITTED'):
+    # Customers can cancel DRAFT/SUBMITTED/OPTIONS_PRESENTED; staff can also cancel CONFIRMED/PACKING
+    if customer and booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED'):
         messages.error(request, 'This booking cannot be cancelled.')
         return redirect('booking_detail', booking_id=booking.id)
-    if not customer and booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
+    if not customer and booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
         messages.error(request, 'This booking cannot be cancelled.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -773,7 +825,7 @@ def booking_document_upload(request, booking_id):
     """Upload a document to a booking (DRAFT or SUBMITTED only)"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
         messages.error(request, 'Documents can only be uploaded to active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -951,7 +1003,7 @@ def booking_party_add(request, booking_id):
     # Both customers and staff can manage parties
     party_customer = customer or booking.customer
 
-    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
         messages.error(request, 'Parties can only be added to active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -983,7 +1035,7 @@ def booking_party_remove(request, booking_id, booking_party_id):
     """Remove a party assignment from a booking"""
     booking = get_booking_for_user(booking_id, request.user)
 
-    if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
+    if booking.status not in ('DRAFT', 'SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED'):
         messages.error(request, 'Parties can only be removed from active bookings.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -1114,6 +1166,7 @@ def ops_dashboard(request):
     pipeline_agg = all_bookings.aggregate(
         draft=Count('id', filter=Q(status='DRAFT')),
         submitted=Count('id', filter=Q(status='SUBMITTED')),
+        options_presented=Count('id', filter=Q(status='OPTIONS_PRESENTED')),
         confirmed=Count('id', filter=Q(status='CONFIRMED')),
         packing=Count('id', filter=Q(status='PACKING')),
         in_transit=Count('id', filter=Q(status='IN_TRANSIT')),
@@ -1191,11 +1244,130 @@ def ops_booking_confirm(request, booking_id):
 
 
 @staff_required
+def ops_carrier_options(request, booking_id):
+    """Manage carrier options for a submitted booking (staff only)."""
+    booking = get_booking_for_user(booking_id, request.user)
+
+    if booking.status not in ('SUBMITTED', 'OPTIONS_PRESENTED'):
+        messages.warning(request, 'Carrier options can only be managed for submitted bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    options = booking.carrier_options.select_related('carrier').all()
+
+    if request.method == 'POST':
+        form = CarrierOptionForm(request.POST)
+        if form.is_valid():
+            option = form.save(commit=False)
+            option.booking = booking
+            option.created_by = request.user
+            option.save()
+            messages.success(request, f'Carrier option added: {option.carrier_name}')
+            return redirect('ops_carrier_options', booking_id=booking.id)
+    else:
+        form = CarrierOptionForm()
+
+    return render(request, 'bookings/ops/carrier_options.html', {
+        'booking': booking,
+        'options': options,
+        'form': form,
+    })
+
+
+@staff_required
+def ops_remove_carrier_option(request, booking_id, option_id):
+    """Remove a carrier option (staff only)."""
+    booking = get_booking_for_user(booking_id, request.user)
+    option = get_object_or_404(CarrierOption, pk=option_id, booking=booking)
+
+    if booking.status not in ('SUBMITTED', 'OPTIONS_PRESENTED'):
+        messages.error(request, 'Options cannot be modified in the current booking status.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        if booking.status == 'OPTIONS_PRESENTED' and booking.carrier_options.count() <= 1:
+            messages.error(request, 'Cannot remove the last option while options are presented to the customer.')
+        else:
+            option.delete()
+            messages.success(request, 'Carrier option removed.')
+
+    return redirect('ops_carrier_options', booking_id=booking.id)
+
+
+@staff_required
+def ops_present_options(request, booking_id):
+    """Present carrier options to customer (staff only)."""
+    booking = get_booking_for_user(booking_id, request.user)
+
+    if booking.status != 'SUBMITTED':
+        messages.warning(request, 'Options can only be presented for submitted bookings.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.present_options(booking, request.user, request=request)
+            messages.success(
+                request,
+                f'Carrier options presented to customer for {booking.booking_number}.')
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect('booking_detail', booking_id=booking.id)
+
+    return redirect('ops_carrier_options', booking_id=booking.id)
+
+
+@login_required
+def booking_view_options(request, booking_id):
+    """Customer views all carrier options for selection."""
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot select carrier options.')
+        return redirect('booking_detail', booking_id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
+
+    if booking.status != 'OPTIONS_PRESENTED':
+        messages.warning(request, 'Options are not available for selection at this time.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    options = booking.carrier_options.select_related('carrier').all()
+    return render(request, 'bookings/booking_select_option.html', {
+        'booking': booking,
+        'options': options,
+        'selected_option': None,
+    })
+
+
+@login_required
+def booking_select_option(request, booking_id, option_id):
+    """Customer selects a carrier option (POST only)."""
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot select carrier options.')
+        return redirect('booking_detail', booking_id=booking_id)
+    booking = get_booking_for_user(booking_id, request.user)
+    option = get_object_or_404(CarrierOption, pk=option_id, booking=booking)
+
+    if booking.status != 'OPTIONS_PRESENTED':
+        messages.warning(request, 'Options are not available for selection at this time.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    if request.method == 'POST':
+        try:
+            BookingService.select_option(booking, option, request.user, request=request)
+            messages.success(
+                request,
+                f'Option selected: {option.carrier_name}. Booking {booking.booking_number} is now confirmed.')
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect('booking_detail', booking_id=booking.id)
+
+    # GET — redirect to the view options page
+    return redirect('booking_view_options', booking_id=booking.id)
+
+
+@staff_required
 def ops_booking_reject(request, booking_id):
     """Reject a SUBMITTED booking with reason (staff only)."""
     booking = get_booking_for_user(booking_id, request.user)
 
-    allowed_reject = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
+    allowed_reject = ('SUBMITTED', 'OPTIONS_PRESENTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
     if booking.status not in allowed_reject:
         messages.warning(request, f'This booking cannot be rejected (current status: {booking.get_status_display()}).')
         return redirect('booking_detail', booking_id=booking.id)

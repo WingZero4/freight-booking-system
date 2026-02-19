@@ -61,6 +61,7 @@ def _booking_payload(**overrides):
         'destination_port': 'USNYC',
         'cargo_ready_date': str(date.today() + timedelta(days=7)),
         'incoterms': 'FOB',
+        'external_reference': 'TEST-REF-001',
         'container_type': '20GP',
         'container_count': 2,
         'items': [
@@ -260,6 +261,16 @@ class TestBookingSubmitAPI(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['status'], 'SUBMITTED')
+
+    def test_submit_without_reference_fails(self):
+        booking = Booking.objects.get(pk=self.booking_id)
+        booking.external_reference = ''
+        booking.save()
+        resp = self.client.post(
+            f'/api/v1/bookings/{self.booking_id}/submit/',
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('reference', resp.data['error'].lower())
 
     def test_submit_twice_fails(self):
         self.client.post(f'/api/v1/bookings/{self.booking_id}/submit/')
