@@ -97,7 +97,7 @@
                         <div class="col-md-1">
                             <div class="form-check">
                                 {{ step_form.is_required }}
-                                <label class="form-check-label small">Req</label>
+                                <label for="{{ step_form.is_required.id_for_label }}" class="form-check-label small">Req</label>
                             </div>
                         </div>
                         <div class="col-md-2">
@@ -178,11 +178,11 @@
                         <div class="col-md-2">
                             <div class="form-check">
                                 {{ transition_form.requires_reason }}
-                                <label class="form-check-label small">Reason</label>
+                                <label for="{{ transition_form.requires_reason.id_for_label }}" class="form-check-label small">Reason</label>
                             </div>
                             <div class="form-check">
                                 {{ transition_form.auto_skip }}
-                                <label class="form-check-label small">Skip</label>
+                                <label for="{{ transition_form.auto_skip.id_for_label }}" class="form-check-label small">Skip</label>
                             </div>
                         </div>
                         <div class="col-md-2">

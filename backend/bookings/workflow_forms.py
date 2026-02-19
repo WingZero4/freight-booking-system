@@ -2,7 +2,7 @@
 from django import forms
 from .models import (
     WorkflowTemplate, WorkflowStep, WorkflowTransition,
-    CustomerWorkflowConfig, Booking, UserProfile, Customer,
+    CustomerWorkflowConfig, Customer,
 )
 
 
