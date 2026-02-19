@@ -324,20 +324,24 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
-# Content Security Policy
+# Content Security Policy (django-csp 4.0+ dictionary format)
 # NOTE: 'unsafe-inline' for scripts is needed because many templates use inline
 # <script> blocks and event handlers. Refactoring to external JS is a future task.
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com")
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "cdn.jsdelivr.net",
-                  "cdnjs.cloudflare.com", "fonts.googleapis.com")
-CSP_FONT_SRC = ("'self'", "fonts.gstatic.com", "cdnjs.cloudflare.com")
-CSP_IMG_SRC = ("'self'", "data:")
-CSP_CONNECT_SRC = ("'self'",)
-CSP_BASE_URI = ("'self'",)
-CSP_FORM_ACTION = ("'self'",)
-CSP_FRAME_ANCESTORS = ("'none'",)
-CSP_OBJECT_SRC = ("'none'",)
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ["'self'"],
+        "script-src": ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"],
+        "style-src": ["'self'", "'unsafe-inline'", "cdn.jsdelivr.net",
+                       "cdnjs.cloudflare.com", "fonts.googleapis.com"],
+        "font-src": ["'self'", "fonts.gstatic.com", "cdnjs.cloudflare.com"],
+        "img-src": ["'self'", "data:"],
+        "connect-src": ["'self'"],
+        "base-uri": ["'self'"],
+        "form-action": ["'self'"],
+        "frame-ancestors": ["'none'"],
+        "object-src": ["'none'"],
+    }
+}
 
 JAZZMIN_UI_TWEAKS = {
     "navbar_small_text": False,
