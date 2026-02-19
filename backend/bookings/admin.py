@@ -6,6 +6,8 @@ from .models import (
     Booking, BookingItem, BookingDocument,
     Party, BookingParty, AuditLog, Notification, BookingTemplate,
     ShipmentMilestone, ImportLog, ImportBookingLog, Consolidation,
+    WorkflowTemplate, WorkflowTemplateVersion, WorkflowStep,
+    WorkflowTransition, CustomerWorkflowConfig,
 )
 from .services import BookingService
 
@@ -156,6 +158,7 @@ class BookingAdmin(admin.ModelAdmin):
                      'fms_shipment_id', 'hbl_number', 'mbl_number']
     readonly_fields = [
         'booking_number', 'created_by', 'source_channel',
+        'workflow_version',
         'total_weight_kg', 'total_volume_cbm',
         'created_at', 'updated_at', 'submitted_at', 'confirmed_at',
         'packing_at', 'customer_approved_by',
@@ -174,8 +177,9 @@ class BookingAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Booking Info', {
-            'fields': ('booking_number', 'status', 'customer', 'created_by',
-                       'source_channel', 'external_reference', 'consolidation')
+            'fields': ('booking_number', 'status', 'workflow_version', 'customer',
+                       'created_by', 'source_channel', 'external_reference',
+                       'consolidation')
         }),
         ('Route & Mode', {
             'fields': ('transport_mode', 'service_type', 'move_type',
@@ -482,3 +486,85 @@ class ConsolidationAdmin(admin.ModelAdmin):
     @admin.display(description='Bookings')
     def booking_count(self, obj):
         return obj._booking_count
+
+
+# ─── Workflow models ──────────────────────────────────────────────────
+
+class WorkflowStepInline(admin.TabularInline):
+    model = WorkflowStep
+    extra = 0
+    fields = ['status', 'order', 'is_required', 'label_override']
+    ordering = ['order']
+
+
+class WorkflowTransitionInline(admin.TabularInline):
+    model = WorkflowTransition
+    extra = 0
+    fields = ['from_status', 'to_status', 'required_role', 'requires_reason', 'auto_skip']
+    ordering = ['from_status', 'to_status']
+
+
+class WorkflowTemplateVersionInline(admin.TabularInline):
+    model = WorkflowTemplateVersion
+    extra = 0
+    fields = ['version_number', 'notes', 'created_by', 'created_at']
+    readonly_fields = ['created_by', 'created_at']
+    ordering = ['-version_number']
+    show_change_link = True
+
+
+@admin.register(WorkflowTemplate)
+class WorkflowTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'organization', 'is_default', 'is_active', 'version_count', 'created_at']
+    list_filter = ['is_default', 'is_active', 'organization']
+    search_fields = ['name', 'organization__name']
+    list_select_related = ['organization']
+    inlines = [WorkflowTemplateVersionInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            _version_count=Count('versions')
+        )
+
+    @admin.display(description='Versions')
+    def version_count(self, obj):
+        return obj._version_count
+
+
+@admin.register(WorkflowTemplateVersion)
+class WorkflowTemplateVersionAdmin(admin.ModelAdmin):
+    list_display = ['template', 'version_number', 'step_count', 'transition_count',
+                    'created_by', 'created_at']
+    list_filter = ['template__organization']
+    search_fields = ['template__name', 'notes']
+    list_select_related = ['template', 'created_by']
+    readonly_fields = ['created_by', 'created_at']
+    inlines = [WorkflowStepInline, WorkflowTransitionInline]
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        from .workflow_engine import WorkflowEngine
+        WorkflowEngine.invalidate_cache(form.instance.pk)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            _step_count=Count('steps', distinct=True),
+            _transition_count=Count('transitions', distinct=True),
+        )
+
+    @admin.display(description='Steps')
+    def step_count(self, obj):
+        return obj._step_count
+
+    @admin.display(description='Transitions')
+    def transition_count(self, obj):
+        return obj._transition_count
+
+
+@admin.register(CustomerWorkflowConfig)
+class CustomerWorkflowConfigAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'workflow_version', 'assigned_by', 'assigned_at']
+    list_filter = ['workflow_version__template__organization']
+    search_fields = ['customer__name', 'customer__code']
+    list_select_related = ['customer', 'workflow_version__template', 'assigned_by']
+    raw_id_fields = ['customer', 'workflow_version']

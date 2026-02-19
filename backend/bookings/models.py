@@ -597,6 +597,13 @@ class Booking(models.Model):
         help_text='Carrier-assigned container numbers (one per line)'
     )
 
+    # Workflow version (set at creation, never changed — grandfathering)
+    workflow_version = models.ForeignKey(
+        'WorkflowTemplateVersion', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='bookings',
+        help_text='Workflow version active when this booking was created'
+    )
+
     # Status
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
 
@@ -1246,3 +1253,134 @@ class ImportBookingLog(models.Model):
         ordering = ['import_log', 'row_index']
         verbose_name = 'import booking log'
         verbose_name_plural = 'import booking logs'
+
+
+# ─── Workflow Engine models ───────────────────────────────────────────
+
+class WorkflowTemplate(models.Model):
+    """Named workflow template belonging to an organization."""
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='workflow_templates')
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_default = models.BooleanField(
+        default=False,
+        help_text='If True, new customers in this org get this workflow automatically')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.name} ({self.organization.code})'
+
+    class Meta:
+        ordering = ['organization', 'name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'name'],
+                name='unique_workflow_name_per_org'),
+        ]
+
+
+class WorkflowTemplateVersion(models.Model):
+    """Immutable snapshot of a workflow template. Bookings reference a specific version."""
+    template = models.ForeignKey(
+        WorkflowTemplate, on_delete=models.CASCADE, related_name='versions')
+    version_number = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f'{self.template.name} v{self.version_number}'
+
+    class Meta:
+        ordering = ['template', '-version_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['template', 'version_number'],
+                name='unique_version_per_template'),
+        ]
+
+
+class WorkflowStep(models.Model):
+    """A status that is active in a workflow version, with display order."""
+    version = models.ForeignKey(
+        WorkflowTemplateVersion, on_delete=models.CASCADE, related_name='steps')
+    status = models.CharField(max_length=20, choices=Booking.STATUS_CHOICES)
+    order = models.PositiveIntegerField(
+        help_text='Display order for this status in the workflow pipeline')
+    is_required = models.BooleanField(
+        default=True,
+        help_text='Must the booking pass through this status?')
+    label_override = models.CharField(
+        max_length=100, blank=True,
+        help_text='Custom label for this status (leave blank for default)')
+
+    def __str__(self):
+        label = self.label_override or self.get_status_display()
+        return f'{self.version} — {label} (#{self.order})'
+
+    class Meta:
+        ordering = ['version', 'order']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['version', 'status'],
+                name='unique_status_per_version'),
+        ]
+
+
+class WorkflowTransition(models.Model):
+    """An allowed status transition within a workflow version."""
+    version = models.ForeignKey(
+        WorkflowTemplateVersion, on_delete=models.CASCADE, related_name='transitions')
+    from_status = models.CharField(max_length=20, choices=Booking.STATUS_CHOICES)
+    to_status = models.CharField(max_length=20, choices=Booking.STATUS_CHOICES)
+    required_role = models.CharField(
+        max_length=10, choices=UserProfile.ROLE_CHOICES, blank=True,
+        help_text='Role required to trigger this transition (blank = any)')
+    requires_reason = models.BooleanField(
+        default=False,
+        help_text='Does this transition require a reason/note?')
+    auto_skip = models.BooleanField(
+        default=False,
+        help_text='Auto-advance through non-required intermediate steps')
+
+    def __str__(self):
+        return f'{self.version} — {self.from_status} → {self.to_status}'
+
+    class Meta:
+        ordering = ['version', 'from_status', 'to_status']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['version', 'from_status', 'to_status'],
+                name='unique_transition_per_version'),
+        ]
+
+
+class CustomerWorkflowConfig(models.Model):
+    """Links a customer (company) to a specific workflow version."""
+    customer = models.OneToOneField(
+        Customer, on_delete=models.CASCADE, related_name='workflow_config')
+    workflow_version = models.ForeignKey(
+        WorkflowTemplateVersion, on_delete=models.PROTECT,
+        related_name='customer_configs')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    assigned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.customer.name} → {self.workflow_version}'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if (self.customer_id and self.workflow_version_id
+                and self.customer.organization_id
+                != self.workflow_version.template.organization_id):
+            raise ValidationError(
+                'Customer and workflow version must belong to the same organization.')
+
+    class Meta:
+        verbose_name = 'customer workflow config'
+        verbose_name_plural = 'customer workflow configs'

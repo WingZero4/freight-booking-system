@@ -1456,6 +1456,8 @@ def booking_clone(request, booking_id):
                 status='DRAFT',
                 source_channel='WEB',
             )
+            from .workflow_engine import WorkflowEngine
+            WorkflowEngine.assign_workflow_to_booking(new_booking, customer)
             new_booking.save()
 
             for item in booking.items.all():

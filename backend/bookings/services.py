@@ -19,6 +19,7 @@ from .models import (
     ShipmentMilestone, Consolidation,
 )
 from . import notifications, validators
+from .workflow_engine import WorkflowEngine
 
 import logging
 
@@ -167,6 +168,15 @@ class BookingService:
             'country_of_origin': item.country_of_origin,
         }
 
+    # ─── Workflow helpers ─────────────────────────────────────────────
+
+    @staticmethod
+    def _validate_workflow_transition(booking, to_status, user=None):
+        """Check workflow allows the transition. Raises ValueError if blocked."""
+        allowed, error = WorkflowEngine.validate_transition(booking, to_status, user)
+        if not allowed:
+            raise ValueError(error)
+
     # ─── Create ───────────────────────────────────────────────────────
 
     @classmethod
@@ -186,6 +196,7 @@ class BookingService:
             booking.customer = customer
             booking.created_by = user
             booking.source_channel = source_channel
+            WorkflowEngine.assign_workflow_to_booking(booking, customer)
             booking.save()
 
             formset.instance = booking
@@ -309,6 +320,7 @@ class BookingService:
                 service_type=data.get('service_type', ''),
                 move_type=data.get('move_type', ''),
             )
+            WorkflowEngine.assign_workflow_to_booking(booking, customer)
             booking.save()
 
             for item_data in items_data:
@@ -446,6 +458,7 @@ class BookingService:
     @classmethod
     def submit_booking(cls, booking, user, request=None):
         """Submit a DRAFT booking. Raises ValueError on failure."""
+        cls._validate_workflow_transition(booking, 'SUBMITTED', user)
         if booking.status != 'DRAFT':
             raise ValueError('Only draft bookings can be submitted.')
         if not booking.items.exists():
@@ -467,6 +480,7 @@ class BookingService:
     @classmethod
     def confirm_booking(cls, booking, user=None, request=None):
         """Confirm a SUBMITTED booking (operations action)."""
+        cls._validate_workflow_transition(booking, 'CONFIRMED', user)
         if booking.status != 'SUBMITTED':
             raise ValueError('Only submitted bookings can be confirmed.')
 
@@ -491,6 +505,7 @@ class BookingService:
     @classmethod
     def customer_approve_booking(cls, booking, user=None, request=None):
         """Customer approves a CONFIRMED booking, moving it to PACKING."""
+        cls._validate_workflow_transition(booking, 'PACKING', user)
         if booking.status != 'CONFIRMED':
             raise ValueError('Only confirmed bookings can be approved by the customer.')
 
@@ -507,6 +522,7 @@ class BookingService:
     @classmethod
     def customer_reject_booking(cls, booking, user=None, reason='', request=None):
         """Customer rejects a CONFIRMED booking."""
+        cls._validate_workflow_transition(booking, 'CUSTOMER_REJECTED', user)
         if booking.status != 'CONFIRMED':
             raise ValueError('Only confirmed bookings can be rejected by the customer.')
 
@@ -527,6 +543,7 @@ class BookingService:
     @classmethod
     def reconfirm_booking(cls, booking, user=None, request=None):
         """Return a CUSTOMER_REJECTED booking to CONFIRMED (ops re-proposes)."""
+        cls._validate_workflow_transition(booking, 'CONFIRMED', user)
         if booking.status != 'CUSTOMER_REJECTED':
             raise ValueError('Only customer-rejected bookings can be re-confirmed.')
 
@@ -547,6 +564,7 @@ class BookingService:
     @classmethod
     def reject_booking(cls, booking, user=None, reason='', request=None):
         """Reject a booking (ops action). Allowed from most active statuses."""
+        cls._validate_workflow_transition(booking, 'REJECTED', user)
         allowed = ('SUBMITTED', 'CONFIRMED', 'PACKING', 'IN_TRANSIT', 'ARRIVED')
         if booking.status not in allowed:
             raise ValueError('This booking cannot be rejected.')
@@ -569,6 +587,7 @@ class BookingService:
     def mark_in_transit(cls, booking, user=None, request=None,
                         actual_departure_date=None):
         """Mark a PACKING booking as in transit."""
+        cls._validate_workflow_transition(booking, 'IN_TRANSIT', user)
         if booking.status != 'PACKING':
             raise ValueError('Only bookings in packing status can be marked in transit.')
 
@@ -588,6 +607,7 @@ class BookingService:
     def mark_arrived(cls, booking, user=None, request=None,
                      actual_arrival_date=None):
         """Mark an IN_TRANSIT booking as arrived at destination."""
+        cls._validate_workflow_transition(booking, 'ARRIVED', user)
         if booking.status != 'IN_TRANSIT':
             raise ValueError('Only in-transit bookings can be marked as arrived.')
 
@@ -607,6 +627,7 @@ class BookingService:
     def complete_booking(cls, booking, user=None, request=None,
                          actual_arrival_date=None):
         """Mark an IN_TRANSIT or ARRIVED booking as completed."""
+        cls._validate_workflow_transition(booking, 'COMPLETED', user)
         if booking.status not in ('IN_TRANSIT', 'ARRIVED'):
             raise ValueError('Only in-transit or arrived bookings can be completed.')
 
@@ -625,6 +646,7 @@ class BookingService:
     @classmethod
     def confirm_booking_with_carrier(cls, booking, carrier_form, user=None, request=None):
         """Confirm a SUBMITTED booking and save carrier details in one transaction."""
+        cls._validate_workflow_transition(booking, 'CONFIRMED', user)
         if booking.status != 'SUBMITTED':
             raise ValueError('Only submitted bookings can be confirmed.')
 
@@ -778,6 +800,7 @@ class BookingService:
 
         Cancelling a CONFIRMED or PACKING booking requires a reason and is staff-only.
         """
+        cls._validate_workflow_transition(booking, 'CANCELLED', user)
         if booking.status not in ('DRAFT', 'SUBMITTED', 'CONFIRMED', 'PACKING', 'CUSTOMER_REJECTED'):
             raise ValueError('This booking cannot be cancelled.')
 
@@ -808,6 +831,7 @@ class BookingService:
     @classmethod
     def resubmit_booking(cls, booking, user=None, request=None):
         """Return a REJECTED booking to DRAFT so the customer can revise and resubmit."""
+        cls._validate_workflow_transition(booking, 'DRAFT', user)
         if booking.status != 'REJECTED':
             raise ValueError('Only rejected bookings can be resubmitted.')
 

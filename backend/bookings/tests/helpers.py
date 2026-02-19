@@ -14,7 +14,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from bookings.models import (
     Organization, Customer, UserProfile, Port, ContainerType,
     Booking, BookingItem, BookingDocument, Party, BookingParty,
-    ShipmentMilestone,
+    ShipmentMilestone, WorkflowTemplate, WorkflowTemplateVersion,
+    WorkflowStep, WorkflowTransition, CustomerWorkflowConfig,
 )
 
 _default_org = None
@@ -172,3 +173,98 @@ def create_milestone(booking, milestone_type='CARGO_RECEIVED', occurred_at=None,
         recorded_by=user,
         **defaults,
     )
+
+
+# ─── Workflow helpers ─────────────────────────────────────────────────
+
+# Default steps and transitions matching migration 0031
+_DEFAULT_STEPS = [
+    ('DRAFT', 1, True), ('SUBMITTED', 2, True), ('CONFIRMED', 3, True),
+    ('CUSTOMER_REJECTED', 4, False), ('REJECTED', 5, False),
+    ('PACKING', 6, True), ('IN_TRANSIT', 7, True), ('ARRIVED', 8, False),
+    ('COMPLETED', 9, True), ('CANCELLED', 10, False),
+]
+
+_DEFAULT_TRANSITIONS = [
+    ('DRAFT', 'SUBMITTED', False, ''),
+    ('SUBMITTED', 'CONFIRMED', False, ''),
+    ('CONFIRMED', 'PACKING', False, ''),
+    ('PACKING', 'IN_TRANSIT', False, ''),
+    ('IN_TRANSIT', 'ARRIVED', False, ''),
+    ('IN_TRANSIT', 'COMPLETED', False, ''),
+    ('ARRIVED', 'COMPLETED', False, ''),
+    ('SUBMITTED', 'REJECTED', True, ''),
+    ('CONFIRMED', 'REJECTED', True, ''),
+    ('PACKING', 'REJECTED', True, ''),
+    ('IN_TRANSIT', 'REJECTED', True, ''),
+    ('ARRIVED', 'REJECTED', True, ''),
+    ('REJECTED', 'DRAFT', False, ''),
+    ('CONFIRMED', 'CUSTOMER_REJECTED', False, ''),
+    ('CUSTOMER_REJECTED', 'CONFIRMED', False, ''),
+    ('DRAFT', 'CANCELLED', False, ''),
+    ('SUBMITTED', 'CANCELLED', False, ''),
+    ('CONFIRMED', 'CANCELLED', True, ''),
+    ('PACKING', 'CANCELLED', True, ''),
+    ('CUSTOMER_REJECTED', 'CANCELLED', True, ''),
+]
+
+
+def create_workflow_template(organization=None, name='Standard Workflow',
+                              is_default=True, **kwargs):
+    """Create a WorkflowTemplate with default settings."""
+    if organization is None:
+        organization = get_default_org()
+    defaults = {
+        'description': 'Test workflow',
+        'is_active': True,
+    }
+    defaults.update(kwargs)
+    return WorkflowTemplate.objects.create(
+        organization=organization, name=name, is_default=is_default, **defaults)
+
+
+def create_workflow_version(template, version_number=1, user=None,
+                             populate_defaults=True, **kwargs):
+    """Create a WorkflowTemplateVersion, optionally with default steps/transitions."""
+    version = WorkflowTemplateVersion.objects.create(
+        template=template,
+        version_number=version_number,
+        created_by=user,
+        notes=kwargs.get('notes', 'Test version'),
+    )
+    if populate_defaults:
+        WorkflowStep.objects.bulk_create([
+            WorkflowStep(version=version, status=s, order=o, is_required=r)
+            for s, o, r in _DEFAULT_STEPS
+        ])
+        WorkflowTransition.objects.bulk_create([
+            WorkflowTransition(
+                version=version, from_status=f, to_status=t,
+                requires_reason=rr, required_role=role,
+            )
+            for f, t, rr, role in _DEFAULT_TRANSITIONS
+        ])
+    return version
+
+
+def create_default_workflow(organization=None):
+    """Create a complete default workflow (template + version + steps + transitions).
+
+    Returns the WorkflowTemplateVersion.
+    """
+    if organization is None:
+        organization = get_default_org()
+    template = create_workflow_template(organization=organization)
+    return create_workflow_version(template)
+
+
+def assign_workflow_to_customer(customer, workflow_version, user=None):
+    """Create or update a CustomerWorkflowConfig."""
+    config, _ = CustomerWorkflowConfig.objects.update_or_create(
+        customer=customer,
+        defaults={
+            'workflow_version': workflow_version,
+            'assigned_by': user,
+        },
+    )
+    return config

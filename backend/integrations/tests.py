@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from bookings.models import Booking, Customer, Port, ContainerType, UserProfile
+from bookings.tests.helpers import get_default_org
 
 from .edi.iftmbf_parser import parse_iftmbf, IFTMBFParseError
 from .edi.iftmbc_generator import generate_iftmbc
@@ -105,6 +106,7 @@ class TestIFTMBCGenerator(TestCase):
     def setUp(self):
         self.customer = Customer.objects.create(
             name='Gen Corp', code='GEN01', is_active=True,
+            organization=get_default_org(),
         )
         self.origin = Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
         self.dest = Port.objects.create(code='USNYC', name='New York', country='US')
@@ -163,6 +165,7 @@ class TestEDIImportService(TestCase):
     def setUp(self):
         self.customer = Customer.objects.create(
             name='EDI Corp', code='EDI01', is_active=True,
+            organization=get_default_org(),
         )
         Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
         Port.objects.create(code='USNYC', name='New York', country='US')
@@ -227,6 +230,7 @@ class TestEDIValidation(TestCase):
     def setUp(self):
         self.customer = Customer.objects.create(
             name='Val Corp', code='VAL01', is_active=True,
+            organization=get_default_org(),
         )
         Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
         Port.objects.create(code='USNYC', name='New York', country='US')
@@ -316,6 +320,7 @@ class TestEDIValidationEdgeCases(TestCase):
     def setUp(self):
         self.customer = Customer.objects.create(
             name='Edge Corp', code='EDGE01', is_active=True,
+            organization=get_default_org(),
         )
         Port.objects.create(code='CNSHA', name='Shanghai', country='CN')
         Port.objects.create(code='USNYC', name='New York', country='US')
