@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}New Version - {{ template.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-code-branch me-2"></i>
+                        New Version for: {{ template.name }}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-1"></i>
+                        This will create <strong>Version {{ next_number }}</strong>.
+                        {% if latest_version %}
+                        You can copy steps and transitions from Version {{ latest_version.version_number }}.
+                        {% else %}
+                        This is the first version — you'll need to add steps and transitions after creation.
+                        {% endif %}
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p class="mb-0">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label for="{{ form.notes.id_for_label }}" class="form-label">Version Notes</label>
+                            {{ form.notes }}
+                        </div>
+                        {% if latest_version %}
+                        <div class="mb-3 form-check">
+                            {{ form.copy_from_latest }}
+                            <label for="{{ form.copy_from_latest.id_for_label }}" class="form-check-label">
+                                Copy steps and transitions from Version {{ latest_version.version_number }}
+                                ({{ latest_version.steps.count }} steps, {{ latest_version.transitions.count }} transitions)
+                            </label>
+                        </div>
+                        {% endif %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-1"></i>Create Version {{ next_number }}
+                            </button>
+                            <a href="{% url 'workflow_detail' template.pk %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

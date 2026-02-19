@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-project-diagram me-2"></i>Workflow Management</h2>
+        <div>
+            <a href="{% url 'workflow_assign' %}" class="btn btn-outline-primary me-2">
+                <i class="fas fa-link me-1"></i>Assign Workflow
+            </a>
+            <a href="{% url 'workflow_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>New Workflow
+            </a>
+        </div>
+    </div>
+
+    <!-- Workflow Templates -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>Workflow Templates</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if templates %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th class="text-center">Versions</th>
+                            <th class="text-center">Default</th>
+                            <th class="text-center">Active</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in templates %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'workflow_detail' t.pk %}" class="text-decoration-none fw-bold">
+                                    {{ t.name }}
+                                </a>
+                            </td>
+                            <td class="text-muted">{{ t.description|truncatewords:15 }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary">{{ t.versions.all|length }}</span>
+                            </td>
+                            <td class="text-center">
+                                {% if t.is_default %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if t.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'workflow_detail' t.pk %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </a>
+                                <a href="{% url 'workflow_edit' t.pk %}" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-edit me-1"></i>Edit
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-project-diagram fa-2x mb-2"></i>
+                <p>No workflow templates yet. Create one to get started.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Customer Assignments -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-users-cog me-2"></i>Customer Workflow Assignments</h5>
+        </div>
+        <div class="card-body p-0">
+            {% if assignments %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Customer</th>
+                            <th>Workflow</th>
+                            <th>Version</th>
+                            <th>Assigned</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in assignments %}
+                        <tr>
+                            <td>{{ a.customer.name }} ({{ a.customer.code }})</td>
+                            <td>
+                                <a href="{% url 'workflow_detail' a.workflow_version.template.pk %}">
+                                    {{ a.workflow_version.template.name }}
+                                </a>
+                            </td>
+                            <td>v{{ a.workflow_version.version_number }}</td>
+                            <td class="text-muted">{{ a.assigned_at|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-4">
+                <p>No customers have been assigned a custom workflow yet.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

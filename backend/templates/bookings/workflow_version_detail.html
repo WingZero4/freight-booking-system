@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}{{ template.name }} v{{ version.version_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>
+                <i class="fas fa-code-branch me-2"></i>{{ template.name }}
+                <span class="badge bg-info">v{{ version.version_number }}</span>
+                {% if locked %}<span class="badge bg-warning text-dark ms-1"><i class="fas fa-lock me-1"></i>Locked</span>{% endif %}
+            </h2>
+            {% if version.notes %}
+            <p class="text-muted mb-0">{{ version.notes }}</p>
+            {% endif %}
+            {% if locked %}
+            <p class="text-warning small mt-1 mb-0">
+                <i class="fas fa-info-circle me-1"></i>This version is in use by bookings and cannot be modified. Create a new version to make changes.
+            </p>
+            {% endif %}
+        </div>
+        <a href="{% url 'workflow_detail' template.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Template
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Steps -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list-ol me-2"></i>Steps ({{ steps|length }})</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if steps %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:50px">#</th>
+                                    <th>Status</th>
+                                    <th>Label</th>
+                                    <th class="text-center">Required</th>
+                                    {% if not locked %}<th style="width:60px"></th>{% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for step in steps %}
+                                <tr>
+                                    <td class="text-muted">{{ step.order }}</td>
+                                    <td><span class="badge bg-themed-primary">{{ step.get_status_display }}</span></td>
+                                    <td>{% if step.label_override %}{{ step.label_override }}{% else %}<span class="text-muted">default</span>{% endif %}</td>
+                                    <td class="text-center">
+                                        {% if step.is_required %}
+                                        <i class="fas fa-check text-success"></i>
+                                        {% else %}
+                                        <i class="fas fa-minus text-muted"></i>
+                                        {% endif %}
+                                    </td>
+                                    {% if not locked %}
+                                    <td>
+                                        <form method="post" action="{% url 'workflow_remove_step' template.pk version.pk step.pk %}"
+                                              onsubmit="return confirm('Remove this step?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">No steps yet.</div>
+                    {% endif %}
+                </div>
+                {% if not locked and step_form %}
+                <div class="card-footer">
+                    <form method="post" action="{% url 'workflow_add_step' template.pk version.pk %}" class="row g-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="col-md-4">
+                            <label class="form-label small">Status</label>
+                            {{ step_form.status }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Order</label>
+                            {{ step_form.order }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Label Override</label>
+                            {{ step_form.label_override }}
+                        </div>
+                        <div class="col-md-1">
+                            <div class="form-check">
+                                {{ step_form.is_required }}
+                                <label class="form-check-label small">Req</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-themed-primary btn-sm w-100">
+                                <i class="fas fa-plus me-1"></i>Add
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Transitions -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-arrows-alt-h me-2"></i>Transitions ({{ transitions|length }})</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if transitions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Role</th>
+                                    <th class="text-center">Reason</th>
+                                    <th class="text-center">Auto-skip</th>
+                                    {% if not locked %}<th style="width:60px"></th>{% endif %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for t in transitions %}
+                                <tr>
+                                    <td><span class="badge bg-light text-dark border">{{ t.get_from_status_display }}</span></td>
+                                    <td><span class="badge bg-light text-dark border">{{ t.get_to_status_display }}</span></td>
+                                    <td>{% if t.required_role %}{{ t.get_required_role_display }}{% else %}<span class="text-muted">any</span>{% endif %}</td>
+                                    <td class="text-center">{% if t.requires_reason %}<i class="fas fa-check text-success"></i>{% else %}-{% endif %}</td>
+                                    <td class="text-center">{% if t.auto_skip %}<i class="fas fa-check text-warning"></i>{% else %}-{% endif %}</td>
+                                    {% if not locked %}
+                                    <td>
+                                        <form method="post" action="{% url 'workflow_remove_transition' template.pk version.pk t.pk %}"
+                                              onsubmit="return confirm('Remove this transition?');">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-3">No transitions yet.</div>
+                    {% endif %}
+                </div>
+                {% if not locked and transition_form %}
+                <div class="card-footer">
+                    <form method="post" action="{% url 'workflow_add_transition' template.pk version.pk %}" class="row g-2 align-items-end">
+                        {% csrf_token %}
+                        <div class="col-md-3">
+                            <label class="form-label small">From</label>
+                            {{ transition_form.from_status }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">To</label>
+                            {{ transition_form.to_status }}
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Role</label>
+                            {{ transition_form.required_role }}
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check">
+                                {{ transition_form.requires_reason }}
+                                <label class="form-check-label small">Reason</label>
+                            </div>
+                            <div class="form-check">
+                                {{ transition_form.auto_skip }}
+                                <label class="form-check-label small">Skip</label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-themed-primary btn-sm w-100">
+                                <i class="fas fa-plus me-1"></i>Add
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

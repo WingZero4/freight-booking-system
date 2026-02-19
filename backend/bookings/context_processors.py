@@ -2,7 +2,9 @@ def nav_active(request):
     """Set the active navigation item based on the current URL path."""
     path = request.path
     context = {}
-    if path.startswith('/ops/users'):
+    if path.startswith('/ops/workflows'):
+        context['nav_active'] = 'workflows'
+    elif path.startswith('/ops/users'):
         context['nav_active'] = 'users'
     elif path.startswith('/ops/reports'):
         context['nav_active'] = 'reports'

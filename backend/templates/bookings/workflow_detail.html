@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{{ template.name }} - Workflow{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>
+                <i class="fas fa-project-diagram me-2"></i>{{ template.name }}
+                {% if template.is_default %}<span class="badge bg-success fs-6">Default</span>{% endif %}
+                {% if not template.is_active %}<span class="badge bg-secondary fs-6">Inactive</span>{% endif %}
+            </h2>
+            {% if template.description %}
+            <p class="text-muted mb-0">{{ template.description }}</p>
+            {% endif %}
+        </div>
+        <div>
+            <a href="{% url 'workflow_new_version' template.pk %}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>New Version
+            </a>
+            <a href="{% url 'workflow_edit' template.pk %}" class="btn btn-outline-secondary">
+                <i class="fas fa-edit me-1"></i>Edit
+            </a>
+            <a href="{% url 'workflow_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <!-- Versions -->
+    {% for version in versions %}
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-code-branch me-2"></i>Version {{ version.version_number }}
+                {% if forloop.first %}<span class="badge bg-info ms-1">Latest</span>{% endif %}
+            </h5>
+            <div>
+                <span class="text-muted small me-2">
+                    Created {{ version.created_at|date:"M d, Y" }}
+                    {% if version.created_by %}by {{ version.created_by.username }}{% endif %}
+                </span>
+                <a href="{% url 'workflow_version_detail' template.pk version.pk %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-cog me-1"></i>Manage Steps & Transitions
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if version.notes %}
+            <p class="text-muted mb-3"><i class="fas fa-sticky-note me-1"></i>{{ version.notes }}</p>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Steps ({{ version.steps.all|length }})</h6>
+                    {% if version.steps.all %}
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for step in version.steps.all %}
+                        <span class="badge bg-themed-primary fs-6">
+                            {{ step.order }}. {{ step.label_override|default:step.get_status_display }}
+                            {% if not step.is_required %}<small>(optional)</small>{% endif %}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No steps defined.</p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <h6>Transitions ({{ version.transitions.all|length }})</h6>
+                    {% if version.transitions.all %}
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for t in version.transitions.all %}
+                        <span class="badge bg-light text-dark border">
+                            {{ t.get_from_status_display }} &rarr; {{ t.get_to_status_display }}
+                            {% if t.required_role %}({{ t.get_required_role_display }}){% endif %}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No transitions defined.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card">
+        <div class="card-body text-center text-muted py-4">
+            <i class="fas fa-code-branch fa-2x mb-2"></i>
+            <p>No versions yet. Create one to define the workflow steps and transitions.</p>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Assigned Customers -->
+    {% if assigned_customers %}
+    <div class="card mt-3">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-users me-2"></i>Customers Using This Workflow</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Customer</th>
+                            <th>Version</th>
+                            <th>Assigned</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in assigned_customers %}
+                        <tr>
+                            <td>{{ a.customer.name }} ({{ a.customer.code }})</td>
+                            <td>v{{ a.workflow_version.version_number }}</td>
+                            <td class="text-muted">{{ a.assigned_at|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

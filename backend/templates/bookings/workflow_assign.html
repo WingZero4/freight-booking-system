@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Workflow{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        <i class="fas fa-link me-2"></i>Assign Workflow to Customer
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Assign a workflow version to a customer. This determines which status steps and transitions
+                        are available for their bookings. Existing bookings keep their assigned workflow version.
+                    </p>
+                    <form method="post">
+                        {% csrf_token %}
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p class="mb-0">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label for="{{ form.customer.id_for_label }}" class="form-label">Customer</label>
+                            {{ form.customer }}
+                            {% if form.customer.errors %}
+                            <div class="text-danger small">{{ form.customer.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label for="{{ form.workflow_version.id_for_label }}" class="form-label">Workflow Version</label>
+                            {{ form.workflow_version }}
+                            {% if form.workflow_version.errors %}
+                            <div class="text-danger small">{{ form.workflow_version.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check me-1"></i>Assign
+                            </button>
+                            <a href="{% url 'workflow_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

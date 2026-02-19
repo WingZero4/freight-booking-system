@@ -491,11 +491,31 @@ class ConsolidationAdmin(admin.ModelAdmin):
 
 # ─── Workflow models ──────────────────────────────────────────────────
 
+def _version_has_bookings(version):
+    """Check if a workflow version is referenced by any booking."""
+    return Booking.objects.filter(workflow_version=version).exists()
+
+
 class WorkflowStepInline(admin.TabularInline):
     model = WorkflowStep
     extra = 0
     fields = ['status', 'order', 'is_required', 'label_override']
     ordering = ['order']
+
+    def has_add_permission(self, request, obj=None):
+        if obj and _version_has_bookings(obj):
+            return False
+        return super().has_add_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and _version_has_bookings(obj):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and _version_has_bookings(obj):
+            return False
+        return super().has_delete_permission(request, obj)
 
 
 class WorkflowTransitionInline(admin.TabularInline):
@@ -503,6 +523,21 @@ class WorkflowTransitionInline(admin.TabularInline):
     extra = 0
     fields = ['from_status', 'to_status', 'required_role', 'requires_reason', 'auto_skip']
     ordering = ['from_status', 'to_status']
+
+    def has_add_permission(self, request, obj=None):
+        if obj and _version_has_bookings(obj):
+            return False
+        return super().has_add_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj and _version_has_bookings(obj):
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and _version_has_bookings(obj):
+            return False
+        return super().has_delete_permission(request, obj)
 
 
 class WorkflowTemplateVersionInline(admin.TabularInline):

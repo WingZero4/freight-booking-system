@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, import_views, user_management_views, report_views, pdf_views
+from . import views, import_views, user_management_views, report_views, pdf_views, workflow_views
 
 urlpatterns = [
     # Dashboard
@@ -70,6 +70,19 @@ urlpatterns = [
     path('reports/summary/', report_views.customer_report_summary, name='customer_report_summary'),
     path('reports/routes/', report_views.customer_report_routes, name='customer_report_routes'),
     path('reports/performance/', report_views.customer_report_performance, name='customer_report_performance'),
+
+    # Workflow Management (staff)
+    path('ops/workflows/', workflow_views.workflow_list, name='workflow_list'),
+    path('ops/workflows/create/', workflow_views.workflow_create, name='workflow_create'),
+    path('ops/workflows/assign/', workflow_views.workflow_assign, name='workflow_assign'),
+    path('ops/workflows/<int:template_id>/', workflow_views.workflow_detail, name='workflow_detail'),
+    path('ops/workflows/<int:template_id>/edit/', workflow_views.workflow_edit, name='workflow_edit'),
+    path('ops/workflows/<int:template_id>/new-version/', workflow_views.workflow_new_version, name='workflow_new_version'),
+    path('ops/workflows/<int:template_id>/versions/<int:version_id>/', workflow_views.workflow_version_detail, name='workflow_version_detail'),
+    path('ops/workflows/<int:template_id>/versions/<int:version_id>/steps/add/', workflow_views.workflow_add_step, name='workflow_add_step'),
+    path('ops/workflows/<int:template_id>/versions/<int:version_id>/steps/<int:step_id>/remove/', workflow_views.workflow_remove_step, name='workflow_remove_step'),
+    path('ops/workflows/<int:template_id>/versions/<int:version_id>/transitions/add/', workflow_views.workflow_add_transition, name='workflow_add_transition'),
+    path('ops/workflows/<int:template_id>/versions/<int:version_id>/transitions/<int:transition_id>/remove/', workflow_views.workflow_remove_transition, name='workflow_remove_transition'),
 
     # Consolidations (staff)
     path('consolidations/', views.consolidation_list, name='consolidation_list'),
