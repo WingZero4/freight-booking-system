@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from .models import Customer, Booking, BookingItem, ImportLog, ImportBookingLog
 from .forms import BookingForm, BookingItemForm
-from .views import get_user_customer
+from .views import get_user_customer, require_feature
 from .tenant import get_user_organization
 from .import_service import (
     validate_import_file, analyze_file, create_bookings_from_import,
@@ -46,6 +46,7 @@ def _resolve_import_customer(request):
 
 
 @login_required
+@require_feature('enable_import')
 def booking_import(request):
     """
     Step 1 (GET): Show upload form.
@@ -237,6 +238,7 @@ def booking_import(request):
 
 
 @login_required
+@require_feature('enable_import')
 def booking_import_preview(request):
     """Show preview of extracted bookings. User selects which to create."""
     customer, is_staff, _ = _resolve_import_customer(request)
@@ -272,6 +274,7 @@ def booking_import_preview(request):
 
 
 @login_required
+@require_feature('enable_import')
 def booking_import_confirm(request):
     """Create selected bookings from the preview."""
     customer, is_staff, _ = _resolve_import_customer(request)
@@ -369,6 +372,7 @@ def booking_import_confirm(request):
 
 
 @login_required
+@require_feature('enable_import')
 def booking_import_edit(request, index):
     """Edit a single booking entry from the import preview."""
     customer, is_staff, _ = _resolve_import_customer(request)

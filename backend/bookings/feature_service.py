@@ -27,7 +27,8 @@ FEATURE_FLAGS = [
     'enable_clone',
 ]
 
-# Default booking form fields that can be controlled by FieldConfig
+# Default booking form fields that can be controlled by FieldConfig.
+# Labels and required can be customised on all of these.
 CONFIGURABLE_FIELDS = [
     'transport_mode', 'service_type', 'move_type',
     'origin_port', 'destination_port', 'cargo_ready_date',
@@ -37,6 +38,13 @@ CONFIGURABLE_FIELDS = [
     'commodity_description', 'is_hazardous',
     'external_reference', 'special_instructions',
 ]
+
+# Fields that CANNOT be hidden — structurally required (NOT NULL) or mode-critical.
+# FieldConfig can still customise their label/required but not visibility.
+UNHIDEABLE_FIELDS = frozenset([
+    'transport_mode', 'origin_port', 'destination_port', 'cargo_ready_date',
+    'container_type', 'container_count', 'incoterms',
+])
 
 
 _ALL_ENABLED = {flag: True for flag in FEATURE_FLAGS}

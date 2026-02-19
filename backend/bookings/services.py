@@ -177,6 +177,22 @@ class BookingService:
         if not allowed:
             raise ValueError(error)
 
+    @classmethod
+    def _auto_advance_if_no_approval(cls, booking, user=None, request=None):
+        """Skip CONFIRMED→PACKING when customer approval is disabled for the org."""
+        if booking.status != 'CONFIRMED':
+            return
+        from .feature_service import FeatureFlagService
+        org = getattr(booking.customer, 'organization', None)
+        if not FeatureFlagService.is_enabled(org, 'enable_customer_approval'):
+            with transaction.atomic():
+                booking.status = 'PACKING'
+                booking.packing_at = timezone.now()
+                booking.save()
+                cls._log(booking, 'AUTO_ADVANCED_TO_PACKING', user=user,
+                         request=request,
+                         notes='Customer approval disabled — auto-advanced.')
+
     # ─── Create ───────────────────────────────────────────────────────
 
     @classmethod
@@ -502,6 +518,9 @@ class BookingService:
         if not _should_defer_fms_push(booking):
             _safe_fms_dispatch('dispatch_booking_confirmed', booking)
 
+        # Auto-advance to PACKING when customer approval is disabled
+        cls._auto_advance_if_no_approval(booking, user, request)
+
     @classmethod
     def customer_approve_booking(cls, booking, user=None, request=None):
         """Customer approves a CONFIRMED booking, moving it to PACKING."""
@@ -678,6 +697,9 @@ class BookingService:
         # Push to customer FMS (unless deferred to after carrier confirms)
         if not _should_defer_fms_push(booking):
             _safe_fms_dispatch('dispatch_booking_confirmed', booking)
+
+        # Auto-advance to PACKING when customer approval is disabled
+        cls._auto_advance_if_no_approval(booking, user, request)
         return booking
 
     @classmethod

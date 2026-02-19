@@ -55,29 +55,33 @@
                             <i class="fas fa-chart-bar me-1"></i>Reports
                         </a>
                     </li>
+                    {% if features.enable_consolidation %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'consolidations' %}active{% endif %}" href="{% url 'consolidation_list' %}">
                             <i class="fas fa-layer-group me-1"></i>Consolidations
                         </a>
                     </li>
                     {% endif %}
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'new_booking' %}active{% endif %}" href="{% url 'booking_create' %}">
                             <i class="fas fa-plus me-1"></i>New Booking
                         </a>
                     </li>
-                    {% if user.profile.customer %}
+                    {% if user.profile.customer and features.enable_templates %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'templates' %}active{% endif %}" href="{% url 'template_list' %}">
                             <i class="fas fa-copy me-1"></i>Templates
                         </a>
                     </li>
                     {% endif %}
+                    {% if features.enable_import %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'import' %}active{% endif %}" href="{% url 'booking_import' %}">
                             <i class="fas fa-file-import me-1"></i>Import
                         </a>
                     </li>
+                    {% endif %}
                     {% if user.profile.customer %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'reports' %}active{% endif %}" href="{% url 'customer_reports_hub' %}">
@@ -85,11 +89,13 @@
                         </a>
                     </li>
                     {% endif %}
+                    {% if features.enable_parties %}
                     <li class="nav-item">
                         <a class="nav-link {% if nav_active == 'parties' %}active{% endif %}" href="{% url 'party_list' %}">
                             <i class="fas fa-address-book me-1"></i>Address Book
                         </a>
                     </li>
+                    {% endif %}
                 </ul>
                 <div class="navbar-nav">
                     <div class="nav-item dropdown me-2">

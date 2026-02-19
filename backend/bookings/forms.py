@@ -66,8 +66,10 @@ class BookingForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, customer=None, is_staff=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self._customer = customer
+        self._is_staff = is_staff
         grouped, port_type_map = self._grouped_port_choices()
         self.fields['origin_port'].choices = grouped
         self.fields['destination_port'].choices = grouped
@@ -85,6 +87,39 @@ class BookingForm(forms.ModelForm):
         self.fields['chargeable_weight_kg'].required = False
         self.fields['flight_number'].required = False
         self.fields['lcl_consolidation_number'].required = False
+
+        # Apply customer field config (staff users see all fields)
+        if customer and not is_staff:
+            self._apply_field_config(customer)
+
+    def _apply_field_config(self, customer):
+        """Hide/show/require fields based on customer's FieldConfig."""
+        from .feature_service import (
+            FieldConfigService, CONFIGURABLE_FIELDS, UNHIDEABLE_FIELDS,
+        )
+        config = FieldConfigService.get_field_config(customer)
+        if not config:
+            return
+        self._hidden_by_config = set()
+        for field_name in CONFIGURABLE_FIELDS:
+            if field_name not in self.fields:
+                continue
+            field_cfg = config.get(field_name, {})
+            if not isinstance(field_cfg, dict):
+                continue
+            # Hide field (unless structurally required)
+            if (not field_cfg.get('visible', True)
+                    and field_name not in UNHIDEABLE_FIELDS):
+                self.fields[field_name].widget = forms.HiddenInput()
+                self.fields[field_name].required = False
+                self._hidden_by_config.add(field_name)
+            elif field_cfg.get('required', False):
+                # Only override required for visible fields
+                self.fields[field_name].required = True
+            # Custom label
+            label = field_cfg.get('label')
+            if label and isinstance(label, str):
+                self.fields[field_name].label = label
 
     def clean_cargo_ready_date(self):
         cargo_date = self.cleaned_data['cargo_ready_date']
@@ -112,6 +147,13 @@ class BookingForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+
+        # Strip submitted values for fields hidden by FieldConfig (prevents
+        # malicious customers from injecting values for hidden fields).
+        for field_name in getattr(self, '_hidden_by_config', set()):
+            if field_name in cleaned:
+                cleaned[field_name] = '' if isinstance(cleaned[field_name], str) else None
+
         origin = cleaned.get('origin_port')
         dest = cleaned.get('destination_port')
         if origin and dest:

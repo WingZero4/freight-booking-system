@@ -42,6 +42,21 @@ def get_user_customer(user):
     return None
 
 
+def require_feature(flag_name):
+    """Decorator that blocks access when an org-level feature flag is disabled."""
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            from .feature_service import FeatureFlagService
+            org = get_user_organization(request.user)
+            if not FeatureFlagService.is_enabled(org, flag_name):
+                messages.error(request, 'This feature is not enabled for your organization.')
+                return redirect('dashboard')
+            return view_func(request, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
 def get_booking_for_user(booking_id, user):
     """Get a booking, checking that the user has permission to access it."""
     booking = get_object_or_404(
@@ -280,26 +295,31 @@ def booking_create(request):
         organization=org, is_active=True).order_by('name') if is_staff else None
 
     if request.method == 'POST':
-        form = BookingForm(request.POST)
-        formset = BookingItemFormSet(request.POST, prefix='items')
-
-        # Resolve customer for staff
+        # Resolve customer for staff before building form (field config needs it)
+        post_customer = customer
         if is_staff:
             customer_id = request.POST.get('customer')
             try:
-                customer = Customer.objects.filter(
+                post_customer = Customer.objects.filter(
                     organization=org).get(pk=customer_id, is_active=True)
             except (Customer.DoesNotExist, ValueError, TypeError):
-                messages.error(request, 'Please select a valid customer.')
-                return render(request, 'bookings/booking_form.html', {
-                    'form': form,
-                    'formset': formset,
-                    'is_edit': False,
-                    'is_staff_create': is_staff,
-                    'customers': customers_list,
-                    'selected_customer': customer_id,
-                })
+                post_customer = None
 
+        form = BookingForm(request.POST, customer=post_customer, is_staff=is_staff)
+        formset = BookingItemFormSet(request.POST, prefix='items')
+
+        if is_staff and post_customer is None:
+            messages.error(request, 'Please select a valid customer.')
+            return render(request, 'bookings/booking_form.html', {
+                'form': form,
+                'formset': formset,
+                'is_edit': False,
+                'is_staff_create': is_staff,
+                'customers': customers_list,
+                'selected_customer': request.POST.get('customer'),
+            })
+
+        customer = post_customer
         if form.is_valid() and formset.is_valid():
             booking = BookingService.create_booking(
                 form, formset, customer, request.user, request=request,
@@ -307,16 +327,19 @@ def booking_create(request):
             messages.success(request, f'Booking {booking.booking_number} created successfully!')
             return redirect('booking_detail', booking_id=booking.id)
     else:
-        form = BookingForm()
+        form = BookingForm(customer=customer, is_staff=is_staff)
         formset = BookingItemFormSet(prefix='items')
 
-    return render(request, 'bookings/booking_form.html', {
+    context = {
         'form': form,
         'formset': formset,
         'is_edit': False,
         'is_staff_create': is_staff,
         'customers': customers_list,
-    })
+    }
+    if is_staff and request.method == 'POST':
+        context['selected_customer'] = request.POST.get('customer')
+    return render(request, 'bookings/booking_form.html', context)
 
 
 @login_required
@@ -328,8 +351,12 @@ def booking_edit(request, booking_id):
         messages.error(request, 'Only draft or submitted bookings can be edited.')
         return redirect('booking_detail', booking_id=booking.id)
 
+    customer = get_user_customer(request.user)
+    is_staff = customer is None
+
     if request.method == 'POST':
-        form = BookingForm(request.POST, instance=booking)
+        form = BookingForm(request.POST, instance=booking,
+                           customer=booking.customer, is_staff=is_staff)
         formset = BookingItemFormSet(request.POST, instance=booking, prefix='items')
 
         if form.is_valid() and formset.is_valid():
@@ -339,7 +366,7 @@ def booking_edit(request, booking_id):
             messages.success(request, f'Booking {booking.booking_number} updated successfully!')
             return redirect('booking_detail', booking_id=booking.id)
     else:
-        form = BookingForm(instance=booking)
+        form = BookingForm(instance=booking, customer=booking.customer, is_staff=is_staff)
         formset = BookingItemFormSet(instance=booking, prefix='items')
 
     return render(request, 'bookings/booking_form.html', {
@@ -664,6 +691,7 @@ def booking_resubmit(request, booking_id):
 
 
 @login_required
+@require_feature('enable_customer_approval')
 def booking_customer_approve(request, booking_id):
     """Customer approves a CONFIRMED booking, moving it to PACKING."""
     booking = get_booking_for_user(booking_id, request.user)
@@ -697,6 +725,7 @@ def booking_customer_approve(request, booking_id):
 
 
 @login_required
+@require_feature('enable_customer_approval')
 def booking_customer_reject(request, booking_id):
     """Customer rejects a CONFIRMED booking with a reason."""
     booking = get_booking_for_user(booking_id, request.user)
@@ -739,6 +768,7 @@ def booking_customer_reject(request, booking_id):
 # ─── Documents ────────────────────────────────────────────────────────
 
 @login_required
+@require_feature('enable_documents')
 def booking_document_upload(request, booking_id):
     """Upload a document to a booking (DRAFT or SUBMITTED only)"""
     booking = get_booking_for_user(booking_id, request.user)
@@ -764,6 +794,7 @@ def booking_document_upload(request, booking_id):
 
 
 @login_required
+@require_feature('enable_documents')
 def booking_document_delete(request, booking_id, document_id):
     """Delete a document (only on DRAFT bookings)"""
     booking = get_booking_for_user(booking_id, request.user)
@@ -911,6 +942,7 @@ def party_delete(request, party_id):
 # ─── Booking party assignment ─────────────────────────────────────────
 
 @login_required
+@require_feature('enable_parties')
 def booking_party_add(request, booking_id):
     """Add a party from the address book to a booking"""
     booking = get_booking_for_user(booking_id, request.user)
@@ -946,6 +978,7 @@ def booking_party_add(request, booking_id):
 
 
 @login_required
+@require_feature('enable_parties')
 def booking_party_remove(request, booking_id, booking_party_id):
     """Remove a party assignment from a booking"""
     booking = get_booking_for_user(booking_id, request.user)
@@ -1421,6 +1454,7 @@ def ops_delete_milestone(request, booking_id, milestone_id):
 # ─── Clone & Export ──────────────────────────────────────────────────
 
 @login_required
+@require_feature('enable_clone')
 def booking_clone(request, booking_id):
     """Clone a booking as a new DRAFT."""
     booking = get_booking_for_user(booking_id, request.user)
@@ -1566,52 +1600,86 @@ def booking_export_csv(request):
 
     is_staff = not customer
 
-    writer = csv.writer(response)
-    headers = [
-        'Booking Number', 'Status', 'Transport Mode', 'Service Type', 'Move Type', 'Customer',
-        'Origin', 'Destination',
-        'Container Type', 'Container Count', 'LCL Consolidation',
-        'Chargeable Weight (kg)', 'Flight Number',
-        'External Reference', 'Cargo Ready Date', 'Cargo Cutoff',
-        'INCOTERMS', 'Carrier', 'Vessel', 'Voyage Number', 'ETD', 'ETA',
+    # Build field visibility set for customer users
+    if customer:
+        from .feature_service import FieldConfigService
+        visible_fields = set(FieldConfigService.get_visible_fields(customer))
+    else:
+        visible_fields = None  # Staff sees everything
+
+    def is_visible(field_name):
+        """Check if a configurable field should be included in CSV."""
+        return visible_fields is None or field_name in visible_fields
+
+    # Build columns dynamically — each entry: (header, field_name_or_None, getter)
+    columns = [
+        ('Booking Number', None, lambda b: b.booking_number),
+        ('Status', None, lambda b: b.status),
+    ]
+    if is_visible('transport_mode'):
+        columns.append(('Transport Mode', 'transport_mode', lambda b: b.get_transport_mode_display()))
+    if is_visible('service_type'):
+        columns.append(('Service Type', 'service_type', lambda b: b.get_service_type_display() if b.service_type else ''))
+    if is_visible('move_type'):
+        columns.append(('Move Type', 'move_type', lambda b: b.get_move_type_display() if b.move_type else ''))
+    columns.append(('Customer', None, lambda b: b.customer.code))
+    if is_visible('origin_port'):
+        columns.append(('Origin', 'origin_port', lambda b: b.origin_port.code))
+    if is_visible('destination_port'):
+        columns.append(('Destination', 'destination_port', lambda b: b.destination_port.code))
+    if is_visible('container_type'):
+        columns.append(('Container Type', 'container_type', lambda b: b.container_type.code if b.container_type else ''))
+    if is_visible('container_count'):
+        columns.append(('Container Count', 'container_count', lambda b: b.container_count or ''))
+    if is_visible('lcl_consolidation_number'):
+        columns.append(('LCL Consolidation', 'lcl_consolidation_number', lambda b: b.lcl_consolidation_number or ''))
+    if is_visible('chargeable_weight_kg'):
+        columns.append(('Chargeable Weight (kg)', 'chargeable_weight_kg', lambda b: b.chargeable_weight_kg or ''))
+    if is_visible('flight_number'):
+        columns.append(('Flight Number', 'flight_number', lambda b: b.flight_number or ''))
+    if is_visible('external_reference'):
+        columns.append(('External Reference', 'external_reference', lambda b: b.external_reference))
+    if is_visible('cargo_ready_date'):
+        columns.append(('Cargo Ready Date', 'cargo_ready_date', lambda b: b.cargo_ready_date))
+    columns.append(('Cargo Cutoff', None, lambda b: b.cargo_cutoff_date or ''))
+    if is_visible('incoterms'):
+        columns.append(('INCOTERMS', 'incoterms', lambda b: b.incoterms))
+    if is_visible('incoterms_location'):
+        columns.append(('INCOTERMS Location', 'incoterms_location', lambda b: b.incoterms_location or ''))
+    if is_visible('commodity_description'):
+        columns.append(('Commodity Description', 'commodity_description', lambda b: b.commodity_description or ''))
+    if is_visible('is_hazardous'):
+        columns.append(('Hazardous', 'is_hazardous', lambda b: 'Yes' if b.is_hazardous else 'No'))
+    if is_visible('special_instructions'):
+        columns.append(('Special Instructions', 'special_instructions', lambda b: b.special_instructions or ''))
+    columns += [
+        ('Carrier', None, lambda b: b.carrier_name),
+        ('Vessel', None, lambda b: b.vessel_name),
+        ('Voyage Number', None, lambda b: b.voyage_number or ''),
+        ('ETD', None, lambda b: b.etd or ''),
+        ('ETA', None, lambda b: b.eta or ''),
     ]
     if is_staff:
-        headers.append('Contract Number')
-    headers += [
-        'Actual Departure', 'Actual Arrival',
-        'Total Weight (kg)', 'Total Volume (CBM)',
-        'Created', 'Submitted', 'Confirmed', 'Packing', 'In Transit', 'Arrived', 'Completed',
+        columns.append(('Contract Number', None, lambda b: b.contract_number))
+    columns += [
+        ('Actual Departure', None, lambda b: b.actual_departure_date or ''),
+        ('Actual Arrival', None, lambda b: b.actual_arrival_date or ''),
+        ('Total Weight (kg)', None, lambda b: b.total_weight_kg or ''),
+        ('Total Volume (CBM)', None, lambda b: b.total_volume_cbm or ''),
+        ('Created', None, lambda b: timezone.localtime(b.created_at).strftime('%Y-%m-%d %H:%M')),
+        ('Submitted', None, lambda b: timezone.localtime(b.submitted_at).strftime('%Y-%m-%d %H:%M') if b.submitted_at else ''),
+        ('Confirmed', None, lambda b: timezone.localtime(b.confirmed_at).strftime('%Y-%m-%d %H:%M') if b.confirmed_at else ''),
+        ('Packing', None, lambda b: timezone.localtime(b.packing_at).strftime('%Y-%m-%d %H:%M') if b.packing_at else ''),
+        ('In Transit', None, lambda b: timezone.localtime(b.in_transit_at).strftime('%Y-%m-%d %H:%M') if b.in_transit_at else ''),
+        ('Arrived', None, lambda b: timezone.localtime(b.arrived_at).strftime('%Y-%m-%d %H:%M') if b.arrived_at else ''),
+        ('Completed', None, lambda b: timezone.localtime(b.completed_at).strftime('%Y-%m-%d %H:%M') if b.completed_at else ''),
     ]
-    writer.writerow(headers)
+
+    writer = csv.writer(response)
+    writer.writerow([col[0] for col in columns])
 
     for b in bookings:
-        row = [
-            b.booking_number, b.status, b.get_transport_mode_display(),
-            b.get_service_type_display() if b.service_type else '',
-            b.get_move_type_display() if b.move_type else '',
-            b.customer.code,
-            b.origin_port.code, b.destination_port.code,
-            b.container_type.code if b.container_type else '', b.container_count or '',
-            b.lcl_consolidation_number or '',
-            b.chargeable_weight_kg or '', b.flight_number or '',
-            b.external_reference, b.cargo_ready_date, b.cargo_cutoff_date or '',
-            b.incoterms, b.carrier_name, b.vessel_name, b.voyage_number or '',
-            b.etd or '', b.eta or '',
-        ]
-        if is_staff:
-            row.append(b.contract_number)
-        row += [
-            b.actual_departure_date or '', b.actual_arrival_date or '',
-            b.total_weight_kg or '', b.total_volume_cbm or '',
-            timezone.localtime(b.created_at).strftime('%Y-%m-%d %H:%M'),
-            timezone.localtime(b.submitted_at).strftime('%Y-%m-%d %H:%M') if b.submitted_at else '',
-            timezone.localtime(b.confirmed_at).strftime('%Y-%m-%d %H:%M') if b.confirmed_at else '',
-            timezone.localtime(b.packing_at).strftime('%Y-%m-%d %H:%M') if b.packing_at else '',
-            timezone.localtime(b.in_transit_at).strftime('%Y-%m-%d %H:%M') if b.in_transit_at else '',
-            timezone.localtime(b.arrived_at).strftime('%Y-%m-%d %H:%M') if b.arrived_at else '',
-            timezone.localtime(b.completed_at).strftime('%Y-%m-%d %H:%M') if b.completed_at else '',
-        ]
-        writer.writerow(row)
+        writer.writerow([col[2](b) for col in columns])
 
     return response
 
@@ -1654,6 +1722,7 @@ def notification_mark_all_read(request):
 # ─── Booking Templates ──────────────────────────────────────────────
 
 @login_required
+@require_feature('enable_templates')
 def template_list(request):
     """List saved booking templates for the current customer."""
     customer = get_user_customer(request.user)
@@ -1676,6 +1745,7 @@ def template_list(request):
 
 
 @login_required
+@require_feature('enable_templates')
 def template_save(request, booking_id):
     """Save a booking as a reusable template."""
     booking = get_booking_for_user(booking_id, request.user)
@@ -1758,6 +1828,7 @@ def template_save(request, booking_id):
 
 
 @login_required
+@require_feature('enable_templates')
 def template_delete(request, template_id):
     """Delete a booking template."""
     customer = get_user_customer(request.user)
@@ -1774,6 +1845,7 @@ def template_delete(request, template_id):
 
 
 @login_required
+@require_feature('enable_templates')
 def booking_create_from_template(request, template_id):
     """Create a new booking pre-filled from a template."""
     customer = get_user_customer(request.user)
@@ -1785,7 +1857,7 @@ def booking_create_from_template(request, template_id):
     data = template.template_data
 
     if request.method == 'POST':
-        form = BookingForm(request.POST)
+        form = BookingForm(request.POST, customer=customer, is_staff=False)
         formset = BookingItemFormSet(request.POST, prefix='items')
 
         if form.is_valid() and formset.is_valid():
@@ -1842,7 +1914,7 @@ def booking_create_from_template(request, template_id):
                 initial['chargeable_weight_kg'] = Decimal(cw)
             except (InvalidOperation, TypeError):
                 pass
-        form = BookingForm(initial=initial)
+        form = BookingForm(initial=initial, customer=customer, is_staff=False)
 
         # Pre-fill items formset
         item_data = data.get('items', [])
@@ -2059,6 +2131,7 @@ def container_recommendations(request):
 # ─── Consolidations (Staff) ──────────────────────────────────────────
 
 @staff_required
+@require_feature('enable_consolidation')
 def consolidation_list(request):
     """List all consolidations with filters."""
     org = get_user_organization(request.user)
@@ -2095,6 +2168,7 @@ def consolidation_list(request):
 
 
 @staff_required
+@require_feature('enable_consolidation')
 def consolidation_create(request):
     """Create a new consolidation — select customer, then bookings."""
     org = get_user_organization(request.user)
@@ -2175,6 +2249,7 @@ def api_consolidation_bookings(request):
 
 
 @staff_required
+@require_feature('enable_consolidation')
 def consolidation_detail(request, pk):
     """View consolidation with all linked bookings."""
     org = get_user_organization(request.user)
@@ -2210,6 +2285,7 @@ def consolidation_detail(request, pk):
 
 
 @staff_required
+@require_feature('enable_consolidation')
 def consolidation_add_booking(request, pk):
     """Add a booking to a consolidation."""
     org = get_user_organization(request.user)
@@ -2232,6 +2308,7 @@ def consolidation_add_booking(request, pk):
 
 
 @staff_required
+@require_feature('enable_consolidation')
 def consolidation_remove_booking(request, pk, booking_id):
     """Remove a booking from a consolidation."""
     org = get_user_organization(request.user)
@@ -2253,6 +2330,7 @@ def consolidation_remove_booking(request, pk, booking_id):
 
 
 @staff_required
+@require_feature('enable_consolidation')
 def consolidation_close(request, pk):
     """Close a consolidation."""
     org = get_user_organization(request.user)
