@@ -2,6 +2,7 @@ import os
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator, RegexValidator
 
 
@@ -1401,6 +1402,24 @@ class WorkflowTransition(models.Model):
     auto_skip = models.BooleanField(
         default=False,
         help_text='Auto-advance through non-required intermediate steps')
+    allowed_company_types = models.JSONField(
+        default=list, blank=True,
+        help_text='Company types that can trigger this transition. '
+                  'Empty list = any type (staff or customer). '
+                  'Example: ["FORWARDER_ORIGIN", "SHIPPER"]')
+
+    _VALID_COMPANY_TYPES = {c[0] for c in Customer.COMPANY_TYPE_CHOICES}
+
+    def clean(self):
+        super().clean()
+        if self.allowed_company_types:
+            if not isinstance(self.allowed_company_types, list):
+                raise ValidationError(
+                    {'allowed_company_types': 'Must be a list of company type codes.'})
+            for ct in self.allowed_company_types:
+                if ct not in self._VALID_COMPANY_TYPES:
+                    raise ValidationError(
+                        {'allowed_company_types': f'Invalid company type: {ct}'})
 
     def __str__(self):
         return f'{self.version} — {self.from_status} → {self.to_status}'
@@ -1429,7 +1448,7 @@ class CustomerWorkflowConfig(models.Model):
         return f'{self.customer.name} → {self.workflow_version}'
 
     def clean(self):
-        from django.core.exceptions import ValidationError
+        # ValidationError imported at module level
         if (self.customer_id and self.workflow_version_id
                 and self.customer.organization_id
                 != self.workflow_version.template.organization_id):
@@ -1501,7 +1520,7 @@ class FieldConfig(models.Model):
         return f'Field config: {self.customer.name} ({field_count} fields)'
 
     def clean(self):
-        from django.core.exceptions import ValidationError
+        # ValidationError imported at module level
         from bookings.feature_service import CONFIGURABLE_FIELDS
         if not isinstance(self.config, dict):
             raise ValidationError({'config': 'Config must be a JSON object.'})

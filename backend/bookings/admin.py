@@ -531,7 +531,8 @@ class WorkflowStepInline(admin.TabularInline):
 class WorkflowTransitionInline(admin.TabularInline):
     model = WorkflowTransition
     extra = 0
-    fields = ['from_status', 'to_status', 'required_role', 'requires_reason', 'auto_skip']
+    fields = ['from_status', 'to_status', 'required_role', 'allowed_company_types',
+              'requires_reason', 'auto_skip']
     ordering = ['from_status', 'to_status']
 
     def has_add_permission(self, request, obj=None):

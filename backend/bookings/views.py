@@ -20,6 +20,7 @@ from .models import (
     Customer, ContainerType, Consolidation, CarrierOption, RateSheet,
 )
 from .notifications import _send_notification
+from .workflow_engine import WorkflowEngine
 from .forms import (
     BookingForm, BookingItemFormSet, BookingDocumentForm,
     PartyForm, BookingPartySelectForm,
@@ -468,6 +469,22 @@ def booking_detail(request, booking_id):
                 f'but only {current} selected.'
             )
 
+    # Check if current user can mark this booking in-transit
+    can_mark_in_transit = False
+    if booking.status == 'PACKING' and not is_shipper_user(request.user):
+        # Customer users require an explicit workflow — no workflow = deny
+        if customer is not None:
+            workflow = WorkflowEngine.get_workflow_for_booking(booking)
+            if workflow is not None:
+                allowed, _ = WorkflowEngine.validate_transition(
+                    booking, 'IN_TRANSIT', request.user)
+                can_mark_in_transit = allowed
+        else:
+            # Staff user
+            allowed, _ = WorkflowEngine.validate_transition(
+                booking, 'IN_TRANSIT', request.user)
+            can_mark_in_transit = allowed
+
     return render(request, 'bookings/booking_detail.html', {
         'booking': booking,
         'documents': documents,
@@ -480,6 +497,7 @@ def booking_detail(request, booking_id):
         'milestone_form': milestone_form,
         'active_tab': request.GET.get('tab', 'overview'),
         'cbm_warning': cbm_warning,
+        'can_mark_in_transit': can_mark_in_transit,
     })
 
 
@@ -1504,13 +1522,38 @@ def ops_submit_to_carrier(request, booking_id):
     return redirect('booking_detail', booking_id=booking.id)
 
 
-@staff_required
+@login_required
 def ops_mark_in_transit(request, booking_id):
-    """Mark a PACKING booking as in transit (staff only)."""
+    """Mark a PACKING booking as in transit (staff or eligible customer).
+
+    NOTE: Unlike other ops_ views, this uses @login_required (not @staff_required)
+    because the workflow engine may grant this transition to customer users.
+    Customer access is gated by workflow configuration — no workflow = deny.
+    """
     booking = get_booking_for_user(booking_id, request.user)
 
     if booking.status != 'PACKING':
         messages.warning(request, 'Only packing bookings can be marked in transit.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    # Shipper-role users are read-only throughout the system
+    if is_shipper_user(request.user):
+        messages.error(request, 'Shipper users cannot perform this action.')
+        return redirect('booking_detail', booking_id=booking.id)
+
+    # Customer users require an explicit workflow — no workflow = deny
+    customer = get_user_customer(request.user)
+    if customer is not None:
+        workflow = WorkflowEngine.get_workflow_for_booking(booking)
+        if workflow is None:
+            messages.error(request, 'You do not have permission for this action.')
+            return redirect('booking_detail', booking_id=booking.id)
+
+    # Check if user is allowed to trigger this transition via workflow engine
+    allowed, error = WorkflowEngine.validate_transition(
+        booking, 'IN_TRANSIT', request.user)
+    if not allowed:
+        messages.error(request, error or 'You do not have permission for this action.')
         return redirect('booking_detail', booking_id=booking.id)
 
     if request.method == 'POST':
@@ -1687,7 +1730,6 @@ def booking_clone(request, booking_id):
                 status='DRAFT',
                 source_channel='WEB',
             )
-            from .workflow_engine import WorkflowEngine
             WorkflowEngine.assign_workflow_to_booking(new_booking, customer)
             new_booking.save()
 

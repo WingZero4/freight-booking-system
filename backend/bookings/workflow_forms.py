@@ -37,11 +37,15 @@ class WorkflowTransitionForm(forms.ModelForm):
     """Add or edit a workflow transition."""
     class Meta:
         model = WorkflowTransition
-        fields = ['from_status', 'to_status', 'required_role', 'requires_reason', 'auto_skip']
+        fields = ['from_status', 'to_status', 'required_role', 'allowed_company_types',
+                  'requires_reason', 'auto_skip']
         widgets = {
             'from_status': forms.Select(attrs={'class': 'form-select'}),
             'to_status': forms.Select(attrs={'class': 'form-select'}),
             'required_role': forms.Select(attrs={'class': 'form-select'}),
+            'allowed_company_types': forms.TextInput(
+                attrs={'class': 'form-control',
+                       'placeholder': '["FORWARDER_ORIGIN", "SHIPPER"] or leave empty for any'}),
             'requires_reason': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'auto_skip': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }

@@ -42,8 +42,12 @@
                 {% if not booking.vessel_name or not booking.etd %}
                 <div class="alert alert-warning small">
                     <i class="fas fa-exclamation-triangle me-1"></i>
+                    {% if not user.profile.customer %}
                     This booking is missing carrier details. Consider
                     <a href="{% url 'ops_carrier_details' booking.id %}">adding them first</a>.
+                    {% else %}
+                    This booking is missing carrier details. Please contact your freight operator to add carrier details before marking in transit.
+                    {% endif %}
                 </div>
                 {% endif %}
 

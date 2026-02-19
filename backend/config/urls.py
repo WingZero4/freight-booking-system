@@ -7,7 +7,15 @@ from rest_framework.permissions import IsAdminUser
 from drf_spectacular.views import (
     SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView,
 )
+from rest_framework.throttling import AnonRateThrottle
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView, TokenRefreshView,
+)
 from bookings.registration_views import register
+
+
+class _JWTObtainThrottle(AnonRateThrottle):
+    scope = 'token_obtain'
 
 urlpatterns = [
     # Admin logout must come before admin/ to intercept it (POST only for CSRF safety)
@@ -16,6 +24,11 @@ urlpatterns = [
     )),
     path('admin/', admin.site.urls),
     path('api/v1/', include('bookings.api_urls')),
+    # JWT endpoints at distinct path (api/v1/token/ is DRF auth token in api_urls)
+    path('api/v1/token/jwt/', TokenObtainPairView.as_view(
+        throttle_classes=[_JWTObtainThrottle]), name='token_obtain_pair'),
+    path('api/v1/token/jwt/refresh/', TokenRefreshView.as_view(
+        throttle_classes=[_JWTObtainThrottle]), name='token_refresh'),
     path('api/schema/', SpectacularAPIView.as_view(permission_classes=[IsAdminUser]), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', permission_classes=[IsAdminUser]), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema', permission_classes=[IsAdminUser]), name='redoc'),

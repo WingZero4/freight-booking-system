@@ -18,6 +18,8 @@ pdfplumber>=0.11
 
 # Security
 django-axes>=7.0
+django-csp>=4.0
+djangorestframework-simplejwt>=5.3
 
 # PDF Generation
 reportlab>=4.0

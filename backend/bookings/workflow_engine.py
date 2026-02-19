@@ -194,6 +194,18 @@ class WorkflowEngine:
                     f'Your role is {profile.role}.'
                 )
 
+        # Check company type requirement
+        if transition and transition.allowed_company_types:
+            customer = getattr(getattr(user, 'profile', None), 'customer', None)
+            if customer:
+                if customer.company_type not in transition.allowed_company_types:
+                    return False, (
+                        f'This transition requires company type '
+                        f'{", ".join(transition.allowed_company_types)}. '
+                        f'Your company type is {customer.company_type or "unset"}.'
+                    )
+            # Staff users (no customer) bypass company type checks
+
         return True, None
 
     @staticmethod
