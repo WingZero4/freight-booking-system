@@ -8,6 +8,7 @@ from .models import (
     ShipmentMilestone, ImportLog, ImportBookingLog, Consolidation,
     WorkflowTemplate, WorkflowTemplateVersion, WorkflowStep,
     WorkflowTransition, CustomerWorkflowConfig,
+    OrganizationFeatureConfig, FieldConfig,
 )
 from .services import BookingService
 
@@ -568,3 +569,56 @@ class CustomerWorkflowConfigAdmin(admin.ModelAdmin):
     search_fields = ['customer__name', 'customer__code']
     list_select_related = ['customer', 'workflow_version__template', 'assigned_by']
     raw_id_fields = ['customer', 'workflow_version']
+
+
+# ─── Feature flags + Field config ────────────────────────────────────
+
+@admin.register(OrganizationFeatureConfig)
+class OrganizationFeatureConfigAdmin(admin.ModelAdmin):
+    list_display = [
+        'organization', 'enable_consolidation', 'enable_import',
+        'enable_parties', 'enable_documents', 'enable_milestones',
+        'enable_customer_approval', 'enable_carrier_integration',
+        'enable_fms_integration', 'enable_templates', 'enable_clone',
+    ]
+    list_filter = ['organization']
+    search_fields = ['organization__name', 'organization__code']
+    list_select_related = ['organization']
+    fieldsets = (
+        (None, {'fields': ('organization',)}),
+        ('Module Toggles', {
+            'fields': (
+                'enable_consolidation', 'enable_import', 'enable_parties',
+                'enable_documents', 'enable_milestones', 'enable_customer_approval',
+                'enable_templates', 'enable_clone',
+            ),
+        }),
+        ('Integration Toggles', {
+            'fields': ('enable_carrier_integration', 'enable_fms_integration'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        from .feature_service import FeatureFlagService
+        FeatureFlagService.invalidate_cache(obj.organization_id)
+
+
+@admin.register(FieldConfig)
+class FieldConfigAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'field_count', 'updated_by', 'updated_at']
+    list_filter = ['customer__organization']
+    search_fields = ['customer__name', 'customer__code']
+    list_select_related = ['customer', 'updated_by']
+    readonly_fields = ['updated_at']
+
+    @admin.display(description='Configured Fields')
+    def field_count(self, obj):
+        return len(obj.config) if obj.config else 0
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+        from .feature_service import FieldConfigService
+        FieldConfigService.invalidate_cache(obj.customer_id)

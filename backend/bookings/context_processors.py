@@ -103,3 +103,20 @@ def customer_theme(request):
     except Exception:
         pass
     return defaults
+
+
+def feature_flags(request):
+    """Inject organization feature flags into template context.
+
+    All flags default to True if no OrganizationFeatureConfig exists.
+    Templates use: {% if features.enable_consolidation %} ... {% endif %}
+    """
+    if not hasattr(request, 'user') or not request.user.is_authenticated:
+        return {}
+    try:
+        from bookings.feature_service import FeatureFlagService
+        from bookings.tenant import get_user_organization
+        org = get_user_organization(request.user)
+        return {'features': FeatureFlagService.get_all_flags(org)}
+    except Exception:
+        return {}

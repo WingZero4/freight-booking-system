@@ -1384,3 +1384,84 @@ class CustomerWorkflowConfig(models.Model):
     class Meta:
         verbose_name = 'customer workflow config'
         verbose_name_plural = 'customer workflow configs'
+
+
+# ─── Phase 3: Feature Flags + Field Config ────────────────────────────
+
+class OrganizationFeatureConfig(models.Model):
+    """Per-organization feature toggles controlling which modules are available."""
+    organization = models.OneToOneField(
+        Organization, on_delete=models.CASCADE, related_name='feature_config')
+    enable_consolidation = models.BooleanField(
+        default=True, help_text='Allow grouping bookings into consolidations')
+    enable_import = models.BooleanField(
+        default=True, help_text='Allow CSV/Excel/EDI import of bookings')
+    enable_parties = models.BooleanField(
+        default=True, help_text='Show parties (shipper, consignee, etc.) on bookings')
+    enable_documents = models.BooleanField(
+        default=True, help_text='Allow document uploads on bookings')
+    enable_milestones = models.BooleanField(
+        default=True, help_text='Track shipment milestones on bookings')
+    enable_customer_approval = models.BooleanField(
+        default=True, help_text='Require customer approval step before packing')
+    enable_carrier_integration = models.BooleanField(
+        default=True, help_text='Enable automated carrier API integrations')
+    enable_fms_integration = models.BooleanField(
+        default=True, help_text='Enable FMS (freight management system) push')
+    enable_templates = models.BooleanField(
+        default=True, help_text='Allow saving and reusing booking templates')
+    enable_clone = models.BooleanField(
+        default=True, help_text='Allow cloning bookings')
+
+    def __str__(self):
+        return f'Features: {self.organization.name}'
+
+    class Meta:
+        verbose_name = 'organization feature config'
+        verbose_name_plural = 'organization feature configs'
+
+
+class FieldConfig(models.Model):
+    """Per-customer field visibility and requirements for booking forms.
+
+    The `config` JSONField stores a dict like:
+        {
+            "commodity_description": {"visible": true, "required": false, "label": "Goods Description"},
+            "flight_number": {"visible": false},
+            ...
+        }
+    Staff users always see all fields regardless of this config.
+    """
+    customer = models.OneToOneField(
+        Customer, on_delete=models.CASCADE, related_name='field_config')
+    config = models.JSONField(
+        default=dict, blank=True,
+        help_text='Dict of {field_name: {visible: bool, required: bool, label: str}}')
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        field_count = len(self.config) if self.config else 0
+        return f'Field config: {self.customer.name} ({field_count} fields)'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        from bookings.feature_service import CONFIGURABLE_FIELDS
+        if not isinstance(self.config, dict):
+            raise ValidationError({'config': 'Config must be a JSON object.'})
+        for field_name, field_cfg in self.config.items():
+            if field_name not in CONFIGURABLE_FIELDS:
+                raise ValidationError(
+                    {'config': f'Unknown field: {field_name!r}.'})
+            if not isinstance(field_cfg, dict):
+                raise ValidationError(
+                    {'config': f'Value for {field_name!r} must be a JSON object.'})
+            label = field_cfg.get('label')
+            if label is not None and not isinstance(label, str):
+                raise ValidationError(
+                    {'config': f"'label' for {field_name!r} must be a string."})
+
+    class Meta:
+        verbose_name = 'field config'
+        verbose_name_plural = 'field configs'

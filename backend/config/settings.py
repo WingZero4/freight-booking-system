@@ -90,6 +90,7 @@ TEMPLATES = [
                 'bookings.context_processors.nav_active',
                 'bookings.context_processors.notifications_context',
                 'bookings.context_processors.customer_theme',
+                'bookings.context_processors.feature_flags',
             ],
         },
     },
