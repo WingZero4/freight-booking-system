@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+
+{% block title %}Document Review - {{ booking.booking_number }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">
+                <i class="fas fa-robot me-2 text-themed-primary"></i>AI Document Review
+            </h4>
+            <p class="text-muted mb-0">
+                <a href="{% url 'booking_detail' booking.id %}">{{ booking.booking_number }}</a>
+                &raquo; {{ document.get_document_type_display }} — {{ document.original_filename }}
+            </p>
+        </div>
+        <a href="{% url 'booking_detail' booking.id %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Booking
+        </a>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                {% if not discrepancies %}
+                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                    <i class="fas fa-check-circle fa-2x text-success"></i>
+                </div>
+                <div>
+                    <h5 class="mb-1 text-success">All Clear</h5>
+                    <p class="mb-0 text-muted">{{ summary }}</p>
+                </div>
+                {% else %}
+                <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                    <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
+                </div>
+                <div>
+                    <h5 class="mb-1 text-warning">Discrepancies Found</h5>
+                    <p class="mb-0 text-muted">{{ summary }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Discrepancies -->
+        <div class="col-lg-7">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-clipboard-check me-2"></i>Validation Results</h5>
+                </div>
+                <div class="card-body">
+                    {% if discrepancies %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 90px;">Severity</th>
+                                    <th style="width: 160px;">Field</th>
+                                    <th>Document Value</th>
+                                    <th>Booking Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in discrepancies %}
+                                <tr>
+                                    <td>
+                                        {% if d.severity == 'HIGH' %}
+                                        <span class="badge bg-danger">HIGH</span>
+                                        {% elif d.severity == 'MEDIUM' %}
+                                        <span class="badge bg-warning text-dark">MEDIUM</span>
+                                        {% else %}
+                                        <span class="badge bg-info text-dark">LOW</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ d.field }}</strong></td>
+                                    <td>
+                                        <code>{{ d.document_value }}</code>
+                                    </td>
+                                    <td>
+                                        <code>{{ d.booking_value }}</code>
+                                    </td>
+                                </tr>
+                                <tr class="table-light">
+                                    <td></td>
+                                    <td colspan="3" class="text-muted small">{{ d.message }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                        <p class="text-muted">No discrepancies detected between the document and the booking record.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Extracted Data -->
+        <div class="col-lg-5">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Extracted Data</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless">
+                        <tbody>
+                            {% if extracted_data.document_type_detected %}
+                            <tr>
+                                <td class="text-muted" style="width: 40%;">Document Type</td>
+                                <td><span class="badge bg-light text-dark">{{ extracted_data.document_type_detected }}</span></td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.shipper_name %}
+                            <tr>
+                                <td class="text-muted">Shipper</td>
+                                <td>{{ extracted_data.shipper_name }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.consignee_name %}
+                            <tr>
+                                <td class="text-muted">Consignee</td>
+                                <td>{{ extracted_data.consignee_name }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.notify_party_name %}
+                            <tr>
+                                <td class="text-muted">Notify Party</td>
+                                <td>{{ extracted_data.notify_party_name }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.port_of_loading %}
+                            <tr>
+                                <td class="text-muted">Port of Loading</td>
+                                <td>{{ extracted_data.port_of_loading }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.port_of_discharge %}
+                            <tr>
+                                <td class="text-muted">Port of Discharge</td>
+                                <td>{{ extracted_data.port_of_discharge }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.vessel_name %}
+                            <tr>
+                                <td class="text-muted">Vessel</td>
+                                <td>{{ extracted_data.vessel_name }}{% if extracted_data.voyage_number %} / {{ extracted_data.voyage_number }}{% endif %}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.bill_of_lading_number %}
+                            <tr>
+                                <td class="text-muted">B/L Number</td>
+                                <td><code>{{ extracted_data.bill_of_lading_number }}</code></td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.booking_reference %}
+                            <tr>
+                                <td class="text-muted">Booking Ref</td>
+                                <td><code>{{ extracted_data.booking_reference }}</code></td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.total_gross_weight_kg %}
+                            <tr>
+                                <td class="text-muted">Total Weight</td>
+                                <td>{{ extracted_data.total_gross_weight_kg }} kg</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.total_volume_cbm %}
+                            <tr>
+                                <td class="text-muted">Total Volume</td>
+                                <td>{{ extracted_data.total_volume_cbm }} CBM</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.total_packages %}
+                            <tr>
+                                <td class="text-muted">Total Packages</td>
+                                <td>{{ extracted_data.total_packages }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.cargo_description %}
+                            <tr>
+                                <td class="text-muted">Cargo</td>
+                                <td>{{ extracted_data.cargo_description }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if extracted_data.incoterms %}
+                            <tr>
+                                <td class="text-muted">INCOTERMS</td>
+                                <td>{{ extracted_data.incoterms }}</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+
+                    {% if extracted_data.containers %}
+                    <h6 class="mt-3 mb-2"><i class="fas fa-box me-1"></i>Containers</h6>
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Number</th>
+                                <th>Type</th>
+                                <th>Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in extracted_data.containers %}
+                            <tr>
+                                <td><code>{{ c.container_number }}</code></td>
+                                <td>{{ c.container_type|default:"-" }}</td>
+                                <td>{% if c.gross_weight_kg %}{{ c.gross_weight_kg }} kg{% else %}-{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+
+                    {% if extracted_data.extraction_notes %}
+                    <div class="alert alert-light mt-3 mb-0">
+                        <small class="text-muted"><i class="fas fa-info-circle me-1"></i>{{ extracted_data.extraction_notes }}</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

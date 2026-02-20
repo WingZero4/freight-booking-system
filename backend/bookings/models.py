@@ -1531,6 +1531,8 @@ class OrganizationFeatureConfig(models.Model):
         default=True, help_text='Allow saving and reusing booking templates')
     enable_clone = models.BooleanField(
         default=True, help_text='Allow cloning bookings')
+    enable_document_review = models.BooleanField(
+        default=True, help_text='Enable AI-powered document review for PDFs')
 
     def __str__(self):
         return f'Features: {self.organization.name}'

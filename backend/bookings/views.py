@@ -926,6 +926,31 @@ def booking_document_download(request, booking_id, document_id):
     )
 
 
+@login_required
+@require_feature('enable_documents')
+@require_feature('enable_document_review')
+def booking_document_review(request, booking_id, document_id):
+    """AI-powered review of a PDF document against the booking record."""
+    booking = get_booking_for_user(booking_id, request.user)
+    document = get_object_or_404(BookingDocument, id=document_id, booking=booking)
+
+    from .document_review_service import review_document, DocumentReviewError
+
+    try:
+        result = review_document(document, booking)
+    except DocumentReviewError as e:
+        messages.error(request, str(e))
+        return redirect('booking_detail', booking_id=booking.id)
+
+    return render(request, 'bookings/document_review_results.html', {
+        'booking': booking,
+        'document': document,
+        'extracted_data': result['extracted_data'],
+        'discrepancies': result['discrepancies'],
+        'summary': result['summary'],
+    })
+
+
 # ─── Parties (address book) ──────────────────────────────────────────
 
 @login_required

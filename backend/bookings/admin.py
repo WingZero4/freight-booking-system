@@ -645,9 +645,10 @@ class CustomerWorkflowConfigAdmin(admin.ModelAdmin):
 class OrganizationFeatureConfigAdmin(admin.ModelAdmin):
     list_display = [
         'organization', 'enable_consolidation', 'enable_import',
-        'enable_parties', 'enable_documents', 'enable_milestones',
-        'enable_customer_approval', 'enable_carrier_integration',
-        'enable_fms_integration', 'enable_templates', 'enable_clone',
+        'enable_parties', 'enable_documents', 'enable_document_review',
+        'enable_milestones', 'enable_customer_approval',
+        'enable_carrier_integration', 'enable_fms_integration',
+        'enable_templates', 'enable_clone',
     ]
     list_filter = ['organization']
     search_fields = ['organization__name', 'organization__code']
@@ -657,7 +658,8 @@ class OrganizationFeatureConfigAdmin(admin.ModelAdmin):
         ('Module Toggles', {
             'fields': (
                 'enable_consolidation', 'enable_import', 'enable_parties',
-                'enable_documents', 'enable_milestones', 'enable_customer_approval',
+                'enable_documents', 'enable_document_review',
+                'enable_milestones', 'enable_customer_approval',
                 'enable_templates', 'enable_clone',
             ),
         }),

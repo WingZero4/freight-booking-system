@@ -819,9 +819,7 @@
                                         <th>Filename</th>
                                         <th>Size</th>
                                         <th>Uploaded</th>
-                                        {% if booking.status == 'DRAFT' %}
-                                        <th style="width: 80px;">Actions</th>
-                                        {% endif %}
+                                        <th style="width: 140px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -835,17 +833,25 @@
                                         </td>
                                         <td class="text-muted">{{ doc.file_size_display }}</td>
                                         <td class="text-muted">{{ doc.uploaded_at|date:"M d, Y H:i" }}</td>
-                                        {% if booking.status == 'DRAFT' %}
                                         <td>
-                                            <form method="post" action="{% url 'booking_document_delete' booking.id doc.id %}"
-                                                  onsubmit="return confirm('Delete this document?');">
-                                                {% csrf_token %}
-                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form>
+                                            <div class="d-flex gap-1">
+                                                {% if features.enable_document_review and doc.file_extension == '.pdf' %}
+                                                <a href="{% url 'booking_document_review' booking.id doc.id %}"
+                                                   class="btn btn-outline-primary btn-sm" title="AI Review">
+                                                    <i class="fas fa-robot"></i> Review
+                                                </a>
+                                                {% endif %}
+                                                {% if booking.status == 'DRAFT' %}
+                                                <form method="post" action="{% url 'booking_document_delete' booking.id doc.id %}"
+                                                      onsubmit="return confirm('Delete this document?');">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                            </div>
                                         </td>
-                                        {% endif %}
                                     </tr>
                                     {% endfor %}
                                 </tbody>

@@ -25,6 +25,7 @@ FEATURE_FLAGS = [
     'enable_fms_integration',
     'enable_templates',
     'enable_clone',
+    'enable_document_review',
 ]
 
 # Default booking form fields that can be controlled by FieldConfig.
