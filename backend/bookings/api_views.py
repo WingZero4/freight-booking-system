@@ -69,9 +69,10 @@ class BookingViewSet(viewsets.ModelViewSet):
         user = self.request.user
         profile = getattr(user, 'profile', None)
         if not user.is_staff:
-            # Customer users only see their own bookings
+            # Customer users see bookings from all their associated customers
             if profile and profile.customer:
-                qs = qs.filter(customer=profile.customer)
+                customer_ids = profile.get_all_customer_ids()
+                qs = qs.filter(customer_id__in=customer_ids)
             else:
                 qs = qs.none()
         else:
@@ -422,10 +423,11 @@ class BookingViewSet(viewsets.ModelViewSet):
     def _resolve_customer(self, request, data):
         """Determine which customer the booking belongs to."""
         user = request.user
+        profile = getattr(user, 'profile', None)
+
         if user.is_staff:
             customer_code = data.get('customer_code')
             if customer_code:
-                profile = getattr(user, 'profile', None)
                 org = profile.organization if profile else None
                 try:
                     return Customer.objects.get(
@@ -440,13 +442,24 @@ class BookingViewSet(viewsets.ModelViewSet):
                 {'customer_code': 'Staff must specify customer_code.'},
             )
 
-        profile = getattr(user, 'profile', None)
-        if profile and profile.customer:
-            return profile.customer
+        if not profile or not profile.customer:
+            raise ValidationError(
+                {'detail': 'Your account has no customer profile.'},
+            )
 
-        raise ValidationError(
-            {'detail': 'Your account has no customer profile.'},
-        )
+        # Multi-customer user can specify customer_code
+        customer_code = data.get('customer_code')
+        if customer_code:
+            try:
+                return profile.get_all_customers().get(
+                    code=customer_code, is_active=True)
+            except Customer.DoesNotExist:
+                raise ValidationError(
+                    {'customer_code': f'Customer "{customer_code}" not found '
+                                      f'in your associated companies.'},
+                )
+
+        return profile.customer
 
     def _fetch_booking(self, pk):
         """Re-fetch booking with all relations for serialization."""

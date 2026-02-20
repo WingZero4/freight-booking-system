@@ -168,6 +168,9 @@ class UserProfile(models.Model):
         related_name='user_profiles',
         help_text='Organization this user belongs to')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
+    additional_customers = models.ManyToManyField(
+        Customer, blank=True, related_name='additional_user_profiles',
+        help_text='Additional companies this user represents beyond primary')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='USER')
     phone = models.CharField(max_length=50, blank=True)
     approval_status = models.CharField(
@@ -183,6 +186,18 @@ class UserProfile(models.Model):
         max_length=50, blank=True, default='',
         help_text='IANA timezone name, e.g. Asia/Singapore. Blank = UTC.',
     )
+
+    def clean(self):
+        super().clean()
+        if self.pk and self.organization_id:
+            wrong_org = self.additional_customers.exclude(
+                organization_id=self.organization_id
+            ).exists()
+            if wrong_org:
+                raise ValidationError({
+                    'additional_customers':
+                    'All additional customers must belong to the same organization.'
+                })
 
     def __str__(self):
         if self.customer:
@@ -200,6 +215,36 @@ class UserProfile(models.Model):
     @property
     def is_shipper_user(self):
         return self.customer is not None and self.role == 'SHIPPER'
+
+    def get_all_customers(self):
+        """Return queryset of primary + additional customers."""
+        ids = self.get_all_customer_ids()
+        if not ids:
+            return Customer.objects.none()
+        return Customer.objects.filter(pk__in=ids)
+
+    def get_all_customer_ids(self):
+        """Return set of PKs for primary + additional customers."""
+        ids = set()
+        if self.customer_id:
+            ids.add(self.customer_id)
+        if self.pk:  # M2M requires saved instance
+            ids.update(
+                self.additional_customers.values_list('pk', flat=True)
+            )
+        return ids
+
+    def get_all_company_types(self):
+        """Return set of company_type strings from all associated customers."""
+        types = set()
+        if self.customer_id and self.customer.company_type:
+            types.add(self.customer.company_type)
+        if self.pk:
+            for ct in self.additional_customers.values_list(
+                    'company_type', flat=True):
+                if ct:
+                    types.add(ct)
+        return types
 
 
 class Party(models.Model):

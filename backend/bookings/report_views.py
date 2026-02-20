@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from .models import Booking
 from .views import staff_required, get_user_customer
+from .tenant import get_user_customers
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +56,8 @@ def _base_bookings(request, start_date, end_date):
         created_at__date__lte=end_date,
     )
     if customer:
-        bookings = bookings.filter(customer=customer)
+        all_customers = get_user_customers(request.user)
+        bookings = bookings.filter(customer__in=all_customers)
     return bookings, customer
 
 
@@ -503,8 +505,9 @@ def customer_report_summary(request):
         return redirect('ops_reports_hub')
 
     start_date, end_date = _parse_date_range(request)
+    all_customers = get_user_customers(request.user)
     bookings = Booking.objects.filter(
-        customer=customer,
+        customer__in=all_customers,
         created_at__date__gte=start_date,
         created_at__date__lte=end_date,
     )
@@ -567,8 +570,9 @@ def customer_report_routes(request):
         return redirect('ops_reports_hub')
 
     start_date, end_date = _parse_date_range(request)
+    all_customers = get_user_customers(request.user)
     bookings = Booking.objects.filter(
-        customer=customer,
+        customer__in=all_customers,
         created_at__date__gte=start_date,
         created_at__date__lte=end_date,
     )
@@ -618,8 +622,9 @@ def customer_report_performance(request):
         return redirect('ops_reports_hub')
 
     start_date, end_date = _parse_date_range(request)
+    all_customers = get_user_customers(request.user)
     completed = Booking.objects.filter(
-        customer=customer,
+        customer__in=all_customers,
         status='COMPLETED',
         created_at__date__gte=start_date,
         created_at__date__lte=end_date,

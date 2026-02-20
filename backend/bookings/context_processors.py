@@ -35,11 +35,14 @@ def nav_active(request):
     else:
         context['nav_active'] = ''
 
-    # Pending registrations badge for staff nav (scoped to org)
+    # Multi-customer flag + pending registrations badge
     if hasattr(request, 'user') and request.user.is_authenticated:
         try:
             profile = request.user.profile
             context['is_shipper_user'] = (profile.role == 'SHIPPER')
+            if profile.customer:
+                context['has_multiple_customers'] = (
+                    len(profile.get_all_customer_ids()) > 1)
             if not profile.customer:  # staff/ops user
                 from bookings.models import UserProfile
                 filters = {'approval_status': 'PENDING'}

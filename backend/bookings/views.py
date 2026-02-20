@@ -31,7 +31,7 @@ from .forms import (
     CarrierOptionForm, RateSheetForm,
 )
 from .services import BookingService
-from .tenant import get_user_organization
+from .tenant import get_user_organization, get_user_customer_ids, get_user_customers
 
 
 def get_user_customer(user):
@@ -79,7 +79,8 @@ def get_booking_for_user(booking_id, user):
     )
     customer = get_user_customer(user)
     if customer:
-        if booking.customer != customer:
+        customer_ids = get_user_customer_ids(user)
+        if booking.customer_id not in customer_ids:
             raise Http404
     else:
         # Staff: must belong to same organization
@@ -116,7 +117,8 @@ def dashboard(request):
     if customer is None:
         return ops_dashboard(request)
 
-    bookings = Booking.objects.filter(customer=customer)
+    all_customers = get_user_customers(request.user)
+    bookings = Booking.objects.filter(customer__in=all_customers)
 
     stats = bookings.aggregate(
         total=Count('id'),
@@ -211,7 +213,8 @@ def booking_list(request):
     customer = get_user_customer(request.user)
     org = get_user_organization(request.user)
     if customer:
-        bookings = Booking.objects.filter(customer=customer)
+        all_customers = get_user_customers(request.user)
+        bookings = Booking.objects.filter(customer__in=all_customers)
     else:
         bookings = Booking.objects.filter(customer__organization=org)
 
@@ -306,32 +309,51 @@ def booking_create(request):
     customer = get_user_customer(request.user)
     is_staff = customer is None
 
-    # Staff must select a customer; customers use their own
+    # Detect multi-customer user (has additional_customers)
+    has_multiple = False
+    if customer:
+        customer_ids = get_user_customer_ids(request.user)
+        has_multiple = len(customer_ids) > 1
+
+    # Staff or multi-customer users need a customer dropdown
     org = get_user_organization(request.user)
-    customers_list = Customer.objects.filter(
-        organization=org, is_active=True).order_by('name') if is_staff else None
+    show_customer_selector = is_staff or has_multiple
+    if is_staff:
+        customers_list = Customer.objects.filter(
+            organization=org, is_active=True).order_by('name')
+    elif has_multiple:
+        customers_list = get_user_customers(request.user).filter(
+            is_active=True).order_by('name')
+    else:
+        customers_list = None
 
     if request.method == 'POST':
-        # Resolve customer for staff before building form (field config needs it)
+        # Resolve customer before building form (field config needs it)
         post_customer = customer
-        if is_staff:
+        if show_customer_selector:
             customer_id = request.POST.get('customer')
             try:
-                post_customer = Customer.objects.filter(
-                    organization=org).get(pk=customer_id, is_active=True)
+                if is_staff:
+                    post_customer = Customer.objects.filter(
+                        organization=org).get(pk=customer_id, is_active=True)
+                else:
+                    # Multi-customer: must be one of user's customers
+                    post_customer = get_user_customers(request.user).get(
+                        pk=customer_id, is_active=True)
             except (Customer.DoesNotExist, ValueError, TypeError):
                 post_customer = None
 
         form = BookingForm(request.POST, customer=post_customer, is_staff=is_staff)
         formset = BookingItemFormSet(request.POST, prefix='items')
 
-        if is_staff and post_customer is None:
+        if show_customer_selector and post_customer is None:
             messages.error(request, 'Please select a valid customer.')
             return render(request, 'bookings/booking_form.html', {
                 'form': form,
                 'formset': formset,
                 'is_edit': False,
                 'is_staff_create': is_staff,
+                'has_multiple_customers': has_multiple,
                 'customers': customers_list,
                 'selected_customer': request.POST.get('customer'),
             })
@@ -352,9 +374,10 @@ def booking_create(request):
         'formset': formset,
         'is_edit': False,
         'is_staff_create': is_staff,
+        'has_multiple_customers': has_multiple,
         'customers': customers_list,
     }
-    if is_staff and request.method == 'POST':
+    if show_customer_selector and request.method == 'POST':
         context['selected_customer'] = request.POST.get('customer')
     return render(request, 'bookings/booking_form.html', context)
 
@@ -367,16 +390,18 @@ def booking_edit(request, booking_id):
     customer = get_user_customer(request.user)
     is_staff = customer is None
 
-    # Staff can edit DRAFT and SUBMITTED (all fields)
+    # Staff can edit all statuses except terminal (COMPLETED, CANCELLED)
     # Customers can edit DRAFT (all), SUBMITTED (limited), CONFIRMED (very limited)
     if is_staff:
-        allowed = ('DRAFT', 'SUBMITTED')
+        disallowed = ('COMPLETED', 'CANCELLED')
+        if booking.status in disallowed:
+            messages.error(request, 'This booking cannot be edited in its current status.')
+            return redirect('booking_detail', booking_id=booking.id)
     else:
         allowed = ('DRAFT', 'SUBMITTED', 'CONFIRMED')
-
-    if booking.status not in allowed:
-        messages.error(request, 'This booking cannot be edited in its current status.')
-        return redirect('booking_detail', booking_id=booking.id)
+        if booking.status not in allowed:
+            messages.error(request, 'This booking cannot be edited in its current status.')
+            return redirect('booking_detail', booking_id=booking.id)
 
     # Cargo items can only be modified in DRAFT and SUBMITTED
     allow_item_edit = booking.status in ('DRAFT', 'SUBMITTED')
@@ -913,7 +938,10 @@ def party_list(request):
             customer__organization=org, is_active=True
         ).select_related('customer')
     else:
-        parties = Party.objects.filter(customer=customer, is_active=True)
+        all_customers = get_user_customers(request.user)
+        parties = Party.objects.filter(
+            customer__in=all_customers, is_active=True
+        ).select_related('customer')
 
     role_filter = request.GET.get('role', '')
     if role_filter:
@@ -969,7 +997,7 @@ def party_edit(request, party_id):
     customer = get_user_customer(request.user)
     party = get_object_or_404(Party, id=party_id)
 
-    if customer and party.customer != customer:
+    if customer and party.customer_id not in get_user_customer_ids(request.user):
         raise Http404
     elif not customer:
         org = get_user_organization(request.user)
@@ -998,7 +1026,7 @@ def party_delete(request, party_id):
     customer = get_user_customer(request.user)
     party = get_object_or_404(Party, id=party_id)
 
-    if customer and party.customer != customer:
+    if customer and party.customer_id not in get_user_customer_ids(request.user):
         raise Http404
     elif not customer:
         org = get_user_organization(request.user)
@@ -1785,7 +1813,8 @@ def booking_export_csv(request):
     customer = get_user_customer(request.user)
     org = get_user_organization(request.user)
     if customer:
-        bookings = Booking.objects.filter(customer=customer)
+        all_customers = get_user_customers(request.user)
+        bookings = Booking.objects.filter(customer__in=all_customers)
     else:
         bookings = Booking.objects.filter(customer__organization=org)
 
@@ -1969,7 +1998,8 @@ def template_list(request):
         messages.error(request, 'Templates are only available for customer users.')
         return redirect('dashboard')
 
-    templates = BookingTemplate.objects.filter(customer=customer)
+    all_customers = get_user_customers(request.user)
+    templates = BookingTemplate.objects.filter(customer__in=all_customers)
     search = request.GET.get('q', '')
     if search:
         templates = templates.filter(name__icontains=search)
@@ -2001,8 +2031,11 @@ def template_save(request, booking_id):
         messages.error(request, 'Please provide a template name.')
         return redirect('booking_detail', booking_id=booking.id)
 
-    # Check uniqueness
-    if BookingTemplate.objects.filter(customer=customer, name=template_name).exists():
+    # Template belongs to the booking's customer (not necessarily the primary)
+    template_customer = booking.customer
+
+    # Check uniqueness within the booking's customer
+    if BookingTemplate.objects.filter(customer=template_customer, name=template_name).exists():
         messages.error(request, f'A template named "{template_name}" already exists.')
         return redirect('booking_detail', booking_id=booking.id)
 
@@ -2057,7 +2090,7 @@ def template_save(request, booking_id):
         })
 
     BookingTemplate.objects.create(
-        customer=customer,
+        customer=template_customer,
         name=template_name,
         template_data=template_data,
         created_by=request.user,
@@ -2075,7 +2108,8 @@ def template_delete(request, template_id):
         messages.error(request, 'Only customer users can manage templates.')
         return redirect('dashboard')
 
-    template = get_object_or_404(BookingTemplate, id=template_id, customer=customer)
+    customer_ids = get_user_customer_ids(request.user)
+    template = get_object_or_404(BookingTemplate, id=template_id, customer_id__in=customer_ids)
     if request.method == 'POST':
         name = template.name
         template.delete()
@@ -2092,17 +2126,21 @@ def booking_create_from_template(request, template_id):
         messages.error(request, 'Only customer users can use templates.')
         return redirect('dashboard')
 
-    template = get_object_or_404(BookingTemplate, id=template_id, customer=customer)
+    customer_ids = get_user_customer_ids(request.user)
+    template = get_object_or_404(BookingTemplate, id=template_id, customer_id__in=customer_ids)
     data = template.template_data
 
+    # Use the template's customer (may differ from primary for multi-customer users)
+    template_customer = template.customer
+
     if request.method == 'POST':
-        form = BookingForm(request.POST, customer=customer, is_staff=False)
+        form = BookingForm(request.POST, customer=template_customer, is_staff=False)
         formset = BookingItemFormSet(request.POST, prefix='items')
 
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
                 booking = BookingService.create_booking(
-                    form, formset, customer, request.user, request=request,
+                    form, formset, template_customer, request.user, request=request,
                 )
                 # Restore parties from template
                 for party_data in data.get('parties', []):
@@ -2111,7 +2149,7 @@ def booking_create_from_template(request, template_id):
                     if party_id:
                         try:
                             party = Party.objects.get(
-                                pk=party_id, customer=customer, is_active=True,
+                                pk=party_id, customer=template_customer, is_active=True,
                             )
                         except Party.DoesNotExist:
                             pass
@@ -2153,7 +2191,7 @@ def booking_create_from_template(request, template_id):
                 initial['chargeable_weight_kg'] = Decimal(cw)
             except (InvalidOperation, TypeError):
                 pass
-        form = BookingForm(initial=initial, customer=customer, is_staff=False)
+        form = BookingForm(initial=initial, customer=template_customer, is_staff=False)
 
         # Pre-fill items formset
         item_data = data.get('items', [])

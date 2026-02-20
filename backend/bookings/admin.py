@@ -48,16 +48,38 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ['user', 'get_email', 'organization', 'customer', 'role', 'phone', 'timezone', 'approval_status']
+    list_display = ['user', 'get_email', 'organization', 'customer', 'additional_customers_display', 'role', 'phone', 'timezone', 'approval_status']
     list_filter = ['role', 'organization', 'customer', 'approval_status']
     search_fields = ['user__username', 'user__email', 'customer__name', 'customer__code']
     list_select_related = ['user', 'customer', 'organization']
     readonly_fields = ['approved_by', 'approved_at']
+    filter_horizontal = ['additional_customers']
     actions = ['approve_registrations']
 
     def get_email(self, obj):
         return obj.user.email
     get_email.short_description = 'Email'
+
+    @admin.display(description='Additional Customers')
+    def additional_customers_display(self, obj):
+        extras = obj.additional_customers.all()
+        if not extras:
+            return '-'
+        return ', '.join(c.code for c in extras)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == 'additional_customers':
+            # Limit choices to same organization as the profile being edited
+            obj_id = request.resolver_match.kwargs.get('object_id')
+            if obj_id:
+                try:
+                    profile = UserProfile.objects.get(pk=obj_id)
+                    if profile.organization_id:
+                        kwargs['queryset'] = Customer.objects.filter(
+                            organization_id=profile.organization_id)
+                except UserProfile.DoesNotExist:
+                    pass
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     @admin.action(description='Approve selected registrations')
     def approve_registrations(self, request, queryset):

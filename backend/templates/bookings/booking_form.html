@@ -28,8 +28,8 @@
                 <form method="post" novalidate id="bookingForm">
                     {% csrf_token %}
 
-                    {% if is_staff_create and not is_edit %}
-                    <!-- Customer Selection (staff only) -->
+                    {% if not is_edit and is_staff_create or not is_edit and has_multiple_customers %}
+                    <!-- Customer Selection (staff or multi-customer users) -->
                     <h5 class="mb-3"><i class="fas fa-building me-2 text-themed-primary"></i>Customer</h5>
                     <div class="row mb-2">
                         <div class="col-md-6 mb-3">

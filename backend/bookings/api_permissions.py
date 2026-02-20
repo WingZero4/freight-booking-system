@@ -31,5 +31,5 @@ class IsCustomerOrStaff(BasePermission):
         if request.user.is_staff:
             # Staff must belong to the same organization
             return obj.customer.organization_id == profile.organization_id
-        # Customer users: check customer match
-        return obj.customer_id == profile.customer_id
+        # Customer users: check against all associated customers
+        return obj.customer_id in profile.get_all_customer_ids()

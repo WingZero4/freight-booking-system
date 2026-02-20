@@ -135,6 +135,49 @@ class Command(BaseCommand):
                 profile.save()
                 self.stdout.write(f'    Updated profile: role={profile.role}')
 
+        # Create multi-customer test user (FORWARDER_ORIGIN + FORWARDER_DEST)
+        mc_username = 'test_multi_customer'
+        mc_password = 'TestMulti2026!'
+        mc_user, mc_created = User.objects.get_or_create(
+            username=mc_username,
+            defaults={
+                'email': f'{mc_username}@test.example.com',
+                'is_staff': False,
+                'first_name': 'Test Multi Customer',
+            },
+        )
+        if mc_created:
+            mc_user.set_password(mc_password)
+            mc_user.save()
+            self.stdout.write(self.style.SUCCESS(
+                f'  Created user: {mc_username}'))
+        else:
+            self.stdout.write(f'  User already exists: {mc_username}')
+
+        # Primary = TFWD_O, additional = TFWD_D
+        primary_co = Customer.objects.filter(
+            organization=org, code='TFWD_O').first()
+        additional_co = Customer.objects.filter(
+            organization=org, code='TFWD_D').first()
+
+        if primary_co:
+            mc_profile, mcp_created = UserProfile.objects.get_or_create(
+                user=mc_user,
+                defaults={
+                    'organization': org,
+                    'customer': primary_co,
+                    'role': 'USER',
+                    'approval_status': 'APPROVED',
+                },
+            )
+            if mcp_created:
+                self.stdout.write(
+                    f'    Created profile: primary={primary_co.code}')
+            if additional_co:
+                mc_profile.additional_customers.add(additional_co)
+                self.stdout.write(
+                    f'    Added additional customer: {additional_co.code}')
+
         # Print summary table
         self.stdout.write('\n' + '=' * 70)
         self.stdout.write('Test User Credentials:')
@@ -148,5 +191,10 @@ class Command(BaseCommand):
                 f'{entry["password"]:<22} '
                 f'{entry["company_type"] or "Staff/OPS":<20} '
                 f'{"Yes" if entry["is_staff"] else "No"}')
+        self.stdout.write(
+            f'{"test_multi_customer":<25} '
+            f'{"TestMulti2026!":<22} '
+            f'{"MULTI (O+D)":<20} '
+            f'No')
         self.stdout.write('=' * 70)
         self.stdout.write(self.style.SUCCESS('\nDone! All test users ready.'))

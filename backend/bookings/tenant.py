@@ -14,11 +14,28 @@ def get_user_organization(user):
 
 
 def get_user_customer(user):
-    """Return the Customer (Company) for a user, or None."""
+    """Return the primary Customer (Company) for a user, or None."""
     try:
         return user.profile.customer
     except (AttributeError, Exception):
         return None
+
+
+def get_user_customers(user):
+    """Return queryset of all customers (primary + additional) for a user."""
+    try:
+        return user.profile.get_all_customers()
+    except (AttributeError, Exception):
+        from bookings.models import Customer
+        return Customer.objects.none()
+
+
+def get_user_customer_ids(user):
+    """Return set of PKs for all customers (primary + additional) for a user."""
+    try:
+        return user.profile.get_all_customer_ids()
+    except (AttributeError, Exception):
+        return set()
 
 
 def is_staff_for_org(user, organization):
