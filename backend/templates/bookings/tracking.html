@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block title %}Tracking — {{ booking.booking_number }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-11">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4>
+                <i class="fas fa-map-marker-alt me-2"></i>
+                Tracking: {{ booking.booking_number }}
+            </h4>
+            <div class="d-flex gap-2">
+                <form method="post" action="{% url 'tracking_refresh' booking.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-themed-outline btn-sm">
+                        <i class="fas fa-sync me-1"></i>Refresh
+                    </button>
+                </form>
+                <a href="{% url 'booking_detail' booking.id %}" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-arrow-left me-1"></i>Back
+                </a>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Map -->
+            <div class="col-md-7 mb-3">
+                <div class="card">
+                    <div class="card-header"><h6 class="mb-0">Vessel Position</h6></div>
+                    <div class="card-body p-0">
+                        {% if vessel_position %}
+                        <div id="map" style="height: 400px;"></div>
+                        {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-map-marked-alt fa-3x mb-3 d-block"></i>
+                            No vessel position data available.
+                            {% if not booking.vessel_name %}
+                            <br><small>No vessel name set on this booking.</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline -->
+            <div class="col-md-5 mb-3">
+                <div class="card">
+                    <div class="card-header"><h6 class="mb-0">Event Timeline</h6></div>
+                    <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                        {% for event in timeline %}
+                        <div class="d-flex mb-3">
+                            <div class="me-3">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center
+                                    {% if event.type == 'milestone' %}bg-themed-primary{% else %}bg-info{% endif %}"
+                                    style="width: 32px; height: 32px;">
+                                    <i class="fas {% if event.type == 'milestone' %}fa-flag{% else %}fa-satellite-dish{% endif %} text-white" style="font-size: 12px;"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <strong>{{ event.event }}</strong>
+                                {% if event.location %}<br><small class="text-muted"><i class="fas fa-map-pin me-1"></i>{{ event.location }}</small>{% endif %}
+                                {% if event.vessel %}<br><small class="text-muted"><i class="fas fa-ship me-1"></i>{{ event.vessel }}</small>{% endif %}
+                                <br><small class="text-muted">{{ event.timestamp|date:"M d, Y H:i" }} &middot; {{ event.source }}</small>
+                                {% if event.notes %}<br><small>{{ event.notes }}</small>{% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted text-center">No tracking events yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Summary -->
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>Origin:</strong> {{ booking.origin_port.name|default:"N/A" }} ({{ booking.origin_port.code|default:"-" }})
+                    </div>
+                    <div class="text-center">
+                        <i class="fas fa-long-arrow-alt-right fa-2x text-themed-primary"></i>
+                    </div>
+                    <div>
+                        <strong>Destination:</strong> {{ booking.destination_port.name|default:"N/A" }} ({{ booking.destination_port.code|default:"-" }})
+                    </div>
+                    <div>
+                        <strong>Vessel:</strong> {{ booking.vessel_name|default:"N/A" }}
+                    </div>
+                    <div>
+                        <strong>ETA:</strong> {{ booking.eta|default:"TBD" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if vessel_position %}
+<!-- Leaflet CSS/JS from CDN -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var lat = {{ vessel_position.latitude }};
+    var lng = {{ vessel_position.longitude }};
+    var map = L.map('map').setView([lat, lng], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.marker([lat, lng]).addTo(map)
+        .bindPopup('<b>{{ booking.vessel_name }}</b><br>Speed: {{ vessel_position.speed_knots|default:"N/A" }} knots')
+        .openPopup();
+});
+</script>
+{% endif %}
+{% endblock %}

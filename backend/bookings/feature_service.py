@@ -26,6 +26,16 @@ FEATURE_FLAGS = [
     'enable_templates',
     'enable_clone',
     'enable_document_review',
+    'enable_sanctions_screening',
+    'enable_scheduled_reports',
+    'enable_booking_comments',
+    'enable_sla_tracking',
+    'enable_auto_quoting',
+    'enable_phone_notifications',
+    'enable_document_to_booking',
+    'enable_email_to_booking',
+    'enable_hbl_generation',
+    'enable_tracking',
 ]
 
 # Default booking form fields that can be controlled by FieldConfig.

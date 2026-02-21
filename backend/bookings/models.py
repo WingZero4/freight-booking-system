@@ -186,6 +186,10 @@ class UserProfile(models.Model):
         max_length=50, blank=True, default='',
         help_text='IANA timezone name, e.g. Asia/Singapore. Blank = UTC.',
     )
+    phone_notifications = models.BooleanField(
+        default=False, help_text='Receive SMS notifications for critical events')
+    whatsapp_notifications = models.BooleanField(
+        default=False, help_text='Receive WhatsApp notifications for critical events')
 
     def clean(self):
         super().clean()
@@ -462,6 +466,8 @@ class Booking(models.Model):
         ('EDI', 'EDI'),
         ('CSV', 'File Import'),
         ('MANUAL', 'Manual Entry'),
+        ('EMAIL', 'Email Intake'),
+        ('DOCUMENT', 'Document Import'),
     ]
 
     # Auto-generated booking number
@@ -661,6 +667,15 @@ class Booking(models.Model):
 
     # Notes
     special_instructions = models.TextField(blank=True)
+
+    # HBL generation fields
+    freight_terms = models.CharField(
+        max_length=20, blank=True,
+        choices=[('PREPAID', 'Prepaid'), ('COLLECT', 'Collect'),
+                 ('THIRD_PARTY', 'Third Party')],
+        help_text='Freight payment terms for Bill of Lading')
+    number_of_originals = models.PositiveIntegerField(
+        default=3, help_text='Number of original BL copies')
 
     # Carrier info (filled by operations)
     carrier_name = models.CharField(max_length=100, blank=True)
@@ -1533,6 +1548,26 @@ class OrganizationFeatureConfig(models.Model):
         default=True, help_text='Allow cloning bookings')
     enable_document_review = models.BooleanField(
         default=True, help_text='Enable AI-powered document review for PDFs')
+    enable_sanctions_screening = models.BooleanField(
+        default=True, help_text='Screen parties against OFAC/EU/UN sanctions lists')
+    enable_scheduled_reports = models.BooleanField(
+        default=True, help_text='Allow scheduling recurring email reports')
+    enable_booking_comments = models.BooleanField(
+        default=True, help_text='Enable threaded comments on bookings')
+    enable_sla_tracking = models.BooleanField(
+        default=True, help_text='Track SLA timers and auto-escalate breaches')
+    enable_auto_quoting = models.BooleanField(
+        default=True, help_text='Show matching rates when creating bookings')
+    enable_phone_notifications = models.BooleanField(
+        default=False, help_text='Enable WhatsApp/SMS notifications via Twilio')
+    enable_document_to_booking = models.BooleanField(
+        default=True, help_text='Create bookings from uploaded PDF documents')
+    enable_email_to_booking = models.BooleanField(
+        default=False, help_text='Create bookings from inbound emails')
+    enable_hbl_generation = models.BooleanField(
+        default=True, help_text='Generate draft House Bill of Lading PDFs')
+    enable_tracking = models.BooleanField(
+        default=False, help_text='Real-time vessel/container tracking via external API')
 
     def __str__(self):
         return f'Features: {self.organization.name}'
@@ -1666,3 +1701,213 @@ class RateSheet(models.Model):
             models.Index(fields=['origin_port', 'destination_port', 'carrier']),
             models.Index(fields=['valid_from', 'valid_to']),
         ]
+
+
+# ─── Value Enhancement Models ─────────────────────────────────────────
+
+class ScreeningResult(models.Model):
+    """Sanctions screening result for a party against OFAC/EU/UN lists."""
+    STATUS_CHOICES = [
+        ('CLEAR', 'Clear'),
+        ('POTENTIAL_MATCH', 'Potential Match'),
+        ('BLOCKED', 'Blocked'),
+        ('REVIEWED_OK', 'Reviewed - Cleared'),
+        ('REVIEWED_BLOCKED', 'Reviewed - Blocked'),
+    ]
+
+    party = models.ForeignKey(
+        Party, on_delete=models.CASCADE, related_name='screening_results')
+    list_checked = models.CharField(max_length=20, help_text='OFAC, EU, or UN')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    match_score = models.FloatField(default=0.0, help_text='0.0-1.0 similarity')
+    match_details = models.JSONField(default=dict, blank=True)
+    checked_at = models.DateTimeField(auto_now_add=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f'{self.party.company_name} - {self.list_checked}: {self.status}'
+
+    class Meta:
+        ordering = ['-checked_at']
+        indexes = [models.Index(fields=['party', '-checked_at'])]
+
+
+class ScheduledReport(models.Model):
+    """Scheduled recurring email report configuration."""
+    FREQUENCY_CHOICES = [
+        ('DAILY', 'Daily'),
+        ('WEEKLY', 'Weekly'),
+        ('MONTHLY', 'Monthly'),
+    ]
+    REPORT_TYPE_CHOICES = [
+        ('WEEKLY_SUMMARY', 'Weekly Summary'),
+        ('MONTHLY_SUMMARY', 'Monthly Summary'),
+        ('CARRIER_PERFORMANCE', 'Carrier Performance'),
+        ('VOLUME_BY_CUSTOMER', 'Volume by Customer'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='scheduled_reports')
+    name = models.CharField(max_length=100)
+    report_type = models.CharField(max_length=30, choices=REPORT_TYPE_CHOICES)
+    frequency = models.CharField(max_length=10, choices=FREQUENCY_CHOICES)
+    recipients = models.JSONField(
+        default=list, help_text='List of email addresses')
+    day_of_week = models.IntegerField(
+        null=True, blank=True, help_text='0=Monday, 6=Sunday (for weekly)')
+    day_of_month = models.IntegerField(
+        null=True, blank=True, help_text='1-28 (for monthly)')
+    hour = models.IntegerField(default=7, help_text='Hour to send (0-23)')
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.name} ({self.get_frequency_display()})'
+
+    class Meta:
+        ordering = ['name']
+
+
+class BookingComment(models.Model):
+    """Threaded comment on a booking for customer<->ops communication."""
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.TextField(max_length=5000)
+    is_internal = models.BooleanField(
+        default=False, help_text='Internal comments visible only to staff')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Comment by {self.author.username} on {self.booking.booking_number}'
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [models.Index(fields=['booking', 'created_at'])]
+
+
+class SLAConfig(models.Model):
+    """SLA timer configuration per status per organization."""
+    ESCALATION_CHOICES = [
+        ('NOTIFY', 'Send notification'),
+        ('FLAG', 'Flag in dashboard'),
+        ('BOTH', 'Notify and flag'),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='sla_configs')
+    status = models.CharField(max_length=30)
+    max_hours = models.PositiveIntegerField(
+        help_text='Maximum hours allowed in this status')
+    warning_pct = models.PositiveIntegerField(
+        default=75, help_text='Percentage of max_hours to trigger warning')
+    escalation_email = models.EmailField(
+        blank=True, help_text='Email to notify on breach')
+    escalation_action = models.CharField(
+        max_length=10, choices=ESCALATION_CHOICES, default='BOTH')
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f'{self.organization.name} - {self.status}: {self.max_hours}h'
+
+    class Meta:
+        unique_together = [('organization', 'status')]
+        ordering = ['status']
+
+
+class SLABreach(models.Model):
+    """Record of a booking breaching an SLA timer."""
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.CASCADE, related_name='sla_breaches')
+    sla_config = models.ForeignKey(
+        SLAConfig, on_delete=models.CASCADE, related_name='breaches')
+    status = models.CharField(max_length=30)
+    entered_at = models.DateTimeField(help_text='When booking entered this status')
+    breached_at = models.DateTimeField(help_text='When the SLA was breached')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    escalated = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'Breach: {self.booking.booking_number} - {self.status}'
+
+    class Meta:
+        ordering = ['-breached_at']
+
+
+class TrackingEvent(models.Model):
+    """Vessel/container tracking event from external API or manual entry."""
+    SOURCE_CHOICES = [
+        ('API', 'External API'),
+        ('MANUAL', 'Manual Entry'),
+    ]
+
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.CASCADE, related_name='tracking_events')
+    event_type = models.CharField(max_length=50)
+    location = models.CharField(max_length=255, blank=True)
+    vessel_name = models.CharField(max_length=100, blank=True)
+    occurred_at = models.DateTimeField()
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='API')
+    raw_data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.booking.booking_number} - {self.event_type} at {self.location}'
+
+    class Meta:
+        ordering = ['-occurred_at']
+        indexes = [models.Index(fields=['booking', '-occurred_at'])]
+
+
+class VesselPosition(models.Model):
+    """Cached vessel position from tracking API."""
+    vessel_name = models.CharField(max_length=100)
+    imo_number = models.CharField(max_length=20, blank=True)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    speed_knots = models.FloatField(null=True, blank=True)
+    heading = models.FloatField(null=True, blank=True)
+    destination = models.CharField(max_length=255, blank=True)
+    eta = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.vessel_name} ({self.latitude}, {self.longitude})'
+
+    class Meta:
+        indexes = [models.Index(fields=['vessel_name'])]
+
+
+class InboundEmail(models.Model):
+    """Record of an inbound email processed for email-to-booking."""
+    STATUS_CHOICES = [
+        ('RECEIVED', 'Received'),
+        ('PROCESSED', 'Processed'),
+        ('FAILED', 'Failed'),
+    ]
+
+    sender = models.EmailField()
+    subject = models.CharField(max_length=500)
+    body = models.TextField()
+    customer = models.ForeignKey(
+        Customer, on_delete=models.SET_NULL, null=True, blank=True)
+    booking = models.ForeignKey(
+        'Booking', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='source_emails')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='RECEIVED')
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.sender}: {self.subject[:50]}'
+
+    class Meta:
+        ordering = ['-created_at']

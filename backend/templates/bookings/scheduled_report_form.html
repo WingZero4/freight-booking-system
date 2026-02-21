@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if report %}Edit{% else %}Create{% endif %} Scheduled Report{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-themed-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock me-2"></i>
+                    {% if report %}Edit{% else %}New{% endif %} Scheduled Report
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">Report Name</label>
+                        <input type="text" name="name" class="form-control" required
+                               value="{{ report.name|default:'' }}">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Report Type</label>
+                            <select name="report_type" class="form-select">
+                                {% for value, label in report_types %}
+                                <option value="{{ value }}" {% if report and report.report_type == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Frequency</label>
+                            <select name="frequency" class="form-select">
+                                {% for value, label in frequency_choices %}
+                                <option value="{{ value }}" {% if report and report.frequency == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Send Hour (0-23)</label>
+                            <input type="number" name="hour" class="form-control" min="0" max="23"
+                                   value="{{ report.hour|default:7 }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Day of Week (0=Mon)</label>
+                            <input type="number" name="day_of_week" class="form-control" min="0" max="6"
+                                   value="{{ report.day_of_week|default:'' }}">
+                            <small class="text-muted">For weekly reports</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Day of Month (1-28)</label>
+                            <input type="number" name="day_of_month" class="form-control" min="1" max="28"
+                                   value="{{ report.day_of_month|default:'' }}">
+                            <small class="text-muted">For monthly reports</small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Recipients</label>
+                        <input type="text" name="recipients" class="form-control"
+                               placeholder="email1@example.com, email2@example.com"
+                               value="{% if report %}{{ report.recipients|join:', ' }}{% endif %}">
+                        <small class="text-muted">Comma-separated email addresses</small>
+                    </div>
+                    {% if report %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                                   {% if report.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Active</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-themed-primary">
+                            <i class="fas fa-save me-1"></i>Save
+                        </button>
+                        <a href="{% url 'scheduled_report_list' %}" class="btn btn-secondary">Cancel</a>
+                        {% if report %}
+                        <form method="post" action="{% url 'scheduled_report_delete' report.id %}" class="d-inline ms-auto">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger"
+                                    onclick="return confirm('Delete this scheduled report?')">
+                                <i class="fas fa-trash me-1"></i>Delete
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

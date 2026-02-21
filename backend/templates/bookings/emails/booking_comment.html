@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden;">
+    <div style="background: #0d6efd; color: #fff; padding: 20px 24px;">
+      <h2 style="margin: 0;">New Comment on {{ booking.booking_number }}</h2>
+    </div>
+    <div style="padding: 24px;">
+      <p><strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong> commented:</p>
+
+      <div style="background: #f8f9fa; border-left: 4px solid #0d6efd; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+        {{ comment.message|linebreaksbr }}
+      </div>
+
+      {% if comment.is_internal %}
+      <p style="color: #dc3545; font-size: 12px;"><em>This is an internal note (visible to staff only).</em></p>
+      {% endif %}
+
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Booking</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.booking_number }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Status</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.get_status_display }}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; color: #666;">Route</td>
+          <td style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;">{{ booking.origin_port.code }} &rarr; {{ booking.destination_port.code }}</td>
+        </tr>
+      </table>
+
+      <p style="color: #666; font-size: 14px;">Log in to the portal to reply.</p>
+    </div>
+    <div style="background: #f8f9fa; padding: 16px 24px; font-size: 12px; color: #999;">
+      Freight Booking Portal &mdash; Automated notification
+    </div>
+  </div>
+</body>
+</html>

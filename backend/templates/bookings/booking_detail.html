@@ -184,6 +184,16 @@
                         <i class="fas fa-file-pdf me-1"></i>Shipping Advice
                     </a>
                     {% endif %}{% endif %}
+                    {% if features.enable_hbl_generation and booking.status != 'DRAFT' and booking.status != 'SUBMITTED' %}
+                    <a href="{% url 'draft_hbl' booking.id %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-file-contract me-1"></i>Draft HBL
+                    </a>
+                    {% endif %}
+                    {% if features.enable_tracking and booking.status == 'IN_TRANSIT' or booking.status == 'ARRIVED' %}
+                    <a href="{% url 'booking_tracking' booking.id %}" class="btn btn-outline-info btn-sm">
+                        <i class="fas fa-satellite-dish me-1"></i>Track
+                    </a>
+                    {% endif %}
                     <a href="{% url 'booking_list' %}" class="btn btn-outline-secondary btn-sm ms-auto">
                         <i class="fas fa-arrow-left me-1"></i>Back to List
                     </a>
@@ -196,6 +206,28 @@
             <i class="fas fa-exclamation-triangle me-2"></i>
             <div>
                 <strong>Container Check:</strong> {{ cbm_warning }}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if sla_status and sla_status.has_sla %}
+        <div class="alert {% if sla_status.status == 'BREACHED' %}alert-danger{% elif sla_status.status == 'WARNING' %}alert-warning{% else %}alert-info{% endif %} d-flex align-items-center mb-3" role="alert">
+            <i class="fas fa-stopwatch me-2"></i>
+            <div>
+                <strong>SLA:</strong>
+                {% if sla_status.status == 'BREACHED' %}
+                    BREACHED &mdash; {{ sla_status.elapsed_hours }}h elapsed (max {{ sla_status.max_hours }}h)
+                {% elif sla_status.status == 'WARNING' %}
+                    {{ sla_status.remaining_hours }}h remaining of {{ sla_status.max_hours }}h ({{ sla_status.pct }}%)
+                {% else %}
+                    {{ sla_status.remaining_hours }}h remaining of {{ sla_status.max_hours }}h
+                {% endif %}
+            </div>
+            <div class="ms-auto">
+                <div class="progress" style="width: 120px; height: 8px;">
+                    <div class="progress-bar {% if sla_status.status == 'BREACHED' %}bg-danger{% elif sla_status.status == 'WARNING' %}bg-warning{% else %}bg-success{% endif %}"
+                         style="width: {% if sla_status.pct > 100 %}100{% else %}{{ sla_status.pct }}{% endif %}%"></div>
+                </div>
             </div>
         </div>
         {% endif %}
@@ -233,6 +265,14 @@
             <li class="nav-item">
                 <a class="nav-link {% if active_tab == 'tracking' %}active{% endif %}" data-bs-toggle="tab" href="#tab-tracking" role="tab">
                     <i class="fas fa-map-marker-alt me-1"></i>Tracking
+                </a>
+            </li>
+            {% endif %}
+            {% if features.enable_booking_comments %}
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#tab-comments" role="tab">
+                    <i class="fas fa-comments me-1"></i>Comments
+                    <span class="badge bg-secondary ms-1" id="comment-count">{{ comment_count|default:0 }}</span>
                 </a>
             </li>
             {% endif %}
@@ -1074,6 +1114,38 @@
             </div>
             {% endif %}
 
+            <!-- Comments Tab -->
+            {% if features.enable_booking_comments %}
+            <div class="tab-pane fade" id="tab-comments" role="tabpanel">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="comments-container" style="max-height: 400px; overflow-y: auto; margin-bottom: 16px;">
+                            <p class="text-muted text-center" id="comments-loading">Loading comments...</p>
+                        </div>
+                        <hr>
+                        <form id="comment-form">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                                <textarea class="form-control" id="comment-message" rows="3" maxlength="5000"
+                                          placeholder="Add a comment..."></textarea>
+                            </div>
+                            {% if not user.profile.customer %}
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="comment-internal">
+                                <label class="form-check-label" for="comment-internal">
+                                    <i class="fas fa-lock me-1"></i>Internal note (staff only)
+                                </label>
+                            </div>
+                            {% endif %}
+                            <button type="submit" class="btn btn-themed-primary btn-sm">
+                                <i class="fas fa-paper-plane me-1"></i>Post Comment
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Activity Tab -->
             <div class="tab-pane fade {% if active_tab == 'activity' %}show active{% endif %}" id="tab-activity" role="tabpanel">
                 <div class="card">
@@ -1158,5 +1230,75 @@
         </form>
     </div>
 </div>
+{% endif %}
+
+{% if features.enable_booking_comments %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var bookingId = {{ booking.id }};
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    function loadComments() {
+        fetch('/bookings/' + bookingId + '/comments/')
+            .then(r => r.json())
+            .then(data => {
+                var container = document.getElementById('comments-container');
+                if (!data.comments || data.comments.length === 0) {
+                    container.innerHTML = '<p class="text-muted text-center">No comments yet.</p>';
+                    document.getElementById('comment-count').textContent = '0';
+                    return;
+                }
+                document.getElementById('comment-count').textContent = data.comments.length;
+                var html = '';
+                data.comments.forEach(function(c) {
+                    var cls = c.is_internal ? 'border-start border-warning border-3' : '';
+                    html += '<div class="mb-3 p-2 bg-light rounded ' + cls + '">';
+                    html += '<strong>' + c.author + '</strong>';
+                    if (c.is_internal) html += ' <span class="badge bg-warning text-dark">Internal</span>';
+                    html += '<br><small class="text-muted">' + c.created_at + '</small>';
+                    html += '<p class="mb-0 mt-1">' + c.message.replace(/\n/g, '<br>') + '</p>';
+                    html += '</div>';
+                });
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(function() {
+                document.getElementById('comments-container').innerHTML = '<p class="text-danger">Failed to load comments.</p>';
+            });
+    }
+
+    // Load on tab click
+    document.querySelector('[href="#tab-comments"]').addEventListener('shown.bs.tab', loadComments);
+
+    // Submit comment
+    document.getElementById('comment-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var msg = document.getElementById('comment-message').value.trim();
+        if (!msg) return;
+        var internalEl = document.getElementById('comment-internal');
+        var isInternal = internalEl ? internalEl.checked : false;
+
+        var formData = new FormData();
+        formData.append('csrfmiddlewaretoken', csrfToken);
+        formData.append('message', msg);
+        formData.append('is_internal', isInternal ? 'true' : 'false');
+
+        fetch('/bookings/' + bookingId + '/comments/add/', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            document.getElementById('comment-message').value = '';
+            if (internalEl) internalEl.checked = false;
+            loadComments();
+        });
+    });
+});
+</script>
 {% endif %}
 {% endblock %}

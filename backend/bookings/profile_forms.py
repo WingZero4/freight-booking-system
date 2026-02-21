@@ -30,6 +30,16 @@ class ProfileEditForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={'class': 'form-control', 'id': 'id_timezone'}),
     )
+    phone_notifications = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label='Receive SMS notifications for critical booking events',
+    )
+    whatsapp_notifications = forms.BooleanField(
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label='Receive WhatsApp notifications for critical booking events',
+    )
 
     def __init__(self, *args, user_instance=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,12 +48,11 @@ class ProfileEditForm(forms.Form):
             self.fields['first_name'].initial = user_instance.first_name
             self.fields['last_name'].initial = user_instance.last_name
             self.fields['email'].initial = user_instance.email
-            self.fields['phone'].initial = getattr(
-                getattr(user_instance, 'profile', None), 'phone', ''
-            )
-            self.fields['timezone'].initial = getattr(
-                getattr(user_instance, 'profile', None), 'timezone', ''
-            )
+            profile = getattr(user_instance, 'profile', None)
+            self.fields['phone'].initial = getattr(profile, 'phone', '')
+            self.fields['timezone'].initial = getattr(profile, 'timezone', '')
+            self.fields['phone_notifications'].initial = getattr(profile, 'phone_notifications', False)
+            self.fields['whatsapp_notifications'].initial = getattr(profile, 'whatsapp_notifications', False)
 
     def clean_email(self):
         email = self.cleaned_data['email']

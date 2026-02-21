@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, import_views, user_management_views, report_views, pdf_views, workflow_views
+from . import views, import_views, user_management_views, report_views, pdf_views, workflow_views, value_views
 
 urlpatterns = [
     # Dashboard
@@ -65,6 +65,12 @@ urlpatterns = [
     path('ops/reports/carrier-performance/', report_views.ops_report_carrier_performance, name='ops_report_carrier'),
     path('ops/reports/status-aging/', report_views.ops_report_status_aging, name='ops_report_aging'),
 
+    # Scheduled Reports (staff)
+    path('ops/reports/scheduled/', value_views.scheduled_report_list, name='scheduled_report_list'),
+    path('ops/reports/scheduled/create/', value_views.scheduled_report_create, name='scheduled_report_create'),
+    path('ops/reports/scheduled/<int:report_id>/edit/', value_views.scheduled_report_edit, name='scheduled_report_edit'),
+    path('ops/reports/scheduled/<int:report_id>/delete/', value_views.scheduled_report_delete, name='scheduled_report_delete'),
+
     # Reports (customer)
     path('reports/', report_views.customer_reports_hub, name='customer_reports_hub'),
     path('reports/summary/', report_views.customer_report_summary, name='customer_report_summary'),
@@ -83,6 +89,11 @@ urlpatterns = [
     path('ops/workflows/<int:template_id>/versions/<int:version_id>/steps/<int:step_id>/remove/', workflow_views.workflow_remove_step, name='workflow_remove_step'),
     path('ops/workflows/<int:template_id>/versions/<int:version_id>/transitions/add/', workflow_views.workflow_add_transition, name='workflow_add_transition'),
     path('ops/workflows/<int:template_id>/versions/<int:version_id>/transitions/<int:transition_id>/remove/', workflow_views.workflow_remove_transition, name='workflow_remove_transition'),
+
+    # SLA Management (staff)
+    path('ops/sla/', value_views.sla_config_list, name='sla_config_list'),
+    path('ops/sla/create/', value_views.sla_config_edit, name='sla_config_create'),
+    path('ops/sla/<int:config_id>/edit/', value_views.sla_config_edit, name='sla_config_edit'),
 
     # Consolidations (staff)
     path('consolidations/', views.consolidation_list, name='consolidation_list'),
@@ -104,6 +115,7 @@ urlpatterns = [
     path('bookings/import/preview/<int:index>/edit/', import_views.booking_import_edit, name='booking_import_edit'),
     path('bookings/import/confirm/', import_views.booking_import_confirm, name='booking_import_confirm'),
     path('bookings/create/', views.booking_create, name='booking_create'),
+    path('bookings/create/from-document/', value_views.booking_create_from_document, name='booking_create_from_document'),
     path('bookings/<int:booking_id>/', views.booking_detail, name='booking_detail'),
     path('bookings/<int:booking_id>/edit/', views.booking_edit, name='booking_edit'),
     path('bookings/<int:booking_id>/submit/', views.booking_submit, name='booking_submit'),
@@ -112,6 +124,17 @@ urlpatterns = [
     path('bookings/<int:booking_id>/approve/', views.booking_customer_approve, name='booking_customer_approve'),
     path('bookings/<int:booking_id>/customer-reject/', views.booking_customer_reject, name='booking_customer_reject'),
     path('bookings/<int:booking_id>/clone/', views.booking_clone, name='booking_clone'),
+
+    # Booking Comments (AJAX)
+    path('bookings/<int:booking_id>/comments/', value_views.booking_comments_list, name='booking_comments_list'),
+    path('bookings/<int:booking_id>/comments/add/', value_views.booking_comment_add, name='booking_comment_add'),
+
+    # Booking Tracking
+    path('bookings/<int:booking_id>/tracking/', value_views.booking_tracking, name='booking_tracking'),
+    path('bookings/<int:booking_id>/tracking/refresh/', value_views.tracking_refresh, name='tracking_refresh'),
+
+    # Draft HBL
+    path('bookings/<int:booking_id>/draft-hbl/', value_views.draft_hbl_view, name='draft_hbl'),
 
     # Carrier options workflow
     path('bookings/<int:booking_id>/options/',
@@ -147,6 +170,10 @@ urlpatterns = [
     path('bookings/<int:booking_id>/parties/<int:booking_party_id>/remove/',
          views.booking_party_remove, name='booking_party_remove'),
 
+    # Sanctions Screening
+    path('parties/<int:party_id>/screen/', value_views.party_screen, name='party_screen'),
+    path('screening/<int:result_id>/review/', value_views.screening_review, name='screening_review'),
+
     # Rate Sheets (staff)
     path('ops/rates/', views.rate_sheet_list, name='rate_sheet_list'),
     path('ops/rates/create/', views.rate_sheet_create, name='rate_sheet_create'),
@@ -156,6 +183,10 @@ urlpatterns = [
     # AJAX utilities
     path('api/container-recommendations/', views.container_recommendations, name='container_recommendations'),
     path('api/matching-rates/', views.api_matching_rates, name='api_matching_rates'),
+    path('api/rate-quote/', value_views.rate_quote_api, name='rate_quote_api'),
+
+    # Inbound email webhook
+    path('api/v1/inbound-email/', value_views.inbound_email_webhook, name='inbound_email_webhook'),
 
     # Address book (parties)
     path('parties/', views.party_list, name='party_list'),

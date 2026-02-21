@@ -287,3 +287,66 @@ def notify_options_presented(booking):
         booking, 'BOOKING_OPTIONS_PRESENTED',
         f'Booking {booking.booking_number} has {options_count} carrier option(s) for your selection.',
     )
+
+
+def notify_booking_comment(comment):
+    """Notify relevant users when a comment is added to a booking."""
+    booking = comment.booking
+    author = comment.author
+    is_staff_author = not getattr(getattr(author, 'profile', None), 'customer', None)
+
+    if comment.is_internal:
+        # Internal comments — notify other staff only
+        staff_emails = _get_staff_emails(booking)
+        staff_emails = [e for e in staff_emails if e != author.email]
+        if staff_emails:
+            _send_notification(
+                subject=f'Internal note on {booking.booking_number}',
+                template_name='bookings/emails/booking_comment.html',
+                context={'booking': booking, 'comment': comment},
+                recipient_list=staff_emails,
+            )
+    elif is_staff_author:
+        # Staff comment — notify customer users
+        customer_emails = _get_customer_emails(booking)
+        _create_customer_notifications(
+            booking, 'BOOKING_COMMENT',
+            f'New comment on {booking.booking_number} from operations.',
+        )
+        if customer_emails:
+            _send_notification(
+                subject=f'Comment on booking {booking.booking_number}',
+                template_name='bookings/emails/booking_comment.html',
+                context={'booking': booking, 'comment': comment},
+                recipient_list=customer_emails,
+            )
+    else:
+        # Customer comment — notify staff
+        staff_emails = _get_staff_emails(booking)
+        _create_staff_notifications(
+            booking, 'BOOKING_COMMENT',
+            f'New comment on {booking.booking_number} from {booking.customer.name}.',
+        )
+        if staff_emails:
+            _send_notification(
+                subject=f'Comment on booking {booking.booking_number}',
+                template_name='bookings/emails/booking_comment.html',
+                context={'booking': booking, 'comment': comment},
+                recipient_list=staff_emails,
+            )
+
+
+def notify_ops_new_booking(booking):
+    """Notify ops staff when a new booking is created (e.g., from email intake)."""
+    staff_emails = _get_staff_emails(booking)
+    _create_staff_notifications(
+        booking, 'BOOKING_SUBMITTED',
+        f'New draft booking {booking.booking_number} created from email.',
+    )
+    if staff_emails:
+        _send_notification(
+            subject=f'New booking {booking.booking_number} from email',
+            template_name='bookings/emails/booking_submitted.html',
+            context={'booking': booking},
+            recipient_list=staff_emails,
+        )

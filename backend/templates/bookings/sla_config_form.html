@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if config %}Edit{% else %}Create{% endif %} SLA Rule{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-themed-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-stopwatch me-2"></i>
+                    {% if config %}Edit{% else %}New{% endif %} SLA Rule
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Booking Status</label>
+                            <select name="status" class="form-select" required>
+                                {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if config and config.status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Maximum Hours</label>
+                            <input type="number" name="max_hours" class="form-control" required min="1"
+                                   value="{{ config.max_hours|default:24 }}">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Warning Threshold (%)</label>
+                            <input type="number" name="warning_pct" class="form-control" min="1" max="100"
+                                   value="{{ config.warning_pct|default:75 }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Escalation Action</label>
+                            <select name="escalation_action" class="form-select">
+                                {% for value, label in escalation_choices %}
+                                <option value="{{ value }}" {% if config and config.escalation_action == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Escalation Email</label>
+                        <input type="email" name="escalation_email" class="form-control"
+                               value="{{ config.escalation_email|default:'' }}">
+                    </div>
+                    {% if config %}
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                                   {% if config.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">Active</label>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-themed-primary">
+                            <i class="fas fa-save me-1"></i>Save
+                        </button>
+                        <a href="{% url 'sla_config_list' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

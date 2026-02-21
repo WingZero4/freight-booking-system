@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Review Screening Result{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-themed-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Sanctions Screening Review</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">Party</dt>
+                    <dd class="col-sm-8">{{ result.party.company_name }}</dd>
+                    <dt class="col-sm-4">List Checked</dt>
+                    <dd class="col-sm-8">{{ result.list_checked }}</dd>
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge {% if result.status == 'BLOCKED' %}bg-danger{% elif result.status == 'POTENTIAL_MATCH' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                            {{ result.get_status_display }}
+                        </span>
+                    </dd>
+                    <dt class="col-sm-4">Match Score</dt>
+                    <dd class="col-sm-8">{{ result.match_score|floatformat:3 }}</dd>
+                    <dt class="col-sm-4">Checked At</dt>
+                    <dd class="col-sm-8">{{ result.checked_at }}</dd>
+                </dl>
+
+                {% if result.match_details.matches %}
+                <h6>Potential Matches</h6>
+                <table class="table table-sm">
+                    <thead><tr><th>Name</th><th>Score</th></tr></thead>
+                    <tbody>
+                    {% for match in result.match_details.matches %}
+                    <tr><td>{{ match.name }}</td><td>{{ match.score }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% endif %}
+
+                <hr>
+                <form method="post" class="d-flex gap-2">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="clear" class="btn btn-success">
+                        <i class="fas fa-check me-1"></i>Clear — Not a Match
+                    </button>
+                    <button type="submit" name="action" value="block" class="btn btn-danger">
+                        <i class="fas fa-ban me-1"></i>Confirm Block
+                    </button>
+                    <a href="{% url 'party_list' %}" class="btn btn-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

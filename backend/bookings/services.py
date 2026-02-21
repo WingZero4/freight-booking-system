@@ -168,6 +168,26 @@ class BookingService:
             'country_of_origin': item.country_of_origin,
         }
 
+    # ─── Value enhancement helpers ────────────────────────────────────
+
+    @staticmethod
+    def _resolve_sla_breach(booking):
+        """Resolve any open SLA breaches when booking moves to next status."""
+        try:
+            from .sla_service import resolve_breach
+            resolve_breach(booking)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _phone_notify(booking, event_type):
+        """Send phone notification for a booking event."""
+        try:
+            from .sms_service import notify_booking_event_via_phone
+            notify_booking_event_via_phone(booking, event_type)
+        except Exception:
+            pass
+
     # ─── Workflow helpers ─────────────────────────────────────────────
 
     @staticmethod
@@ -489,6 +509,24 @@ class BookingService:
             if not booking.container_type or not booking.container_count:
                 raise ValueError('FCL bookings require container type and count before submission.')
 
+        # Sanctions screening (if enabled)
+        try:
+            from .feature_service import FeatureFlagService
+            org = booking.customer.organization if booking.customer else None
+            if org and FeatureFlagService.is_enabled(org, 'enable_sanctions_screening'):
+                from .screening_service import screen_booking_parties
+                blocked = screen_booking_parties(booking)
+                if blocked:
+                    names = ', '.join(r.party.company_name for r in blocked)
+                    raise ValueError(
+                        f'Submission blocked: sanctioned party match found for: {names}. '
+                        f'Review required before submission.'
+                    )
+        except ValueError:
+            raise
+        except Exception:
+            pass  # Don't block submission if screening service fails
+
         with transaction.atomic():
             booking.recalculate_totals()
             booking.status = 'SUBMITTED'
@@ -498,6 +536,13 @@ class BookingService:
             cls._log(booking, 'SUBMITTED', user=user, request=request)
 
         notifications.notify_booking_submitted(booking)
+
+        # Phone notification
+        try:
+            from .sms_service import notify_booking_event_via_phone
+            notify_booking_event_via_phone(booking, 'BOOKING_SUBMITTED')
+        except Exception:
+            pass
 
     @classmethod
     def confirm_booking(cls, booking, user=None, request=None):
@@ -515,6 +560,7 @@ class BookingService:
             cls._log(booking, 'CONFIRMED', user=user, request=request)
 
         notifications.notify_booking_confirmed(booking)
+        cls._resolve_sla_breach(booking)
 
         # If carrier config assigned, send to carrier
         if booking.carrier_config_id:
@@ -682,6 +728,8 @@ class BookingService:
             cls._log(booking, 'IN_TRANSIT', user=user, request=request)
 
         notifications.notify_booking_in_transit(booking)
+        cls._resolve_sla_breach(booking)
+        cls._phone_notify(booking, 'BOOKING_IN_TRANSIT')
         _safe_fms_dispatch('dispatch_milestone_update', booking, 'IN_TRANSIT')
 
     @classmethod
@@ -702,6 +750,8 @@ class BookingService:
             cls._log(booking, 'ARRIVED', user=user, request=request)
 
         notifications.notify_booking_arrived(booking)
+        cls._resolve_sla_breach(booking)
+        cls._phone_notify(booking, 'BOOKING_ARRIVED')
         _safe_fms_dispatch('dispatch_milestone_update', booking, 'ARRIVED')
 
     @classmethod
@@ -722,6 +772,8 @@ class BookingService:
             cls._log(booking, 'COMPLETED', user=user, request=request)
 
         notifications.notify_booking_completed(booking)
+        cls._resolve_sla_breach(booking)
+        cls._phone_notify(booking, 'BOOKING_COMPLETED')
         _safe_fms_dispatch('dispatch_milestone_update', booking, 'COMPLETED')
 
     @classmethod

@@ -196,7 +196,9 @@ def profile_edit(request):
             profile = request.user.profile
             profile.phone = form.cleaned_data.get('phone', '')
             profile.timezone = form.cleaned_data.get('timezone', '')
-            profile.save(update_fields=['phone', 'timezone'])
+            profile.phone_notifications = form.cleaned_data.get('phone_notifications', False)
+            profile.whatsapp_notifications = form.cleaned_data.get('whatsapp_notifications', False)
+            profile.save(update_fields=['phone', 'timezone', 'phone_notifications', 'whatsapp_notifications'])
             messages.success(request, 'Profile updated successfully.')
             return redirect('dashboard')
     else:
@@ -510,6 +512,25 @@ def booking_detail(request, booking_id):
                 booking, 'IN_TRANSIT', request.user)
             can_mark_in_transit = allowed
 
+    # SLA status
+    sla_status = None
+    org = booking.customer.organization if booking.customer else None
+    from .feature_service import FeatureFlagService
+    if org and FeatureFlagService.is_enabled(org, 'enable_sla_tracking'):
+        try:
+            from .sla_service import get_sla_status
+            sla_status = get_sla_status(booking)
+        except Exception:
+            pass
+
+    # Comment count
+    comment_count = 0
+    if org and FeatureFlagService.is_enabled(org, 'enable_booking_comments'):
+        qs = booking.comments.all()
+        if customer:
+            qs = qs.filter(is_internal=False)
+        comment_count = qs.count()
+
     return render(request, 'bookings/booking_detail.html', {
         'booking': booking,
         'documents': documents,
@@ -523,6 +544,8 @@ def booking_detail(request, booking_id):
         'active_tab': request.GET.get('tab', 'overview'),
         'cbm_warning': cbm_warning,
         'can_mark_in_transit': can_mark_in_transit,
+        'sla_status': sla_status,
+        'comment_count': comment_count,
     })
 
 

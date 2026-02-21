@@ -14,6 +14,11 @@
         <a href="{% url 'booking_create' %}" class="btn btn-themed-primary">
             <i class="fas fa-plus me-1"></i>New Booking
         </a>
+        {% if features.enable_document_to_booking %}
+        <a href="{% url 'booking_create_from_document' %}" class="btn btn-themed-outline">
+            <i class="fas fa-file-pdf me-1"></i>From Document
+        </a>
+        {% endif %}
         {% endif %}
     </div>
 </div>

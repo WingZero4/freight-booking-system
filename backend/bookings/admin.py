@@ -9,6 +9,8 @@ from .models import (
     WorkflowTemplate, WorkflowTemplateVersion, WorkflowStep,
     WorkflowTransition, CustomerWorkflowConfig,
     OrganizationFeatureConfig, FieldConfig, RateSheet,
+    ScreeningResult, ScheduledReport, BookingComment,
+    SLAConfig, SLABreach, TrackingEvent, VesselPosition, InboundEmail,
 )
 from .services import BookingService
 
@@ -737,3 +739,70 @@ class RateSheetAdmin(admin.ModelAdmin):
         if not obj.pk:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+
+
+# ─── Value Enhancement Models ─────────────────────────────────────────
+
+@admin.register(ScreeningResult)
+class ScreeningResultAdmin(admin.ModelAdmin):
+    list_display = ['party', 'list_checked', 'status', 'match_score', 'checked_at', 'reviewed_by']
+    list_filter = ['status', 'list_checked']
+    search_fields = ['party__company_name']
+    readonly_fields = ['checked_at']
+    list_select_related = ['party', 'reviewed_by']
+
+
+@admin.register(ScheduledReport)
+class ScheduledReportAdmin(admin.ModelAdmin):
+    list_display = ['name', 'organization', 'report_type', 'frequency', 'is_active', 'last_sent_at']
+    list_filter = ['frequency', 'report_type', 'is_active', 'organization']
+    search_fields = ['name', 'organization__name']
+    list_select_related = ['organization']
+
+
+@admin.register(BookingComment)
+class BookingCommentAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'author', 'is_internal', 'created_at']
+    list_filter = ['is_internal']
+    search_fields = ['booking__booking_number', 'author__username', 'message']
+    list_select_related = ['booking', 'author']
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(SLAConfig)
+class SLAConfigAdmin(admin.ModelAdmin):
+    list_display = ['organization', 'status', 'max_hours', 'warning_pct', 'escalation_action', 'is_active']
+    list_filter = ['status', 'is_active', 'organization']
+    list_select_related = ['organization']
+
+
+@admin.register(SLABreach)
+class SLABreachAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'status', 'breached_at', 'resolved_at', 'escalated']
+    list_filter = ['status', 'escalated']
+    search_fields = ['booking__booking_number']
+    list_select_related = ['booking', 'sla_config']
+    readonly_fields = ['created_at']
+
+
+@admin.register(TrackingEvent)
+class TrackingEventAdmin(admin.ModelAdmin):
+    list_display = ['booking', 'event_type', 'location', 'occurred_at', 'source']
+    list_filter = ['source', 'event_type']
+    search_fields = ['booking__booking_number', 'location']
+    list_select_related = ['booking']
+
+
+@admin.register(VesselPosition)
+class VesselPositionAdmin(admin.ModelAdmin):
+    list_display = ['vessel_name', 'imo_number', 'latitude', 'longitude', 'speed_knots', 'destination', 'updated_at']
+    search_fields = ['vessel_name', 'imo_number']
+
+
+@admin.register(InboundEmail)
+class InboundEmailAdmin(admin.ModelAdmin):
+    list_display = ['sender', 'subject', 'customer', 'booking', 'status', 'created_at']
+    list_filter = ['status']
+    search_fields = ['sender', 'subject']
+    list_select_related = ['customer', 'booking']
+    readonly_fields = ['created_at']
