@@ -66,6 +66,11 @@ urlpatterns = [
          ), name='password_reset_complete'),
 ]
 
+# Custom error handlers
+handler400 = 'bookings.views.custom_400'
+handler404 = 'bookings.views.custom_404'
+handler500 = 'bookings.views.custom_500'
+
 # Serve uploaded files during development
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

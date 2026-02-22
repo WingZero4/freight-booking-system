@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Expired</title>
+    <meta http-equiv="refresh" content="5;url=/login/">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        .error-card { max-width: 500px; margin: 80px auto; }
+        .navbar-themed { background-color: #1E2A4A; }
+        .navbar-themed .navbar-brand { color: #fff; font-weight: 600; }
+        .btn-primary { background-color: #1E2A4A; border-color: #1E2A4A; }
+        .btn-primary:hover { background-color: #2a3d6b; border-color: #2a3d6b; }
+        .countdown { font-weight: 600; color: #1E2A4A; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-themed mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-ship me-2"></i>Freight Booking
+            </a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="error-card">
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-clock fa-3x text-warning mb-3"></i>
+                    <h3>Session Expired</h3>
+                    <p class="text-muted mt-3">
+                        Your session has expired for security reasons. Please log in again to continue.
+                    </p>
+                    <p class="text-muted">
+                        Redirecting to login in <span class="countdown" id="countdown">5</span> seconds...
+                    </p>
+                    <div class="mt-4">
+                        <a href="/login/" class="btn btn-primary">
+                            <i class="fas fa-sign-in-alt me-1"></i>Log In Now
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="container mt-5 mb-3">
+        <hr>
+        <p class="text-muted text-center">Freight Booking Portal &copy; 2026</p>
+    </footer>
+
+    <script>
+        (function() {
+            var seconds = 5;
+            var el = document.getElementById('countdown');
+            var timer = setInterval(function() {
+                seconds--;
+                if (el) el.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    window.location.href = '/login/';
+                }
+            }, 1000);
+        })();
+    </script>
+</body>
+</html>

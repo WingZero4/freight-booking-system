@@ -2818,3 +2818,25 @@ def api_matching_rates(request):
         })
 
     return JsonResponse({'rates': data})
+
+
+# ─── Custom Error Views ──────────────────────────────────────────────
+
+def custom_400(request, exception):
+    """Bad Request error page."""
+    return render(request, '400.html', status=400)
+
+
+def custom_404(request, exception):
+    """Page Not Found error page."""
+    return render(request, '404.html', status=404)
+
+
+def custom_500(request):
+    """Server Error page — uses standalone template (no extends) for safety."""
+    return render(request, '500.html', status=500)
+
+
+def csrf_failure_view(request, reason=''):
+    """CSRF failure renders a friendly 'session expired' page."""
+    return render(request, '403_csrf.html', status=403)

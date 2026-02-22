@@ -343,6 +343,79 @@ CONTENT_SECURITY_POLICY = {
     }
 }
 
+# Admin notifications for error emails
+ADMINS = [('Admin', os.environ.get('DJANGO_ADMIN_EMAIL', 'pretfitllc@gmail.com'))]
+SERVER_EMAIL = os.environ.get('DJANGO_SERVER_EMAIL', 'pretfitllc@gmail.com')
+
+# CSRF failure renders a friendly "session expired" page instead of bare 403
+CSRF_FAILURE_VIEW = 'bookings.views.csrf_failure_view'
+
+# Logging configuration
+_LOG_DIR = os.environ.get('DJANGO_LOG_DIR', str(BASE_DIR / 'logs'))
+os.makedirs(_LOG_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} [{levelname}] {name}: {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(_LOG_DIR, 'django.log'),
+            'maxBytes': 5 * 1024 * 1024,  # 5 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'level': 'WARNING',
+        },
+        'mail_admins': {
+            'class': 'django.utils.log.AdminEmailHandler',
+            'level': 'ERROR',
+            'filters': ['require_debug_false'],
+            'include_html': True,
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['file', 'mail_admins', 'console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['file', 'mail_admins', 'console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'bookings': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'integrations': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
 JAZZMIN_UI_TWEAKS = {
     "navbar_small_text": False,
     "footer_small_text": False,

@@ -18,7 +18,7 @@ def nav_active(request):
         context['nav_active'] = 'notifications'
     elif path.startswith('/templates/'):
         context['nav_active'] = 'templates'
-    elif path == '/bookings/create/':
+    elif path.startswith('/bookings/create/'):
         context['nav_active'] = 'new_booking'
     elif path.startswith('/bookings/import'):
         context['nav_active'] = 'import'
