@@ -9,7 +9,9 @@ This prevents loss of context, project rules, and review process requirements.
 
 ## Project Status: Production-Ready
 - All development phases complete, deployed and live on PythonAnywhere
-- 394 automated tests, REST API, PDF generation, email notifications, rate limiting
+- 506 automated tests, REST API, PDF generation, email notifications, rate limiting
+- 10 value enhancements deployed (sanctions screening, scheduled reports, comments, SLA timers, auto-quoting, SMS/WhatsApp, document-to-booking, email-to-booking, draft HBL, vessel tracking)
+- Django logging configured (file + console + email handlers), custom error pages (400/404/500/403_csrf)
 - Remaining: PostgreSQL migration (optional, SQLite fine for current scale)
 
 ## Mandatory Pre-Commit Review Process
@@ -33,7 +35,7 @@ This prevents loss of context, project rules, and review process requirements.
 ## Project Context
 
 - **Stack**: Python 3.14, Django 6.0.2, SQLite, Bootstrap 5, Jazzmin admin
-- **Branch**: version-3 (active development)
+- **Branch**: version-4 (active development)
 - **Service layer**: All state transitions must go through `BookingService`, not model methods directly
 - **Model methods**: Raise `ValueError` on invalid status (consistent API)
 - **Context processor**: `bookings.context_processors.nav_active` handles nav highlighting
@@ -42,5 +44,8 @@ This prevents loss of context, project rules, and review process requirements.
 ## Deployment
 
 - PythonAnywhere: username `wingzero4` (paths case-sensitive: `/home/WingZero4/`)
-- Deploy: `cd ~/freight-booking-system/backend && git pull origin version-3 && source ~/.virtualenvs/freight-env/bin/activate && python manage.py migrate`
+- Deploy: `cd ~/freight-booking-system/backend && git pull origin version-4 && source ~/.virtualenvs/freight-env/bin/activate && python manage.py migrate`
 - Reload: `curl -s -X POST "https://www.pythonanywhere.com/api/v0/user/wingzero4/webapps/wingzero4.pythonanywhere.com/reload/" -H "Authorization: Token d5b67d6bdf60104fa8f697794678cb9d75dd4717"`
+- WSGI sets `DJANGO_LOG_DIR=/home/WingZero4/freight-booking-system/backend/logs`
+- Static files: `/static/` and `/media/` both mapped in PythonAnywhere config
+- Email backend: Gmail SMTP configured in WSGI env vars (PRETFIT_APP_PASSWORD)

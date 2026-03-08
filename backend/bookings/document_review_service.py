@@ -133,8 +133,54 @@ def extract_text_from_pdf(file_path):
         raise DocumentReviewError(f'Failed to read PDF: {e}')
 
 
+def _call_review_llm(client, model, pdf_text):
+    """Call the Anthropic API for document field extraction.
+
+    Raises DocumentReviewError on parse failures,
+    or anthropic exceptions on API errors.
+    """
+    logger.info('Calling Claude API (model=%s) for document review extraction', model)
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        temperature=0,
+        system=EXTRACTION_PROMPT,
+        messages=[
+            {'role': 'user', 'content': f'Extract data from this shipping document:\n\n{pdf_text}'},
+        ],
+    )
+
+    response_text = response.content[0].text
+    usage = response.usage
+
+    logger.info(
+        'Claude document review response: model=%s, %d chars, stop=%s, '
+        'input_tokens=%s, output_tokens=%s',
+        model, len(response_text), response.stop_reason,
+        usage.input_tokens, usage.output_tokens,
+    )
+
+    # Parse JSON response
+    text = response_text.strip()
+    text = re.sub(r'```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```', '', text)
+
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        logger.error('Document review JSON parse error: %s\nResponse: %s', e, text[:500])
+        raise DocumentReviewError(
+            'AI returned an unparseable response. Please try again.'
+        )
+
+    return data
+
+
 def extract_fields_with_llm(pdf_text):
     """Send extracted PDF text to Claude for structured field extraction.
+    Uses tiered approach: tries primary model (Haiku) first, falls back
+    to fallback model (Sonnet) on parse errors.
 
     Args:
         pdf_text: Text extracted from the PDF.
@@ -143,7 +189,7 @@ def extract_fields_with_llm(pdf_text):
         dict: Extracted fields as a dictionary.
 
     Raises:
-        DocumentReviewError: If LLM call fails.
+        DocumentReviewError: If both models fail.
     """
     api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
     if not api_key:
@@ -152,7 +198,8 @@ def extract_fields_with_llm(pdf_text):
             'Please set the ANTHROPIC_API_KEY environment variable.'
         )
 
-    model = getattr(settings, 'ANTHROPIC_MODEL', 'claude-sonnet-4-5-20250929')
+    primary_model = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+    fallback_model = getattr(settings, 'ANTHROPIC_FALLBACK_MODEL', 'claude-sonnet-4-5-20250929')
 
     try:
         import anthropic
@@ -162,47 +209,20 @@ def extract_fields_with_llm(pdf_text):
             'Run: pip install anthropic'
         )
 
+    client = anthropic.Anthropic(api_key=api_key)
+
+    # Try primary model (Haiku — fast and cheap)
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-
-        logger.info(
-            'Calling Claude API (model=%s) for document review extraction',
-            model,
+        return _call_review_llm(client, primary_model, pdf_text)
+    except Exception as e:
+        logger.warning(
+            'Primary model %s failed for doc review: %s — falling back to %s',
+            primary_model, e, fallback_model,
         )
 
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            temperature=0,
-            system=EXTRACTION_PROMPT,
-            messages=[
-                {'role': 'user', 'content': f'Extract data from this shipping document:\n\n{pdf_text}'},
-            ],
-        )
-
-        response_text = response.content[0].text
-
-        logger.debug(
-            'Claude document review response: %d chars, stop_reason=%s',
-            len(response_text),
-            response.stop_reason,
-        )
-
-        # Parse JSON response
-        text = response_text.strip()
-        text = re.sub(r'```(?:json)?\s*', '', text)
-        text = re.sub(r'\s*```', '', text)
-
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as e:
-            logger.error('Document review JSON parse error: %s\nResponse: %s', e, text[:500])
-            raise DocumentReviewError(
-                'AI returned an unparseable response. Please try again.'
-            )
-
-        return data
-
+    # Fallback to stronger model (Sonnet)
+    try:
+        return _call_review_llm(client, fallback_model, pdf_text)
     except DocumentReviewError:
         raise
     except anthropic.RateLimitError:

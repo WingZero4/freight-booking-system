@@ -202,9 +202,10 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'DJANGO_DEFAULT_FROM_EMAIL', 'pretfitllc@gmail.com'
 )
 
-# LLM Import (Anthropic Claude API)
+# LLM (Anthropic Claude API) — tiered: Haiku first, Sonnet fallback
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-ANTHROPIC_MODEL = os.environ.get('ANTHROPIC_MODEL', 'claude-sonnet-4-5-20250929')
+ANTHROPIC_MODEL = os.environ.get('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+ANTHROPIC_FALLBACK_MODEL = os.environ.get('ANTHROPIC_FALLBACK_MODEL', 'claude-sonnet-4-5-20250929')
 
 # Django REST Framework
 REST_FRAMEWORK = {

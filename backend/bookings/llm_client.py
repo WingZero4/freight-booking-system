@@ -166,10 +166,50 @@ def _parse_response(response_text: str) -> dict:
     return data
 
 
+def _call_llm(client, model, user_message):
+    """Call the Anthropic API and return parsed booking data.
+
+    Raises LLMExtractionError on parse/truncation failures,
+    or anthropic exceptions on API errors.
+    """
+    import anthropic  # already validated by caller
+
+    logger.info('Calling Claude API (model=%s) for file import extraction', model)
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=16384,
+        temperature=0,
+        system=SYSTEM_PROMPT,
+        messages=[{'role': 'user', 'content': user_message}],
+    )
+
+    response_text = response.content[0].text
+    usage = response.usage
+
+    logger.info(
+        'Claude API response: model=%s, %d chars, stop=%s, '
+        'input_tokens=%s, output_tokens=%s',
+        model, len(response_text), response.stop_reason,
+        usage.input_tokens, usage.output_tokens,
+    )
+
+    if response.stop_reason == 'max_tokens':
+        logger.warning('Claude API response truncated (max_tokens) on model=%s', model)
+        raise LLMExtractionError(
+            'AI response was truncated — the file may contain too much data. '
+            'Try splitting into smaller files.'
+        )
+
+    return _parse_response(response_text)
+
+
 def extract_bookings_from_content(file_content: str, reference_data: dict) -> dict:
     """
     Send file content + schema + reference data to Claude and receive
-    structured booking data.
+    structured booking data. Uses tiered approach: tries the primary
+    model (Haiku) first, falls back to the fallback model (Sonnet) on
+    parse or extraction errors.
 
     Args:
         file_content: Text content extracted from the uploaded file.
@@ -179,7 +219,7 @@ def extract_bookings_from_content(file_content: str, reference_data: dict) -> di
         Dict with 'bookings' list and 'extraction_notes' string.
 
     Raises:
-        LLMExtractionError: If API call fails or response is unparseable.
+        LLMExtractionError: If both models fail.
     """
     api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
     if not api_key:
@@ -188,7 +228,8 @@ def extract_bookings_from_content(file_content: str, reference_data: dict) -> di
             'Please set the ANTHROPIC_API_KEY environment variable.'
         )
 
-    model = getattr(settings, 'ANTHROPIC_MODEL', 'claude-sonnet-4-5-20250929')
+    primary_model = getattr(settings, 'ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')
+    fallback_model = getattr(settings, 'ANTHROPIC_FALLBACK_MODEL', 'claude-sonnet-4-5-20250929')
 
     try:
         import anthropic
@@ -198,43 +239,21 @@ def extract_bookings_from_content(file_content: str, reference_data: dict) -> di
             'Run: pip install anthropic'
         )
 
+    client = anthropic.Anthropic(api_key=api_key)
     user_message = _build_user_message(file_content, reference_data)
 
+    # Try primary model (Haiku — fast and cheap)
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-
-        logger.info(
-            'Calling Claude API (model=%s) for file import extraction',
-            model,
+        return _call_llm(client, primary_model, user_message)
+    except Exception as e:
+        logger.warning(
+            'Primary model %s failed: %s — falling back to %s',
+            primary_model, e, fallback_model,
         )
 
-        response = client.messages.create(
-            model=model,
-            max_tokens=16384,
-            temperature=0,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {'role': 'user', 'content': user_message},
-            ],
-        )
-
-        response_text = response.content[0].text
-
-        logger.debug(
-            'Claude API response: %d chars, stop_reason=%s',
-            len(response_text),
-            response.stop_reason,
-        )
-
-        if response.stop_reason == 'max_tokens':
-            logger.warning('Claude API response was truncated (max_tokens reached)')
-            raise LLMExtractionError(
-                'AI response was truncated — the file may contain too much data. '
-                'Try splitting into smaller files.'
-            )
-
-        return _parse_response(response_text)
-
+    # Fallback to stronger model (Sonnet)
+    try:
+        return _call_llm(client, fallback_model, user_message)
     except LLMExtractionError:
         raise
     except anthropic.RateLimitError:
@@ -243,9 +262,7 @@ def extract_bookings_from_content(file_content: str, reference_data: dict) -> di
         )
     except anthropic.APIStatusError as e:
         logger.error('Anthropic API error: %s', e)
-        raise LLMExtractionError(
-            f'AI service error: {e.message}'
-        )
+        raise LLMExtractionError(f'AI service error: {e.message}')
     except anthropic.APIConnectionError:
         raise LLMExtractionError(
             'Could not connect to AI service. Please check your internet connection.'
