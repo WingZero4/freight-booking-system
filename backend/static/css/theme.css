@@ -79,12 +79,22 @@ body {
 @media (min-width: 992px) {
     .sidebar-themed {
         position: fixed !important;
-        top: 56px;
-        bottom: 0;
-        left: 0;
+        top: 56px !important;
+        bottom: 0 !important;
+        left: 0 !important;
         z-index: 1030;
-        transform: none;
+        transform: none !important;
         visibility: visible !important;
+        overflow-y: auto;
+        display: flex !important;
+        flex-direction: column;
+        width: 240px !important;
+    }
+    .sidebar-themed .offcanvas-header {
+        display: none !important;
+    }
+    .sidebar-themed .offcanvas-body {
+        padding: 0.5rem 0 !important;
         overflow-y: auto;
     }
     .staff-content {
@@ -94,9 +104,12 @@ body {
 }
 
 /* Mobile: offcanvas takes over */
-@media (max-width: 991px) {
+@media (max-width: 991.98px) {
     .staff-content {
         padding-top: 56px;
+    }
+    .sidebar-themed {
+        width: 280px !important;
     }
 }
 
