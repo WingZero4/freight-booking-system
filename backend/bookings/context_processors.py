@@ -39,6 +39,7 @@ def nav_active(request):
     if hasattr(request, 'user') and request.user.is_authenticated:
         try:
             profile = request.user.profile
+            context['is_staff_user'] = not profile.customer
             context['is_shipper_user'] = (profile.role == 'SHIPPER')
             if profile.customer:
                 context['has_multiple_customers'] = (
@@ -52,7 +53,7 @@ def nav_active(request):
                     **filters
                 ).count()
         except Exception:
-            pass
+            context['is_staff_user'] = request.user.is_staff
 
     return context
 

@@ -24,7 +24,7 @@
 </head>
 <body class="bg-light">
 
-{% if user.is_authenticated and not user.profile.customer %}
+{% if user.is_authenticated and is_staff_user %}
 {# ═══════ STAFF / OPS LAYOUT: Top bar + Sidebar ═══════ #}
 
 {# ── Top bar (slim, brand + right-side items only) ── #}
